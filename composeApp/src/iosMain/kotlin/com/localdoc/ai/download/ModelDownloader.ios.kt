@@ -142,7 +142,7 @@ actual class ModelDownloader actual constructor() {
 
     private fun appendToFile(path: String, data: NSData) {
         val file = fopen(path, "ab") ?: return
-        fwrite(data.bytes, 1L, data.length.toLong(), file)
+        fwrite(data.bytes, 1uL, data.length, file)
         fflush(file)
         fclose(file)
     }

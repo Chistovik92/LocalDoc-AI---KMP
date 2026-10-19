@@ -1,5 +1,6 @@
 package com.localdoc.ai.engine
 
+import com.localdoc.ai.cinterop.LocalDocSession
 import com.localdoc.ai.cinterop.localdoc_free
 import com.localdoc.ai.cinterop.localdoc_generate
 import com.localdoc.ai.cinterop.localdoc_init
@@ -7,9 +8,10 @@ import com.localdoc.ai.cinterop.localdoc_stop
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.StableRef
-import kotlinx.cinterop.asCPointer
+import kotlinx.cinterop.asStableRef
 import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toKString
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +27,7 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalForeignApi::class)
 actual class LlamaEngine actual constructor() {
 
-    private var sessionPtr: COpaquePointer? = null
+    private var sessionPtr: CValuesRef<LocalDocSession>? = null
 
     actual suspend fun load(modelPath: String, contextSize: Int, gpuLayers: Int): Boolean =
         withContext(Dispatchers.IO) {
@@ -38,7 +40,7 @@ actual class LlamaEngine actual constructor() {
         val currentSession = sessionPtr ?: error("Модель не загружена")
 
         // Оборачиваем канал в StableRef, чтобы безопасно передать его в C-коллбэк
-        val channelRef = StableRef.create<SendChannel<String>>(this.channel as SendChannel<String>)
+        val channelRef = StableRef.create(this.channel)
 
         val cCallback = staticCFunction { tokenPtr: CPointer<ByteVar>?, userData: COpaquePointer? ->
             if (tokenPtr != null && userData != null) {
