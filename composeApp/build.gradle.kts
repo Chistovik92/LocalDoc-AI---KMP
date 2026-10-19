@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -51,6 +52,10 @@ kotlin {
             implementation(libs.ksoup.network)
         }
 
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core)
@@ -62,6 +67,40 @@ kotlin {
     }
 }
 
+/**
+ * Постоянный ключ подписи release-сборок. Источники (по приоритету):
+ *  1) переменные окружения CI: ANDROID_KEYSTORE_FILE, ANDROID_KEYSTORE_PASSWORD,
+ *     ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD (заполняются из GitHub Secrets);
+ *  2) файл signing.properties: путь из -Plocaldoc.signing=..., по умолчанию
+ *     ~/.android-signing/localdoc-ai/signing.properties (вне репозитория).
+ * Ключ и пароли в репозиторий не попадают.
+ */
+data class ReleaseSigning(val storeFile: File, val storePassword: String, val keyAlias: String, val keyPassword: String)
+
+fun loadReleaseSigning(): ReleaseSigning? {
+    val env = System.getenv()
+    env["ANDROID_KEYSTORE_FILE"]?.takeIf { it.isNotBlank() }?.let { path ->
+        return ReleaseSigning(
+            storeFile = file(path),
+            storePassword = env["ANDROID_KEYSTORE_PASSWORD"].orEmpty(),
+            keyAlias = env["ANDROID_KEY_ALIAS"].orEmpty(),
+            keyPassword = env["ANDROID_KEY_PASSWORD"].orEmpty()
+        )
+    }
+    val propsFile = providers.gradleProperty("localdoc.signing").orNull?.let { file(it) }
+        ?: File(System.getProperty("user.home"), ".android-signing/localdoc-ai/signing.properties")
+    if (!propsFile.exists()) return null
+    val props = Properties().apply { propsFile.inputStream().use { load(it) } }
+    return ReleaseSigning(
+        storeFile = propsFile.resolveSibling(props.getProperty("keystore.file")),
+        storePassword = props.getProperty("keystore.password"),
+        keyAlias = props.getProperty("key.alias"),
+        keyPassword = props.getProperty("key.password")
+    )
+}
+
+val releaseSigning = loadReleaseSigning()
+
 android {
     namespace = "com.localdoc.ai"
     compileSdk = 36
@@ -70,8 +109,8 @@ android {
         applicationId = "com.localdoc.ai"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.1.0"
 
         ndk {
             // Современные флагманские устройства (Snapdragon 8 серии / Dimensity)
@@ -93,13 +132,12 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            val ksFile = file("../signing/localdoc.keystore")
-            if (ksFile.exists()) {
-                storeFile = ksFile
-                storePassword = "localdoc"
-                keyAlias = "localdoc"
-                keyPassword = "localdoc"
+        if (releaseSigning != null) {
+            create("release") {
+                storeFile = releaseSigning.storeFile
+                storePassword = releaseSigning.storePassword
+                keyAlias = releaseSigning.keyAlias
+                keyPassword = releaseSigning.keyPassword
             }
         }
     }
@@ -107,7 +145,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            if (file("../signing/localdoc.keystore").exists()) {
+            // Без ключа release-APK собирается неподписанным (CI на теге это запрещает)
+            if (releaseSigning != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

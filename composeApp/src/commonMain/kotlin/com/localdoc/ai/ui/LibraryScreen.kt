@@ -135,7 +135,7 @@ fun LibraryScreen(onOpenChat: () -> Unit) {
                             } else {
                                 AppGraph.pipeline.ask(d, action.prompt)
                             }
-                            launchGeneration(scope, flow)
+                            launchGeneration(flow)
                         }
                     ) { Text(action.label) }
                 }

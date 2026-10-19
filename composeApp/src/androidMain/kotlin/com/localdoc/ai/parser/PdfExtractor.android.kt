@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.provider.OpenableColumns
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -54,12 +55,19 @@ actual class PdfExtractor actual constructor() {
         }
 
         ParsedDoc(
-            title = uri.lastPathSegment?.substringAfterLast('/') ?: "Документ.pdf",
+            title = displayName(uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Документ.pdf",
             content = fullText.toString().trim(),
             source = pathOrUri,
             pageCount = totalPages
         )
     }
+
+    /** Имя файла для content:// URI (lastPathSegment там вида «document:1234»). */
+    private fun displayName(uri: Uri): String? = runCatching {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }.getOrNull()
 
     /** Рендеринг страницы в Bitmap и офлайн-распознавание через ML Kit (NPU). */
     private suspend fun runOcrOnPdfPage(uri: Uri, zeroBasedPageIndex: Int): String {

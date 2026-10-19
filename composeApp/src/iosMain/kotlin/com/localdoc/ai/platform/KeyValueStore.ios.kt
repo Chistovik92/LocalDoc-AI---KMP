@@ -1,8 +1,8 @@
 package com.localdoc.ai.platform
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.Foundation.NSBundle
 import platform.Foundation.NSUserDefaults
-import platform.Foundation.setValue
 
 @OptIn(ExperimentalForeignApi::class)
 /** iOS-реализация KV-хранилища на NSUserDefaults. */
@@ -22,9 +22,9 @@ actual class KeyValueStore actual constructor() {
     }
 
     actual fun clearAll() {
-        val domain = NSUserDefaults.standardUserDefaults.dictionaryRepresentation()
-        domain.keys.toList().forEach { key ->
-            (key as? String)?.let { defaults.removeObjectForKey(it) }
-        }
+        // dictionaryRepresentation() включает и системные ключи (NSGlobalDomain) —
+        // очищаем только домен приложения
+        val bundleId = NSBundle.mainBundle.bundleIdentifier ?: return
+        defaults.removePersistentDomainForName(bundleId)
     }
 }

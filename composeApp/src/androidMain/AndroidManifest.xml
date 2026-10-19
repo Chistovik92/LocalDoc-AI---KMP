@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Только сеть для загрузки моделей и веб-страниц: файлы открываются через SAF,
+         модели хранятся в папке приложения — доступ ко всему хранилищу не нужен -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="LocalDoc AI"
@@ -27,14 +27,12 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
-            <!-- Перехват PDF и текстовых документов из проводника -->
+            <!-- Открытие PDF из проводника -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/pdf" />
-                <data android:mimeType="text/plain" />
-                <data android:mimeType="text/markdown" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

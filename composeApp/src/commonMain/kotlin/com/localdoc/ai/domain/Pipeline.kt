@@ -3,8 +3,11 @@ package com.localdoc.ai.domain
 import com.localdoc.ai.engine.LlamaEngine
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.rag.RagRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 
 /** Быстрые действия над открытым документом (One-Click Actions). */
 enum class QuickAction(val label: String, val prompt: String) {
@@ -50,12 +53,13 @@ class SmartPipeline(
                 appendLine()
                 append("ЗАДАНИЕ / ВОПРОС: $question")
             }
-            engine.generateStream(buildPrompt(SYSTEM_PROMPT, userMessage), maxTokens)
-                .collect { emit(it) }
+            emitAll(engine.generateStream(buildPrompt(SYSTEM_PROMPT, userMessage), maxTokens))
         } else {
-            // Режим 3: локальный RAG
-            rag.indexDocument(docId = doc.title, rawText = doc.content)
-            val chunks = rag.retrieveTopK(docId = doc.title, question = question, topK = 4)
+            // Режим 3: локальный RAG. Индекс строится один раз на документ:
+            // ключ включает хэш содержимого, чтобы разные документы с одним заголовком не смешивались
+            val docId = "${doc.title}#${doc.content.hashCode()}"
+            rag.ensureIndexed(docId = docId, rawText = doc.content)
+            val chunks = rag.retrieveTopK(docId = docId, question = question, topK = 4)
             val contextBlock = if (chunks.isEmpty()) {
                 doc.content.take(DIRECT_CONTEXT_CHAR_LIMIT)
             } else {
@@ -67,10 +71,9 @@ class SmartPipeline(
                 appendLine()
                 append("ЗАДАНИЕ / ВОПРОС: $question")
             }
-            engine.generateStream(buildPrompt(SYSTEM_PROMPT, userMessage), maxTokens)
-                .collect { emit(it) }
+            emitAll(engine.generateStream(buildPrompt(SYSTEM_PROMPT, userMessage), maxTokens))
         }
-    }
+    }.flowOn(Dispatchers.Default) // индексация и поиск по чанкам — не на главном потоке
 
     /** Режим 2: Map-Reduce — суммаризация длинных документов по блокам. */
     fun summarizeLongDoc(doc: ParsedDoc): Flow<String> = flow {
@@ -82,9 +85,9 @@ class SmartPipeline(
                 "БЛОК ${idx + 1} из ${blocks.size} документа «${doc.title}»:\n$block\n\n" +
                     "Задание: сделай сжатую выжимку этого блока (3-5 пунктов)."
             )
-            var collected = ""
+            val collected = StringBuilder()
             engine.generateStream(mapPrompt, 400).collect { token ->
-                collected += token
+                collected.append(token)
                 emit(token)
             }
             partials.appendLine("Блок ${idx + 1}: ${collected.trim()}")
@@ -94,7 +97,7 @@ class SmartPipeline(
             "Ниже собраны выжимки всех блоков документа «${doc.title}».\n${partials}\n" +
                 "Задание: объедини их в цельное финальное резюме документа на русском языке."
         )
-        engine.generateStream(reducePrompt, 1024).collect { emit(it) }
+        emitAll(engine.generateStream(reducePrompt, 1024))
     }
 
     private fun buildPrompt(system: String, user: String): String = buildString {

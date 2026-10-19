@@ -12,6 +12,9 @@ import com.localdoc.ai.domain.IncomingDoc
  */
 object AndroidIntents {
 
+    private val URL_REGEX = Regex("""https?://\S+""")
+    private const val MAX_SHARED_LINK_TEXT = 500
+
     private var pdfPickerLauncher: ActivityResultLauncher<Array<String>>? = null
     private var pickCallback: ((String?) -> Unit)? = null
 
@@ -43,12 +46,14 @@ object AndroidIntents {
                 } else {
                     val text = intent.getStringExtra(Intent.EXTRA_TEXT)
                     if (!text.isNullOrBlank()) {
-                        val type = if (text.startsWith("http")) {
-                            IncomingDoc.IncomingType.URL
+                        // Многие приложения делятся «Заголовок + ссылка» — достаём ссылку из короткого текста
+                        val url = URL_REGEX.find(text)?.value?.takeIf { text.length <= MAX_SHARED_LINK_TEXT }
+                        val item = if (url != null) {
+                            IncomingDoc(IncomingDoc.IncomingType.URL, url)
                         } else {
-                            IncomingDoc.IncomingType.TEXT
+                            IncomingDoc(IncomingDoc.IncomingType.TEXT, text)
                         }
-                        AppGraph.acceptIncoming(IncomingDoc(type, text))
+                        AppGraph.acceptIncoming(item)
                     }
                 }
             }

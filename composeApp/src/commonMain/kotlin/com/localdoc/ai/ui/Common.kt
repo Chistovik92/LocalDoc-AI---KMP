@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.ChatMessage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.time.TimeSource
 
@@ -114,14 +115,16 @@ fun ProgressRow(text: String, fraction: Float?, modifier: Modifier = Modifier) {
 }
 
 /** Запуск генерации: добавляет ответ ассистента, стримит токены, считает tokens/sec. */
-fun launchGeneration(
-    scope: kotlinx.coroutines.CoroutineScope,
-    flow: kotlinx.coroutines.flow.Flow<String>
-) {
+fun launchGeneration(flow: kotlinx.coroutines.flow.Flow<String>) {
+    if (AppGraph.isGenerating.value) return
     AppGraph.isGenerating.value = true
+    AppGraph.statsTokensPerSec.value = 0f
     AppGraph.addMessage(ChatMessage(ChatMessage.Role.ASSISTANT, ""))
 
-    scope.launch {
+    val previous = AppGraph.generationJob
+    AppGraph.generationJob = AppGraph.appScope.launch {
+        // Остановленная генерация может ещё дорабатывать токен в C-ядре — дожидаемся её
+        previous?.join()
         val clock = TimeSource.Monotonic.markNow()
         var tokenCount = 0
         val acc = StringBuilder()
@@ -131,13 +134,23 @@ fun launchGeneration(
                 acc.append(token)
                 tokenCount++
                 AppGraph.updateLastAssistant(acc.toString())
-                AppGraph.statsTokensPerSec.value =
-                    tokenCount / clock.elapsedNow().inWholeSeconds.coerceAtLeast(1).toFloat()
+                val seconds = clock.elapsedNow().inWholeMilliseconds.coerceAtLeast(1) / 1000f
+                AppGraph.statsTokensPerSec.value = tokenCount / seconds
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            AppGraph.updateLastAssistant(acc.toString().ifBlank { "Генерация остановлена." })
+            throw e
         } catch (t: Throwable) {
             AppGraph.updateLastAssistant(acc.toString().ifBlank { "Ошибка генерации: ${t.message}" })
         } finally {
             AppGraph.isGenerating.value = false
+            if (AppGraph.generationJob === coroutineContext[Job]) AppGraph.generationJob = null
         }
     }
+}
+
+/** Остановка генерации: прерывает C-ядро и отменяет сбор потока. */
+fun stopGeneration() {
+    AppGraph.engine.stop()
+    AppGraph.generationJob?.cancel()
 }

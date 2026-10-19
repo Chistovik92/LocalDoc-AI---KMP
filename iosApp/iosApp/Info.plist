@@ -34,5 +34,7 @@
 	<string>Не требуется</string>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 </dict>
 </plist>
