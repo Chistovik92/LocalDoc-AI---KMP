@@ -1,0 +1,182 @@
+package com.localdoc.ai.download
+
+import com.localdoc.ai.model.ModelSpec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import platform.Foundation.NSData
+import platform.Foundation.NSError
+import platform.Foundation.NSFileHandle
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileSize
+import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSMutableURLRequest
+import platform.Foundation.NSNumber
+import platform.Foundation.NSObject
+import platform.Foundation.NSURL
+import platform.Foundation.NSURLResponse
+import platform.Foundation.NSURLSession
+import platform.Foundation.NSURLSessionConfiguration
+import platform.Foundation.NSURLSessionDataDelegateProtocol
+import platform.Foundation.NSURLSessionDataTask
+import platform.Foundation.NSURLSessionResponseAllow
+import platform.Foundation.requestWithURL
+
+/** iOS-загрузчик GGUF: папка Documents, докачка через HTTP Range, NSURLSession. */
+actual class ModelDownloader actual constructor() {
+
+    private val modelsDir: String by lazy {
+        val docs = NSFileManager.defaultManager.documentPath ?: "models"
+        val dir = "$docs/models"
+        NSFileManager.defaultManager.createDirectoryAtPath(
+            dir, withIntermediateDirectories = true, attributes = null, error = null
+        )
+        dir
+    }
+
+    private fun pathFor(spec: ModelSpec, suffix: String = "") = "$modelsDir/${spec.id}$suffix"
+
+    actual fun modelsDir(): String = modelsDir
+
+    actual fun localPathFor(spec: ModelSpec): String = pathFor(spec, ".gguf")
+
+    actual fun isDownloaded(spec: ModelSpec): Boolean =
+        NSFileManager.defaultManager.fileExistsAtPath(localPathFor(spec))
+
+    actual fun downloadedBytes(spec: ModelSpec): Long = fileSize(pathFor(spec, ".gguf.part"))
+
+    actual fun download(spec: ModelSpec): Flow<DownloadState> = callbackFlow {
+        val targetPath = localPathFor(spec)
+        val tempPath = pathFor(spec, ".gguf.part")
+        var offset = fileSize(tempPath)
+        var completed = false
+
+        val delegate = DownloadDelegate(
+            startOffset = offset,
+            onProgress = { written, total -> trySend(DownloadState.Progress(written, total)) },
+            onChunk = { data ->
+                appendToFile(tempPath, data)
+                offset += data.length.toLong()
+            },
+            onFinished = { error ->
+                if (!completed) {
+                    completed = true
+                    if (error != null) {
+                        trySend(DownloadState.Failed(error))
+                    } else {
+                        val fm = NSFileManager.defaultManager
+                        fm.removeItemAtPath(targetPath, error = null)
+                        if (fm.moveItemAtPath(tempPath, toPath = targetPath, error = null)) {
+                            trySend(DownloadState.Done(targetPath))
+                        } else {
+                            trySend(DownloadState.Failed("Не удалось сохранить файл"))
+                        }
+                    }
+                    close()
+                }
+            }
+        )
+
+        val session = NSURLSession.sessionWithConfiguration(
+            NSURLSessionConfiguration.defaultSessionConfiguration,
+            delegate = delegate,
+            delegateQueue = null
+        )
+
+        val request = NSMutableURLRequest.requestWithURL(NSURL(string = spec.url))
+        if (offset > 0) {
+            request.setValue("bytes=$offset-", forHTTPHeaderField = "Range")
+        }
+
+        val task = session.dataTaskWithRequest(request)
+        delegate.task = task
+        task.resume()
+
+        awaitClose {
+            if (!completed) delegate.cancelTask()
+            session.invalidateAndCancel()
+        }
+    }.flowOn(Dispatchers.IO)
+
+    actual fun cancel(spec: ModelSpec) {
+        // Прерывание выполняется отменой собирающей корутины (см. awaitClose)
+    }
+
+    actual suspend fun delete(spec: ModelSpec) = withContext(Dispatchers.IO) {
+        val fm = NSFileManager.defaultManager
+        fm.removeItemAtPath(localPathFor(spec), error = null)
+        fm.removeItemAtPath(pathFor(spec, ".gguf.part"), error = null)
+        Unit
+    }
+
+    private fun fileSize(path: String): Long {
+        if (!NSFileManager.defaultManager.fileExistsAtPath(path)) return 0
+        val attrs = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null)
+        return (attrs?.get(NSFileSize) as? NSNumber)?.longValue ?: 0
+    }
+
+    private fun appendToFile(path: String, data: NSData) {
+        val fm = NSFileManager.defaultManager
+        if (!fm.fileExistsAtPath(path)) {
+            fm.createFileAtPath(path, contents = NSData(), attributes = null)
+        }
+        val handle = NSFileHandle.fileHandleForWritingAtPath(path) ?: return
+        handle.seekToEndOfFile()
+        handle.writeData(data)
+        handle.closeFile()
+    }
+}
+
+private class DownloadDelegate(
+    private val startOffset: Long,
+    private val onProgress: (Long, Long) -> Unit,
+    private val onChunk: (NSData) -> Unit,
+    private val onFinished: (String?) -> Unit
+) : NSObject(), NSURLSessionDataDelegateProtocol {
+
+    var completionHandler: ((String?) -> Unit)? = null
+    var task: NSURLSessionDataTask? = null
+    private var expectedTotal: Long = -1
+    private var cancelled = false
+
+    override fun URLSession(
+        session: NSURLSession,
+        dataTask: NSURLSessionDataTask,
+        didReceiveResponse response: NSURLResponse,
+        completionHandler: (NSURLSessionResponseDisposition) -> Unit
+    ) {
+        expectedTotal = ((response as? NSHTTPURLResponse)?.expectedContentLength ?: -1).toLong()
+        completionHandler(NSURLSessionResponseAllow)
+    }
+
+    override fun URLSession(
+        session: NSURLSession,
+        dataTask: NSURLSessionDataTask,
+        didReceive data: NSData
+    ) {
+        onChunk(data)
+        val total = if (expectedTotal > 0) startOffset + expectedTotal else -1
+        onProgress(startOffset + data.length.toLong(), total)
+    }
+
+    override fun URLSession(
+        session: NSURLSession,
+        task: NSURLSessionTask,
+        didCompleteWithError error: NSError?
+    ) {
+        if (cancelled) {
+            onFinished("Загрузка отменена")
+        } else {
+            onFinished(error?.localizedDescription)
+        }
+    }
+
+    fun cancelTask() {
+        cancelled = true
+        task?.cancel()
+    }
+}

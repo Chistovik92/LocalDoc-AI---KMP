@@ -1,0 +1,7 @@
+headers = ../../../../../../cpp_core/bridge/localdoc_c_api.h
+headerFilter = localdoc_c_api.h
+package = com.localdoc.ai.cinterop
+
+compilerOpts = -I../../../../../../cpp_core/bridge
+# Линковку выполняет Xcode: xcframework (llama.cpp + localdoc_core)
+# добавлен в зависимости iosApp/project.yml.

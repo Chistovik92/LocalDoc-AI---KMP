@@ -1,0 +1,36 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Android
+local.properties
+.cxx/
+*.apk.idsig
+captures/
+
+# Kotlin/Native / iOS
+klsinden/
+.kotlin/
+composeApp/build/
+cpp_core/build/
+cpp_core/build-ios/
+cpp_core/build-android/
+*.xcuserdatad/
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Прочее
+*.log
+
+# Локальные материалы с личными данными (не публиковать)
+*.docx

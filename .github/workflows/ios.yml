@@ -1,0 +1,57 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Сборка iOS (xcframework + приложение)
+    runs-on: macos-15
+    steps:
+      - name: Checkout (с сабмодулем llama.cpp)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Сборка C-ядра (llama.cpp + Metal) в XCFramework
+        run: |
+          chmod +x cpp_core/scripts/build_ios_xcframework.sh
+          ./cpp_core/scripts/build_ios_xcframework.sh
+
+      - name: Загрузка xcframework (артефакт)
+        uses: actions/upload-artifact@v4
+        with:
+          name: localdoc-core-xcframework
+          path: cpp_core/build-ios/localdoc_core.xcframework
+
+      - name: Компиляция Kotlin/Native фреймворка (симулятор)
+        run: ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64 --stacktrace
+
+      - name: XcodeGen и сборка приложения (симулятор, без подписи)
+        run: |
+          brew install xcodegen
+          cd iosApp
+          xcodegen generate
+          xcodebuild -project LocalDocAI.xcodeproj \
+            -scheme LocalDocAI \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: Загрузка Kotlin-фреймворка (артефакт)
+        uses: actions/upload-artifact@v4
+        with:
+          name: composeapp-ios-sim-framework
+          path: composeApp/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework
