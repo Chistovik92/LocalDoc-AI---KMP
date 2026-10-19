@@ -24,6 +24,10 @@ actual class LlamaEngine actual constructor() {
     // Защищает sessionPtr от гонки «stop() из обработчика отмены» ↔ «unload() освобождает сессию»
     private val sessionLock = SyncLock()
 
+    // Число генераций, получивших указатель и (возможно) вошедших в нативный вызов.
+    // unload() освобождает сессию только когда их не осталось. Защищено sessionLock.
+    private var activeGenerations = 0
+
     /** Вызывается из JNI: токен приходит байтами стандартного UTF-8. */
     interface TokenCallback {
         fun onToken(utf8: ByteArray)
@@ -44,21 +48,26 @@ actual class LlamaEngine actual constructor() {
         }
 
     actual fun generateStream(prompt: String, maxTokens: Int): Flow<String> = callbackFlow<String> {
-        val ptr = sessionPtr
+        val ptr = sessionLock.withLock { sessionPtr.also { if (it != 0L) activeGenerations++ } }
         check(ptr != 0L) { "Модель не загружена" }
 
-        // Отмена сборщика (уход с экрана, кнопка «Стоп») прерывает генерацию в C-ядре
-        invokeOnClose { stopIfCurrent(ptr) }
+        // Всё после захвата указателя — под finally, иначе счётчик «утечёт» и unload() зависнет
+        val status = try {
+            // Отмена сборщика (уход с экрана, кнопка «Стоп») прерывает генерацию в C-ядре
+            invokeOnClose { stopIfCurrent(ptr) }
 
-        val callback = object : TokenCallback {
-            override fun onToken(utf8: ByteArray) {
-                trySend(utf8.decodeToString())
+            val callback = object : TokenCallback {
+                override fun onToken(utf8: ByteArray) {
+                    trySend(utf8.decodeToString())
+                }
             }
+            // Нулевой байт в конце — C-строка для localdoc_generate
+            val promptBytes = prompt.encodeToByteArray() + 0.toByte()
+            generateNative(ptr, promptBytes, maxTokens, callback)
+        } finally {
+            sessionLock.withLock { activeGenerations-- }
         }
-
-        // Нулевой байт в конце — C-строка для localdoc_generate
-        val promptBytes = prompt.encodeToByteArray() + 0.toByte()
-        GenerationStatus.ensureOk(generateNative(ptr, promptBytes, maxTokens, callback))
+        GenerationStatus.ensureOk(status)
         close()
     }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)
 
@@ -76,9 +85,16 @@ actual class LlamaEngine actual constructor() {
             sessionPtr.also { sessionPtr = 0L }
         }
         if (ptr == 0L) return
-        // freeNative сам прерывает и дожидается завершения активной генерации
+        // Генерация могла получить указатель, но ещё не войти в C-ядро: ждём её выхода,
+        // повторяя stop (он действует только на уже начатую генерацию)
+        while (sessionLock.withLock { activeGenerations } > 0) {
+            stopNative(ptr)
+            Thread.sleep(UNLOAD_POLL_MS)
+        }
         freeNative(ptr)
     }
 
     actual fun isLoaded(): Boolean = sessionPtr != 0L
 }
+
+private const val UNLOAD_POLL_MS = 5L

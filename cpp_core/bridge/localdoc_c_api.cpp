@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -20,6 +21,8 @@ struct LocalDocSession {
     std::atomic<uint64_t> aborted_id{0};
     std::atomic<bool> closing{false}; // выставляется localdoc_free, не сбрасывается
     std::atomic<bool> generating{false};
+    // Захват сессии и выдача эпохи — один переход: stop() не может «попасть между» ними
+    std::mutex state_mutex;
 
     bool should_abort(uint64_t id) const {
         return closing.load() || aborted_id.load() == id;
@@ -140,13 +143,18 @@ int localdoc_generate(
     void* user_data
 ) {
     if (!session || !session->ctx || !session->model || !prompt_cstr) return LOCALDOC_ERR_INVALID_ARGS;
-    if (session->closing.load()) return LOCALDOC_ERR_INVALID_ARGS;
 
-    // Атомарно занимаем сессию: параллельная генерация в одном контексте недопустима
-    bool expected = false;
-    if (!session->generating.compare_exchange_strong(expected, true)) return LOCALDOC_ERR_BUSY;
+    // Атомарно занимаем сессию и открываем новую эпоху отмены:
+    // параллельная генерация в одном контексте недопустима
+    uint64_t id = 0;
+    {
+        std::lock_guard<std::mutex> lock(session->state_mutex);
+        if (session->closing.load()) return LOCALDOC_ERR_INVALID_ARGS;
+        if (session->generating.load()) return LOCALDOC_ERR_BUSY;
+        session->generating.store(true);
+        id = session->generation_id.fetch_add(1) + 1;
+    }
     GeneratingGuard guard{session->generating};
-    const uint64_t id = session->generation_id.fetch_add(1) + 1;
 
     const std::string prompt(prompt_cstr);
 
@@ -205,7 +213,10 @@ int localdoc_generate(
 }
 
 void localdoc_stop(LocalDocSession* session) {
-    if (session) session->aborted_id.store(session->generation_id.load());
+    if (!session) return;
+    std::lock_guard<std::mutex> lock(session->state_mutex);
+    // Без активной генерации останавливать нечего; иначе — текущая эпоха
+    if (session->generating.load()) session->aborted_id.store(session->generation_id.load());
 }
 
 bool localdoc_is_generating(LocalDocSession* session) {
@@ -215,8 +226,12 @@ bool localdoc_is_generating(LocalDocSession* session) {
 void localdoc_free(LocalDocSession* session) {
     if (!session) return;
 
-    // Освобождать контекст во время генерации на другом потоке — use-after-free
-    session->closing.store(true);
+    // Освобождать контекст во время генерации на другом потоке — use-after-free.
+    // После closing новые генерации не стартуют (проверка под state_mutex).
+    {
+        std::lock_guard<std::mutex> lock(session->state_mutex);
+        session->closing.store(true);
+    }
     while (session->generating.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }

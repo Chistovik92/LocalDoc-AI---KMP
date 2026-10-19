@@ -59,9 +59,11 @@ actual class ModelDownloader actual constructor() {
 
             val code = connection.responseCode
             if (code == HTTP_RANGE_NOT_SATISFIABLE && offset > 0) {
-                // Частичный файл уже содержит весь объём — докачивать нечего.
-                // Если он заметно меньше ожидаемого — он устарел/повреждён: удаляем.
-                if (offset >= spec.sizeMb * 1024L * 1024L * 9 / 10) {
+                // Сервер сообщает полный размер в «Content-Range: bytes */N». Файл готов,
+                // только если частичный файл ровно такого размера; иначе (в т.ч. раздутый
+                // старой версией с ошибкой дозаписи) — он повреждён: удаляем.
+                val remoteSize = parseTotalFromContentRange(connection.getHeaderField("Content-Range"))
+                if (remoteSize != null && offset == remoteSize) {
                     emit(finalize(temp, target))
                 } else {
                     temp.delete()
@@ -139,5 +141,9 @@ actual class ModelDownloader actual constructor() {
 }
 
 private const val HTTP_RANGE_NOT_SATISFIABLE = 416
+
+// Полный размер из заголовка Content-Range («bytes */N» или «bytes a-b/N»); null, если неизвестен
+internal fun parseTotalFromContentRange(header: String?): Long? =
+    header?.substringAfterLast('/', "")?.trim()?.toLongOrNull()
 // Шаг обновления прогресса: не чаще одного события на мегабайт
 private const val PROGRESS_STEP_BYTES = 1024L * 1024L

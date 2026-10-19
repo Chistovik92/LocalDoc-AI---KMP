@@ -73,7 +73,6 @@ actual class ModelDownloader actual constructor() {
 
         val delegate = DownloadDelegate(
             startOffset = fileSize(tempPath),
-            minCompleteBytes = spec.sizeMb * 1024L * 1024L * 9 / 10,
             onRestart = { truncateFile(tempPath) },
             onChunk = { data -> appendToFile(tempPath, data) },
             onProgress = { written, total -> trySend(DownloadState.Progress(written, total)) },
@@ -153,7 +152,6 @@ private const val PROGRESS_STEP_BYTES = 1024L * 1024L
 
 private class DownloadDelegate(
     val startOffset: Long,
-    private val minCompleteBytes: Long,
     private val onRestart: () -> Unit,
     private val onChunk: (NSData) -> Unit,
     private val onProgress: (Long, Long) -> Unit,
@@ -178,8 +176,12 @@ private class DownloadDelegate(
         when {
             // Частичный файл уже содержит весь объём — докачивать нечего
             code == HTTP_RANGE_NOT_SATISFIABLE && startOffset > 0 -> {
-                // Если частичный файл заметно меньше ожидаемого — он устарел/повреждён
-                if (startOffset >= minCompleteBytes) {
+                // Полный размер — из «Content-Range: bytes */N». Готов только файл ровно
+                // такого размера; иначе (в т.ч. раздутый старой версией) — повреждён
+                val remoteSize = (didReceiveResponse as? NSHTTPURLResponse)
+                    ?.valueForHTTPHeaderField("Content-Range")
+                    ?.substringAfterLast('/', "")?.trim()?.toLongOrNull()
+                if (remoteSize != null && startOffset == remoteSize) {
                     alreadyComplete = true
                 } else {
                     onRestart()
