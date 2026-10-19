@@ -47,16 +47,14 @@ merge_libs() {
     mkdir -p "$(dirname "${out}")"
     libtool -static -o "${out}" \
         "${CORE_DIR}/build/${dir}/out/${BUILD_TYPE}/liblocaldoc_core.a"
-    # Добавляем архивы llama/ggml в тот же .a
-    # (libtool корректно обрабатывает как тонкие, так и fat-архивы, ar — нет)
-    local lib
-    for lib in llama ggml-base ggml-cpu ggml-metal ggml; do
-        local src
-        src=$(find "${CORE_DIR}/build/${dir}" -name "lib${lib}.a" -path "*${BUILD_TYPE}*" | head -n 1 || true)
-        if [ -n "${src}" ]; then
-            libtool -static -o "${out}" "${out}" "${src}"
-        fi
-    done
+    # Добавляем все архивы llama/ggml в тот же .a: набор бэкендов зависит от опций
+    # (например, GGML_ACCELERATE даёт отдельный libggml-blas.a) — не перечисляем вручную.
+    # libtool корректно обрабатывает как тонкие, так и fat-архивы, ar — нет.
+    local src
+    while IFS= read -r src; do
+        echo "  + $(basename "${src}")"
+        libtool -static -o "${out}" "${out}" "${src}"
+    done < <(find "${CORE_DIR}/build/${dir}" -name "lib*.a" -path "*${BUILD_TYPE}*"                  ! -name "liblocaldoc_core.a" | awk -F/ '!seen[$NF]++' | sort)
     echo "Merged: ${out}"
 }
 

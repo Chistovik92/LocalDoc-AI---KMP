@@ -14,6 +14,8 @@ settings:
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     # Статическое C++-ядро llama.cpp (Metal + Accelerate) линкуется в приложение напрямую
     OTHER_LDFLAGS: "$(inherited) -lc++"
+    # Kotlin-фреймворк и C-ядро собираются только под arm64 (симулятор Apple Silicon)
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
 
 targets:
   # Запуск на симуляторе (Apple Silicon) и локальная разработка
