@@ -133,7 +133,7 @@ jobs:
         run: |
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" --title "LocalDoc AI $RELEASE_TAG" \
-              --notes "Автоматическая сборка." || true
+              --notes-file .github/release-notes.md || true
           fi
           gh release upload "$RELEASE_TAG" dist/* --clobber
 
