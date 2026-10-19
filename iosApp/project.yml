@@ -23,12 +23,10 @@ targets:
     sources:
       - path: iosApp
     dependencies:
-      - framework:
-          path: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework
-          embed: false
-      - framework:
-          path: ../cpp_core/build-ios/localdoc_core.xcframework
-          embed: false
+      - framework: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework
+        embed: false
+      - framework: ../cpp_core/build-ios/localdoc_core.xcframework
+        embed: false
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework
@@ -45,12 +43,10 @@ targets:
     sources:
       - path: iosApp
     dependencies:
-      - framework:
-          path: ../composeApp/build/bin/iosArm64/releaseFramework/ComposeApp.framework
-          embed: false
-      - framework:
-          path: ../cpp_core/build-ios/localdoc_core.xcframework
-          embed: false
+      - framework: ../composeApp/build/bin/iosArm64/releaseFramework/ComposeApp.framework
+        embed: false
+      - framework: ../cpp_core/build-ios/localdoc_core.xcframework
+        embed: false
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework
