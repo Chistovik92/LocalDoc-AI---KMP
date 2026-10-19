@@ -41,13 +41,12 @@ configure_and_build iphoneos ios-device
 configure_and_build iphonesimulator ios-simulator
 
 # 3. Собираем все статические библиотеки в один .a на платформу
+# (генератор Xcode кладёт библиотеки в out/<CONFIG>/ независимо от SDK)
 merge_libs() {
     local dir="$1" out="$2"
     mkdir -p "$(dirname "${out}")"
     libtool -static -o "${out}" \
-        "${CORE_DIR}/build/${dir}/out/${BUILD_TYPE}-iphoneos/liblocaldoc_core.a" 2>/dev/null || \
-    libtool -static -o "${out}" \
-        "${CORE_DIR}/build/${dir}/out/${BUILD_TYPE}-iphonesimulator/liblocaldoc_core.a"
+        "${CORE_DIR}/build/${dir}/out/${BUILD_TYPE}/liblocaldoc_core.a"
     # Добавляем объектники llama/ggml в тот же архив
     local lib
     for lib in llama ggml ggml-base ggml-cpu ggml-metal; do

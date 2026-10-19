@@ -12,6 +12,8 @@ jobs:
   build:
     name: Сборка Android APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout (с сабмодулем llama.cpp)
         uses: actions/checkout@v4
