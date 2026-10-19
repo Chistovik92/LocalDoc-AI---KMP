@@ -77,11 +77,13 @@ actual class PdfExtractor actual constructor() {
             val handler = VNImageRequestHandler(cGImage = cgImage, options = emptyMap<Any?, Any>())
             handler.performRequests(listOf(request), error = null)
 
-            val observations = request.results as? List<*> ?: return ""
+            // ObjC NSArray приходят в Kotlin как List<*> — приводим элементы явно
+            val observations = request.results?.filterIsInstance<VNRecognizedTextObservation>()
+                ?: return ""
             observations.mapNotNull { obs ->
-                (obs as? VNRecognizedTextObservation)
-                    ?.topCandidates(1u)
-                    ?.firstOrNull()
+                obs.topCandidates(1u)
+                    .filterIsInstance<VNRecognizedText>()
+                    .firstOrNull()
                     ?.string
             }.joinToString("\n")
         }.getOrDefault("")

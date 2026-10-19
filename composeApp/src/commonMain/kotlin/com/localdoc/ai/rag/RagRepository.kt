@@ -24,6 +24,12 @@ class RagRepository(
         return chunks.size
     }
 
+    /** Индексирует документ, только если он ещё не проиндексирован. Возвращает число чанков. */
+    fun ensureIndexed(docId: String, rawText: String): Int {
+        val existing = store.get(docId)
+        return if (existing.isNotEmpty()) existing.size else indexDocument(docId, rawText)
+    }
+
     fun retrieveTopK(docId: String, question: String, topK: Int = 4): List<StoredChunk> {
         val query = embedder.encode(question)
         return store.topK(docId, query, topK)

@@ -3,6 +3,7 @@ package com.localdoc.ai.rag
 import com.localdoc.ai.platform.SyncLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 @Serializable
@@ -27,7 +28,26 @@ class VectorStore(private val storage: com.localdoc.ai.platform.KeyValueStore) {
     fun put(docId: String, chunks: List<StoredChunk>) {
         lock.withLock { cache[docId] = chunks }
         storage.put(key(docId), json.encodeToString(ListSerializer(StoredChunk.serializer()), chunks))
+        rememberDoc(docId)
     }
+
+    /**
+     * KV-хранилище (SharedPreferences / NSUserDefaults) целиком держится в памяти,
+     * поэтому храним индексы только последних [MAX_INDEXED_DOCS] документов.
+     */
+    private fun rememberDoc(docId: String) = lock.withLock {
+        // Весь read-modify-write списка под замком (SyncLock не реентерабелен — remove() не вызываем)
+        val ids = (loadDocIds() - docId) + docId
+        ids.dropLast(MAX_INDEXED_DOCS).forEach { evicted ->
+            cache.remove(evicted)
+            storage.remove(key(evicted))
+        }
+        storage.put(DOC_IDS_KEY, json.encodeToString(ListSerializer(String.serializer()), ids.takeLast(MAX_INDEXED_DOCS)))
+    }
+
+    private fun loadDocIds(): List<String> = storage.get(DOC_IDS_KEY)?.let {
+        runCatching { json.decodeFromString(ListSerializer(String.serializer()), it) }.getOrNull()
+    }.orEmpty()
 
     fun get(docId: String): List<StoredChunk> = lock.withLock {
         cache[docId] ?: run {
@@ -70,4 +90,9 @@ class VectorStore(private val storage: com.localdoc.ai.platform.KeyValueStore) {
     }
 
     private fun key(docId: String) = "rag:$docId"
+
+    private companion object {
+        const val MAX_INDEXED_DOCS = 5
+        const val DOC_IDS_KEY = "rag-index:doc-ids"
+    }
 }

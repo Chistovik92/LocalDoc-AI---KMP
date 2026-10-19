@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import com.localdoc.ai.platform.AndroidIntents
 import com.localdoc.ai.platform.AppContextHolder
@@ -18,6 +19,9 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // targetSdk 35 и так рисует под системными панелями — делаем это явно на всех версиях,
+        // отступы обрабатывает Scaffold
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         AppContextHolder.init(applicationContext)
         AndroidIntents.registerPdfPicker(pdfPickerLauncher)

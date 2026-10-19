@@ -24,7 +24,12 @@ data class ParsedDoc(
 class WebArticleParser {
 
     suspend fun parseUrl(url: String): ParsedDoc = withContext(Dispatchers.IO) {
-        val normalizedUrl = if (url.startsWith("http")) url else "https://$url"
+        val trimmed = url.trim()
+        val normalizedUrl = when {
+            trimmed.startsWith("https://", ignoreCase = true) || trimmed.startsWith("http://", ignoreCase = true) -> trimmed
+            "://" in trimmed -> throw IllegalArgumentException("Поддерживаются только ссылки http(s)")
+            else -> "https://$trimmed"
+        }
         val doc: Document = Ksoup.parseGetRequest(url = normalizedUrl)
         extractArticle(doc, normalizedUrl)
     }

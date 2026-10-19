@@ -23,6 +23,9 @@ actual class ModelDownloader actual constructor() {
     @Volatile
     private var activeConnection: HttpURLConnection? = null
 
+    @Volatile
+    private var cancelled = false
+
     private fun fileFor(spec: ModelSpec) = File(dir, "${spec.id}.gguf")
     private fun tempFor(spec: ModelSpec) = File(dir, "${spec.id}.gguf.part")
 
@@ -39,6 +42,7 @@ actual class ModelDownloader actual constructor() {
         val temp = tempFor(spec)
         var connection: HttpURLConnection? = null
         var offset = if (temp.exists()) temp.length() else 0L
+        cancelled = false
 
         try {
             val url = URL(spec.url)
@@ -54,15 +58,31 @@ actual class ModelDownloader actual constructor() {
             activeConnection = connection
 
             val code = connection.responseCode
-            if (code !in 200..299 && code != 206) {
+            if (code == HTTP_RANGE_NOT_SATISFIABLE && offset > 0) {
+                // Частичный файл уже содержит весь объём — докачивать нечего.
+                // Если он заметно меньше ожидаемого — он устарел/повреждён: удаляем.
+                if (offset >= spec.sizeMb * 1024L * 1024L * 9 / 10) {
+                    emit(finalize(temp, target))
+                } else {
+                    temp.delete()
+                    emit(DownloadState.Failed("Частичный файл повреждён и удалён — нажмите «Скачать» ещё раз"))
+                }
+                return@flow
+            }
+            if (code !in 200..299) {
                 emit(DownloadState.Failed("HTTP $code"))
                 return@flow
             }
+            if (code == HttpURLConnection.HTTP_OK && offset > 0) {
+                // Сервер проигнорировал Range и отдаёт файл целиком — начинаем заново,
+                // иначе полный файл допишется в конец частичного и модель будет испорчена
+                offset = 0L
+            }
 
-            val total = if (code == 206) {
-                offset + (connection.contentLengthLong.takeIf { it > 0 } ?: 0L)
-            } else {
-                connection.contentLengthLong.takeIf { it > 0 } ?: spec.sizeMb * 1024L * 1024L
+            val contentLength = connection.contentLengthLong.takeIf { it > 0 }
+            val total = when {
+                code == HttpURLConnection.HTTP_PARTIAL -> contentLength?.let { offset + it } ?: -1L
+                else -> contentLength ?: spec.sizeMb * 1024L * 1024L
             }
 
             connection.inputStream.use { input ->
@@ -74,7 +94,7 @@ actual class ModelDownloader actual constructor() {
                         if (read < 0) break
                         output.write(buffer, 0, read)
                         offset += read
-                        if (offset - lastEmit > 1024L * 1024L) {
+                        if (offset - lastEmit > PROGRESS_STEP_BYTES) {
                             lastEmit = offset
                             emit(DownloadState.Progress(offset, total))
                         }
@@ -83,26 +103,30 @@ actual class ModelDownloader actual constructor() {
                 }
             }
 
-            if (temp.renameTo(target)) {
-                emit(DownloadState.Done(target.absolutePath))
-            } else {
-                emit(DownloadState.Failed("Не удалось сохранить файл"))
-            }
+            emit(finalize(temp, target))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            // Отмена соединения после cancel() приходит как IOException — трактуем как отмену
-            if (offset > 0 && temp.exists()) {
-                // Частичный файл сохранён для докачки — выходим без ошибки
-            } else {
-                emit(DownloadState.Failed(e.message ?: "Ошибка сети"))
-            }
+            // cancel() закрывает соединение — это приходит как IOException.
+            // Частичный файл сохраняется в обоих случаях и позволит докачать модель позже.
+            val message = if (cancelled) "Загрузка отменена" else "Загрузка прервана: ${e.message ?: "ошибка сети"}"
+            emit(DownloadState.Failed(message))
         } finally {
             activeConnection = null
             connection?.disconnect()
         }
     }.flowOn(Dispatchers.IO)
 
+    private fun finalize(temp: File, target: File): DownloadState {
+        if (target.exists()) target.delete()
+        return if (temp.renameTo(target)) {
+            DownloadState.Done(target.absolutePath)
+        } else {
+            DownloadState.Failed("Не удалось сохранить файл")
+        }
+    }
+
     actual fun cancel(spec: ModelSpec) {
+        cancelled = true
         activeConnection?.disconnect()
         activeConnection = null
     }
@@ -113,3 +137,7 @@ actual class ModelDownloader actual constructor() {
         Unit
     }
 }
+
+private const val HTTP_RANGE_NOT_SATISFIABLE = 416
+// Шаг обновления прогресса: не чаще одного события на мегабайт
+private const val PROGRESS_STEP_BYTES = 1024L * 1024L

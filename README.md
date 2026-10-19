@@ -114,16 +114,29 @@ open LocalDocAI.xcodeproj
 
 ## CI/CD
 
-- `.github/workflows/android.yml` — на каждый push/PR собирает debug-APK; на тег `v*`
-  собирает подписанный release-APK и прикладывает его к GitHub Release.
+- `.github/workflows/android.yml` — на каждый push/PR гоняет unit-тесты (`commonTest`) и собирает debug-APK; на тег `v*`
+  собирает release-APK, подписанный постоянным ключом, и прикладывает его к GitHub Release.
 - `.github/workflows/ios.yml` — собирает `localdoc_core.xcframework` (Metal) и
   ComposeApp-фреймворк для симулятора, проверяет сборку Xcode-проекта без подписи.
 
 Релиз:
 
 ```bash
-git tag v1.0.1 && git push origin v1.0.1
+git tag v1.1.0 && git push origin v1.1.0
 ```
+
+## Подпись release-сборок
+
+Release-APK подписывается постоянным ключом (PKCS12, alias `localdoc-release`). Ключ и пароли
+в репозиторий не попадают:
+
+- локально Gradle читает `~/.android-signing/localdoc-ai/signing.properties`
+  (другой путь — `-Plocaldoc.signing=/path/signing.properties`);
+- в CI ключ берётся из секретов `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`; без них сборка по тегу завершается ошибкой.
+
+Отпечаток сертификата (SHA-256):
+`34:E5:59:D7:AD:01:43:72:D5:61:BC:06:00:3A:1C:D1:E0:57:EA:4E:7D:32:31:DB:4A:FF:5A:13:9F:77:5E:54`
 
 ## Ограничения MVP и дорожная карта
 
