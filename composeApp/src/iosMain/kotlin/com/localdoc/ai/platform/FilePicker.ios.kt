@@ -1,7 +1,7 @@
 package com.localdoc.ai.platform
 
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.Foundation.NSObject
+import platform.darwin.NSObject
 import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerDelegateProtocol
@@ -29,8 +29,7 @@ actual class FilePicker actual constructor() {
     }
 
     private fun findRootViewController() = runCatching {
-        val scenes = UIApplication.sharedApplication.connectedScenes.allObjects
-        val windowScene = scenes.firstOrNull { it is UIWindowScene } as? UIWindowScene
+        val windowScene = UIApplication.sharedApplication.connectedScenes.firstOrNull { it is UIWindowScene } as? UIWindowScene
         windowScene?.windows?.firstOrNull { it.isKeyWindow }?.rootViewController
             ?: windowScene?.windows?.firstOrNull()?.rootViewController
     }.getOrNull()

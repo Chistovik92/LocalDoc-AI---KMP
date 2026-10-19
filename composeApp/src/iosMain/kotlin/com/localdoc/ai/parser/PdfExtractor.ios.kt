@@ -6,17 +6,16 @@ import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
-import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSURL
 import platform.PDFKit.PDFDocument
 import platform.PDFKit.PDFPage
 import platform.PDFKit.kPDFDisplayBoxMediaBox
-import platform.UIKit.UIGraphicsImageRenderer
-import platform.UIKit.UIGraphicsImageRendererFormat
 import platform.Vision.VNImageRequestHandler
-import platform.Vision.VNRecognizeTextObservation
+import platform.Vision.VNRecognizedText
+import platform.Vision.VNRecognizedTextObservation
 import platform.Vision.VNRecognizeTextRequest
+import platform.Vision.VNRequest
 import platform.Vision.VNRequestTextRecognitionLevelAccurate
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
@@ -63,16 +62,10 @@ actual class PdfExtractor actual constructor() {
             }
             if (pageWidth <= 0.0 || pageHeight <= 0.0) return ""
 
-            val format = UIGraphicsImageRendererFormat().apply {
-                scale = 2.0 // повышенное разрешение для точности OCR мелкого шрифта
-            }
-            val renderer = UIGraphicsImageRenderer(
-                size = CGSizeMake(pageWidth, pageHeight),
-                format = format
+            val image = page.thumbnailOfSize(
+                CGSizeMake(pageWidth * 2.0, pageHeight * 2.0),
+                forBox = kPDFDisplayBoxMediaBox
             )
-            val image = renderer.imageWithActions { context ->
-                page.drawWithBox(kPDFDisplayBoxMediaBox, toContext = context)
-            }
             val cgImage = image.CGImage ?: return ""
 
             val request = VNRecognizeTextRequest().apply {

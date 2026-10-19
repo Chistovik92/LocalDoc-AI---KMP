@@ -1,6 +1,9 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package com.localdoc.ai.download
 
 import com.localdoc.ai.model.ModelSpec
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.channels.awaitClose
@@ -10,13 +13,12 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.NSError
-import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSHomeDirectory
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSNumber
-import platform.Foundation.NSObject
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLResponse
 import platform.Foundation.NSURLSession
@@ -25,12 +27,20 @@ import platform.Foundation.NSURLSessionDataDelegateProtocol
 import platform.Foundation.NSURLSessionDataTask
 import platform.Foundation.NSURLSessionResponseAllow
 import platform.Foundation.NSURLSessionResponseDisposition
+import platform.Foundation.NSURLSessionTask
+import platform.Foundation.setValue
+import platform.darwin.NSObject
+import platform.posix.FILE
+import platform.posix.fclose
+import platform.posix.fflush
+import platform.posix.fopen
+import platform.posix.fwrite
 
 /** iOS-загрузчик GGUF: папка Documents, докачка через HTTP Range, NSURLSession. */
 actual class ModelDownloader actual constructor() {
 
     private val modelsDir: String by lazy {
-        val docs = NSFileManager.defaultManager.documentPath ?: "models"
+        val docs = NSHomeDirectory()
         val dir = "$docs/models"
         NSFileManager.defaultManager.createDirectoryAtPath(
             dir, withIntermediateDirectories = true, attributes = null, error = null
@@ -131,14 +141,10 @@ actual class ModelDownloader actual constructor() {
     }
 
     private fun appendToFile(path: String, data: NSData) {
-        val fm = NSFileManager.defaultManager
-        if (!fm.fileExistsAtPath(path)) {
-            fm.createFileAtPath(path, contents = NSData(), attributes = null)
-        }
-        val handle = NSFileHandle.fileHandleForWritingAtPath(path) ?: return
-        handle.seekToEndOfFile()
-        handle.writeData(data)
-        handle.closeFile()
+        val file = fopen(path, "ab") ?: return
+        fwrite(data.bytes, 1L, data.length.toLong(), file)
+        fflush(file)
+        fclose(file)
     }
 }
 
