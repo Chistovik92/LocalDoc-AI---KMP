@@ -1,5 +1,6 @@
 package com.localdoc.ai.rag
 
+import com.localdoc.ai.platform.SyncLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -21,31 +22,33 @@ class VectorStore(private val storage: com.localdoc.ai.platform.KeyValueStore) {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val cache = HashMap<String, List<StoredChunk>>()
+    private val lock = SyncLock()
 
     fun put(docId: String, chunks: List<StoredChunk>) {
-        synchronized(cache) { cache[docId] = chunks }
+        lock.withLock { cache[docId] = chunks }
         storage.put(key(docId), json.encodeToString(ListSerializer(StoredChunk.serializer()), chunks))
     }
 
-    fun get(docId: String): List<StoredChunk> {
-        synchronized(cache) {
-            cache[docId]?.let { return it }
-            val raw = storage.get(key(docId)) ?: return emptyList()
-            val parsed = runCatching {
-                json.decodeFromString(ListSerializer(StoredChunk.serializer()), raw)
-            }.getOrDefault(emptyList())
+    fun get(docId: String): List<StoredChunk> = lock.withLock {
+        cache[docId] ?: run {
+            val raw = storage.get(key(docId))
+            val parsed = raw?.let {
+                runCatching {
+                    json.decodeFromString(ListSerializer(StoredChunk.serializer()), it)
+                }.getOrDefault(emptyList())
+            } ?: emptyList()
             cache[docId] = parsed
-            return parsed
+            parsed
         }
     }
 
     fun remove(docId: String) {
-        synchronized(cache) { cache.remove(docId) }
+        lock.withLock { cache.remove(docId) }
         storage.remove(key(docId))
     }
 
     fun clearAll() {
-        synchronized(cache) { cache.clear() }
+        lock.withLock { cache.clear() }
         storage.clearAll()
     }
 

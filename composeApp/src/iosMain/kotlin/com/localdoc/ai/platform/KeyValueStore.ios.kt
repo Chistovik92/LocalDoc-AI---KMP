@@ -23,6 +23,8 @@ actual class KeyValueStore actual constructor() {
 
     actual fun clearAll() {
         val domain = NSUserDefaults.standardUserDefaults.dictionaryRepresentation()
-        domain.keys.toList().forEach { defaults.removeObjectForKey(it as String) }
+        domain.keys.toList().forEach { key ->
+            (key as? String)?.let { defaults.removeObjectForKey(it) }
+        }
     }
 }

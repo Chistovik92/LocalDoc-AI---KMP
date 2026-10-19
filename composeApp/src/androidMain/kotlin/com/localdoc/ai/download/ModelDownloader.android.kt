@@ -15,7 +15,9 @@ import java.net.URL
 actual class ModelDownloader actual constructor() {
 
     private val dir: File by lazy {
-        File(AppContextHolder.appContext.filesDir, "models").apply { mkdirs() }
+        val ctx = AppContextHolder.appContext
+        val base = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+        File(base, "models").apply { mkdirs() }
     }
 
     @Volatile
@@ -40,11 +42,14 @@ actual class ModelDownloader actual constructor() {
 
         try {
             val url = URL(spec.url)
-            connection = (url.openConnection() as HttpURLConnection).apply {
+            connection = (url.openConnection() as? HttpURLConnection)?.apply {
                 instanceFollowRedirects = true
                 connectTimeout = 20_000
                 readTimeout = 30_000
                 if (offset > 0) setRequestProperty("Range", "bytes=$offset-")
+            } ?: run {
+                emit(DownloadState.Failed("Неподдерживаемый протокол: ${url.protocol}"))
+                return@flow
             }
             activeConnection = connection
 

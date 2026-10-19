@@ -46,6 +46,12 @@ LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_laye
 
     auto sparams = llama_sampler_chain_default_params();
     llama_sampler* sampler = llama_sampler_chain_init(sparams);
+    if (!sampler) {
+        llama_free(ctx);
+        llama_model_free(model);
+        llama_backend_free();
+        return nullptr;
+    }
     llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
     llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
     llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.3f));

@@ -81,13 +81,24 @@ actual class ModelDownloader actual constructor() {
             }
         )
 
+        val nsUrl = NSURL(string = spec.url) ?: run {
+            trySend(DownloadState.Failed("Некорректный URL: ${spec.url}"))
+            close()
+            return@callbackFlow
+        }
+
+        val config = NSURLSessionConfiguration.defaultSessionConfiguration.apply {
+            timeoutIntervalForRequest = 60.0
+            timeoutIntervalForResource = 3600.0
+        }
+
         val session = NSURLSession.sessionWithConfiguration(
-            NSURLSessionConfiguration.defaultSessionConfiguration,
+            config,
             delegate = delegate,
             delegateQueue = null
         )
 
-        val request = NSMutableURLRequest.requestWithURL(NSURL(string = spec.url))
+        val request = NSMutableURLRequest.requestWithURL(nsUrl)
         if (offset > 0) {
             request.setValue("bytes=$offset-", forHTTPHeaderField = "Range")
         }

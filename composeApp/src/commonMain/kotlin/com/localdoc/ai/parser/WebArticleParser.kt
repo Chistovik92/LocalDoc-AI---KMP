@@ -29,14 +29,13 @@ class WebArticleParser {
         extractArticle(doc, normalizedUrl)
     }
 
-    fun extractArticle(doc: Document, source: String): ParsedDoc {
-        // Удаляем мусорные узлы перед извлечением текста статьи
+    private fun extractArticle(doc: Document, source: String): ParsedDoc {
         doc.select("script, style, nav, footer, header, aside, noscript, form, iframe, svg").remove()
 
         val mainContent = doc
             .select("article, main, [role=main]")
             .text()
-            .ifBlank { doc.body().text() }
+            .ifBlank { doc.body()?.text() ?: "" }
 
         return ParsedDoc(
             title = doc.title().ifBlank { source },

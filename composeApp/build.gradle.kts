@@ -32,6 +32,7 @@ kotlin {
             cinterops {
                 val llama by creating {
                     defFile(project.file("src/nativeInterop/cinterop/llama.def"))
+                    compilerOpts("-I${project.rootProject.projectDir}/cpp_core/bridge")
                 }
             }
         }
@@ -69,8 +70,8 @@ android {
         applicationId = "com.localdoc.ai"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         ndk {
             // Современные флагманские устройства (Snapdragon 8 серии / Dimensity)

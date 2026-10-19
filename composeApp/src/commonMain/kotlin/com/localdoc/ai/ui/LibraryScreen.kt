@@ -76,6 +76,7 @@ fun LibraryScreen(onOpenChat: () -> Unit) {
                                 try {
                                     setDoc(AppGraph.pdfExtractor.extract(uri))
                                 } catch (t: Throwable) {
+                                    if (t is kotlinx.coroutines.CancellationException) throw t
                                     error = "Не удалось прочитать PDF: ${t.message}"
                                     processing = null
                                 }
@@ -177,6 +178,7 @@ fun LibraryScreen(onOpenChat: () -> Unit) {
                 try {
                     setDoc(AppGraph.webParser.parseUrl(url))
                 } catch (t: Throwable) {
+                    if (t is kotlinx.coroutines.CancellationException) throw t
                     error = "Не удалось загрузить страницу: ${t.message}"
                     processing = null
                 }
