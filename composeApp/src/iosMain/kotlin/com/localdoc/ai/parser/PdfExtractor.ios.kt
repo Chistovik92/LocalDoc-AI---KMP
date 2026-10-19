@@ -1,13 +1,17 @@
 package com.localdoc.ai.parser
 
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import platform.CoreGraphics.CGRectMake
+import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSURL
 import platform.PDFKit.PDFDocument
 import platform.PDFKit.PDFPage
+import platform.PDFKit.kPDFDisplayBoxMediaBox
 import platform.UIKit.UIGraphicsImageRenderer
 import platform.UIKit.UIGraphicsImageRendererFormat
 import platform.Vision.VNImageRequestHandler
@@ -15,7 +19,7 @@ import platform.Vision.VNRecognizeTextObservation
 import platform.Vision.VNRecognizeTextRequest
 import platform.Vision.VNRequestTextRecognitionLevelAccurate
 
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 /** iOS: PDFKit для текстового слоя + Apple Vision OCR (Neural Engine) для сканов. */
 actual class PdfExtractor actual constructor() {
 
@@ -54,15 +58,20 @@ actual class PdfExtractor actual constructor() {
 
     private fun recognizePageWithVision(page: PDFPage): String {
         return runCatching {
-            val bounds = page.boundsForBox(0u)
-            val size = bounds.useContents { size }
+            val (pageWidth, pageHeight) = page.boundsForBox(kPDFDisplayBoxMediaBox).useContents {
+                size.width to size.height
+            }
+            if (pageWidth <= 0.0 || pageHeight <= 0.0) return ""
 
             val format = UIGraphicsImageRendererFormat().apply {
                 scale = 2.0 // повышенное разрешение для точности OCR мелкого шрифта
             }
-            val renderer = UIGraphicsImageRenderer(size = size, format = format)
+            val renderer = UIGraphicsImageRenderer(
+                size = CGSizeMake(pageWidth, pageHeight),
+                format = format
+            )
             val image = renderer.imageWithActions { context ->
-                page.drawWithBox(0u, toContext = context)
+                page.drawWithBox(kPDFDisplayBoxMediaBox, toContext = context)
             }
             val cgImage = image.CGImage ?: return ""
 

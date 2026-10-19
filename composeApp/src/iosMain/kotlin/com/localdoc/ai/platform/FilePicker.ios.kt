@@ -20,7 +20,7 @@ actual class FilePicker actual constructor() {
         }
 
         val picker = UIDocumentPickerViewController(
-            forContentTypes = listOf(UTTypePDF),
+            forOpeningContentTypes = listOf(UTTypePDF),
             asCopy = true
         )
         picker.allowsMultipleSelection = false
@@ -41,9 +41,9 @@ actual class FilePicker actual constructor() {
 
         override fun documentPicker(
             controller: UIDocumentPickerViewController,
-            didPickDocumentsAtURLs: List<NSURL>
+            didPickDocumentsAtURLs: List<*>
         ) {
-            val url = didPickDocumentsAtURLs.firstOrNull()
+            val url = didPickDocumentsAtURLs.filterIsInstance<NSURL>().firstOrNull()
             onResult(url?.path)
         }
 

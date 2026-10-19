@@ -9,6 +9,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  compile:
+    name: Компиляция Kotlin/Native (быстрая проверка)
+    runs-on: macos-15
+    steps:
+      - name: Checkout (с сабмодулем llama.cpp)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Компиляция common + iOS Kotlin (cinterop + компиляция)
+        run: ./gradlew :composeApp:compileKotlinIosSimulatorArm64 --stacktrace
+
   build:
     name: Сборка iOS (xcframework + приложение)
     runs-on: macos-15

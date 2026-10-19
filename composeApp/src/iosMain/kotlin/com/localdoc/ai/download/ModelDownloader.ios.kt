@@ -24,7 +24,7 @@ import platform.Foundation.NSURLSessionConfiguration
 import platform.Foundation.NSURLSessionDataDelegateProtocol
 import platform.Foundation.NSURLSessionDataTask
 import platform.Foundation.NSURLSessionResponseAllow
-import platform.Foundation.requestWithURL
+import platform.Foundation.NSURLSessionResponseDisposition
 
 /** iOS-загрузчик GGUF: папка Documents, докачка через HTTP Range, NSURLSession. */
 actual class ModelDownloader actual constructor() {
@@ -87,7 +87,7 @@ actual class ModelDownloader actual constructor() {
             return@callbackFlow
         }
 
-        val config = NSURLSessionConfiguration.defaultSessionConfiguration.apply {
+        val config = NSURLSessionConfiguration.defaultSessionConfiguration().apply {
             timeoutIntervalForRequest = 60.0
             timeoutIntervalForResource = 3600.0
         }
@@ -98,7 +98,7 @@ actual class ModelDownloader actual constructor() {
             delegateQueue = null
         )
 
-        val request = NSMutableURLRequest.requestWithURL(nsUrl)
+        val request = NSMutableURLRequest(uRL = nsUrl)
         if (offset > 0) {
             request.setValue("bytes=$offset-", forHTTPHeaderField = "Range")
         }
@@ -157,32 +157,32 @@ private class DownloadDelegate(
     override fun URLSession(
         session: NSURLSession,
         dataTask: NSURLSessionDataTask,
-        didReceiveResponse response: NSURLResponse,
+        didReceiveResponse: NSURLResponse,
         completionHandler: (NSURLSessionResponseDisposition) -> Unit
     ) {
-        expectedTotal = ((response as? NSHTTPURLResponse)?.expectedContentLength ?: -1).toLong()
+        expectedTotal = ((didReceiveResponse as? NSHTTPURLResponse)?.expectedContentLength ?: -1).toLong()
         completionHandler(NSURLSessionResponseAllow)
     }
 
     override fun URLSession(
         session: NSURLSession,
         dataTask: NSURLSessionDataTask,
-        didReceive data: NSData
+        didReceiveData: NSData
     ) {
-        onChunk(data)
+        onChunk(didReceiveData)
         val total = if (expectedTotal > 0) startOffset + expectedTotal else -1
-        onProgress(startOffset + data.length.toLong(), total)
+        onProgress(startOffset + didReceiveData.length.toLong(), total)
     }
 
     override fun URLSession(
         session: NSURLSession,
         task: NSURLSessionTask,
-        didCompleteWithError error: NSError?
+        didCompleteWithError: NSError?
     ) {
         if (cancelled) {
             onFinished("Загрузка отменена")
         } else {
-            onFinished(error?.localizedDescription)
+            onFinished(didCompleteWithError?.localizedDescription)
         }
     }
 
