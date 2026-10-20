@@ -121,7 +121,7 @@ object DocParser {
         return out.toString()
     }
 
-    private fun cp1252(b: Int): Char = if (b in 0x80..0x9F) CP1252_HIGH[b - 0x80] else b.toChar()
+    internal fun cp1252(b: Int): Char = if (b in 0x80..0x9F) CP1252_HIGH[b - 0x80] else b.toChar()
 
     // Символы 0x80..0x9F кодовой страницы Windows-1252 (не определённые — пробел)
     private val CP1252_HIGH: CharArray = "€ ‚ƒ„…†‡ˆ‰Š‹Œ Ž  ‘’“”•–—˜™š›œ žŸ".toCharArray()

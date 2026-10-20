@@ -16,7 +16,7 @@ object OdtParser {
     private val MIMETYPE = "application/vnd.oasis.opendocument.text"
 
     fun isOdt(zip: ZipArchive): Boolean =
-        zip.contains(CONTENT) && zip.readText("mimetype")?.trim() == MIMETYPE
+        zip.contains(CONTENT) && zip.readText("mimetype")?.trim()?.startsWith(MIMETYPE) == true
 
     fun parse(zip: ZipArchive, fallbackTitle: String): Book {
         val xml = zip.readText(CONTENT) ?: throw IllegalArgumentException("Это не документ OpenDocument (.odt): нет content.xml")

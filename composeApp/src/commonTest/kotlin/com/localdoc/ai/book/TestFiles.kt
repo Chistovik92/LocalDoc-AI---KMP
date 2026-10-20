@@ -5,12 +5,14 @@ internal object TestFiles {
 
     // ---------- ZIP ----------
 
-    fun zip(entries: Map<String, String>): ByteArray {
+    fun zip(entries: Map<String, String>): ByteArray = zipBytes(entries.mapValues { it.value.encodeToByteArray() })
+
+    fun zipBytes(entries: Map<String, ByteArray>): ByteArray {
         val out = ArrayList<Byte>()
         val central = ArrayList<Byte>()
         for ((name, content) in entries) {
             val nameBytes = name.encodeToByteArray()
-            val data = content.encodeToByteArray()
+            val data = content
             val offset = out.size
             out.addAll(le32(0x04034b50)); out.addAll(le16(20)); out.addAll(le16(0)); out.addAll(le16(0))
             out.addAll(le16(0)); out.addAll(le16(0)); out.addAll(le32(0)); out.addAll(le32(data.size)); out.addAll(le32(data.size))
