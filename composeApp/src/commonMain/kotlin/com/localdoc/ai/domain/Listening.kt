@@ -25,7 +25,7 @@ class BookSpeechSource(
         val target = AppGraph.translationTarget(docKey) ?: return original
         val settings = AppGraph.translationSettings.value.value
         val source = Languages.byCode(settings.sourceLanguage)
-        return AppGraph.translator.translate(PageKey(docKey, page, target.code, settings.sourceLanguage), original, target, source)
+        return AppGraph.translator.translate(PageKey(docKey, page, target.code, settings.sourceLanguage, readerSettings.value.value.pageSize.chars), original, target, source)
     }
 }
 

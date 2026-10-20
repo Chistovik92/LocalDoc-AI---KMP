@@ -184,7 +184,10 @@ fun ReaderView(
     val target = Languages.byCode(translationSettings.targetLanguage)
     // Перевод показывается постранично в любом режиме: так он не мешает прокрутке и озвучке
     val pagedDisplay = settings.paged || translating
-    var page by remember(pager) { mutableStateOf(pager.pageOfBlock(startBlock)) }
+    // Позиция переживает смену размера страницы: новая разбивка открывается на том же блоке
+    var anchorBlock by remember { mutableStateOf(startBlock) }
+    var page by remember(pager) { mutableStateOf(pager.pageOfBlock(anchorBlock)) }
+    LaunchedEffect(page, pager) { anchorBlock = pager.page(page).startBlock }
     val pageInfo = pager.page(page)
     val firstIndex = if (pagedDisplay) pageInfo.startBlock else 0
     val itemCount = if (pagedDisplay) pageInfo.blockCount else book.blocks.size
@@ -218,7 +221,8 @@ fun ReaderView(
     val pageBookmark = bookmarks.firstOrNull { it.entryId == entryId && it.block in pageInfo.startBlock until pageInfo.endBlock }
 
     val sourceCode = translationSettings.sourceLanguage
-    val pageKey = PageKey(docKey, page, target?.code.orEmpty(), sourceCode)
+    val layout = settings.pageSize.chars
+    val pageKey = PageKey(docKey, page, target?.code.orEmpty(), sourceCode, layout)
     val translatedBlocks: List<Block?>? =
         if (translating && target != null) translatedPages[pageKey] ?: AppGraph.translator.cached(pageKey) else null
 
@@ -294,9 +298,9 @@ fun ReaderView(
     }
 
     // Перевод текущей страницы и подготовка соседней
-    LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry) {
+    LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout) {
         if (!translating || target == null) return@LaunchedEffect
-        val nextKey = PageKey(docKey, page + 1, target.code, sourceCode)
+        val nextKey = PageKey(docKey, page + 1, target.code, sourceCode, layout)
         AppGraph.translator.clearError()
         AppGraph.translator.retainOnly(setOf(pageKey, nextKey))
         val source = Languages.byCode(sourceCode)
@@ -358,10 +362,18 @@ fun ReaderView(
         // Движок генерирует по одному запросу: перевод ждёт, пока ИИ-суфлёр ответит
         scope.launch {
             AppGraph.translator.hold()
-            withTimeoutOrNull(AI_WAIT_FOR_TRANSLATION_MS) { AppGraph.translator.awaitIdle() }
-            launchGeneration(AppGraph.pipeline.ask(doc, prompt))
-            val job = AppGraph.generationJob
-            if (job != null) job.invokeOnCompletion { AppGraph.translator.release() } else AppGraph.translator.release()
+            // Отмена (уход с экрана) или сбой не должны оставить перевод на паузе навсегда
+            var handedOver = false
+            try {
+                withTimeoutOrNull(AI_WAIT_FOR_TRANSLATION_MS) { AppGraph.translator.awaitIdle() }
+                launchGeneration(AppGraph.pipeline.ask(doc, prompt))
+                AppGraph.generationJob?.let { job ->
+                    job.invokeOnCompletion { AppGraph.translator.release() }
+                    handedOver = true
+                }
+            } finally {
+                if (!handedOver) AppGraph.translator.release()
+            }
         }
     }
 

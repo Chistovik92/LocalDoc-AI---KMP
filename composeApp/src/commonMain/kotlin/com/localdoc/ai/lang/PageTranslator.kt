@@ -19,8 +19,11 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Что именно переведено: документ, страница, язык перевода и (если задан) язык оригинала. */
-data class PageKey(val docKey: String, val page: Int, val target: String, val source: String?)
+/**
+ * Что именно переведено: документ, страница, язык перевода и (если задан) язык оригинала.
+ * [layout] — размер страницы в символах: при другой разбивке тот же номер страницы — другие абзацы.
+ */
+data class PageKey(val docKey: String, val page: Int, val target: String, val source: String?, val layout: Int = 0)
 
 /**
  * Перевод книги «на лету» постранично: каждая страница переводится блок за блоком локальной моделью,

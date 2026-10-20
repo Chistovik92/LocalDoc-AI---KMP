@@ -175,3 +175,13 @@ class PageTranslatorTest {
         assertTrue(job.isCompleted)
     }
 }
+
+class PageKeyLayoutTest {
+    @Test
+    fun `same page number with another page size is a different cache entry`() {
+        val small = PageKey("b", 3, "ru", null, layout = 1_500)
+        val large = PageKey("b", 3, "ru", null, layout = 6_000)
+        assertTrue(small != large)
+        assertEquals(small, PageKey("b", 3, "ru", null, layout = 1_500))
+    }
+}
