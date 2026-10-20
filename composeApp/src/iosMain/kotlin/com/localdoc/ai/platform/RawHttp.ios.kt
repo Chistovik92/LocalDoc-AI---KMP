@@ -46,7 +46,7 @@ actual class RawHttp actual constructor() {
 
             val config = NSURLSessionConfiguration.ephemeralSessionConfiguration()
             config.HTTPShouldSetCookies = false
-            val session = NSURLSession.sessionWithConfiguration(config, delegate = NoRedirectDelegate, delegateQueue = null)
+            val session = NSURLSession.sessionWithConfiguration(config, delegate = NoRedirectDelegate(), delegateQueue = null)
 
             val task = session.dataTaskWithRequest(req) { data, response, error ->
                 session.finishTasksAndInvalidate()
@@ -85,7 +85,7 @@ actual class RawHttp actual constructor() {
 }
 
 /** Редиректы не выполняются: ответ 30x возвращается вызывающему коду, который сам решает, куда идти. */
-private object NoRedirectDelegate : NSObject(), NSURLSessionTaskDelegateProtocol {
+private class NoRedirectDelegate : NSObject(), NSURLSessionTaskDelegateProtocol {
     override fun URLSession(
         session: NSURLSession,
         task: NSURLSessionTask,
