@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -117,10 +119,10 @@ fun paperColors(theme: ReaderTheme): PaperColors {
 }
 
 /** Действия ИИ-суфлёра над открытым текстом. */
-internal enum class ReaderAiAction(val label: String, val icon: ImageVector) {
-    SUMMARIZE_PAGE("Суммаризировать страницу", Icons.Default.Summarize),
-    EXPLAIN_TERM("Объяснить термин", Icons.Default.Lightbulb),
-    KEY_POINTS("Найти главное", Icons.Default.TravelExplore)
+internal enum class ReaderAiAction(val label: String, val shortLabel: String, val icon: ImageVector) {
+    SUMMARIZE_PAGE("Суммаризировать страницу", "Пересказ", Icons.Default.Summarize),
+    EXPLAIN_TERM("Объяснить термин", "Термин", Icons.Default.Lightbulb),
+    KEY_POINTS("Найти главное", "Главное", Icons.Default.TravelExplore)
 }
 
 /** Навигация по соседним главам (веб-новеллы). */
@@ -317,7 +319,7 @@ fun ReaderView(
                     modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     ReaderAiAction.entries.forEach { action ->
-                        AiChip(action.label, action.icon) {
+                        AiChip(action.shortLabel, action.icon) {
                             if (action == ReaderAiAction.EXPLAIN_TERM) askTerm = true else runAi(action)
                         }
                     }
@@ -453,16 +455,19 @@ private fun ChapterEndCard(stop: ReadAloudStop, hasNextPage: Boolean, onContinue
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChapterFooter(nav: ChapterNavigation, paper: PaperColors) {
-    Row(
+    // Текст кнопок — строго в одну строку; если не помещаются, переносится сама кнопка
+    FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp)
     ) {
-        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text("← Назад") }
-        nav.onTableOfContents?.let { TextButton(onClick = it) { Text("Оглавление", color = paper.text) } }
-        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text("Далее →") }
+        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text("← Назад", maxLines = 1, softWrap = false) }
+        nav.onTableOfContents?.let { TextButton(onClick = it) { Text("Оглавление", color = paper.text, maxLines = 1, softWrap = false) } }
+        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text("Далее →", maxLines = 1, softWrap = false) }
     }
 }
 

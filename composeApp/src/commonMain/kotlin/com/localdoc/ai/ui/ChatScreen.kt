@@ -145,7 +145,7 @@ fun ChatScreen(onOpenModels: () -> Unit) {
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)) {
                 Box(Modifier.weight(1f).heightIn(min = 40.dp), contentAlignment = Alignment.CenterStart) {
@@ -204,12 +204,18 @@ private fun Greeting(suggestions: List<Pair<String, String>>, modelLoaded: Boole
                 }
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Две карточки в ряд на всю ширину; на широких экранах ряд не растягивается бесконечно
+        FlowRow(
+            maxItemsInEachRow = 2,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth().widthIn(max = 560.dp)
+        ) {
             suggestions.forEach { (title, subtitle) ->
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.width(168.dp).clickable(enabled = modelLoaded) { onSuggestion(title) }
+                    modifier = Modifier.weight(1f).clickable(enabled = modelLoaded) { onSuggestion(title) }
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Text(title, style = MaterialTheme.typography.bodyMedium)

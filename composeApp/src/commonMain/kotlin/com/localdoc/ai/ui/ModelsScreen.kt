@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.download.DownloadState
@@ -181,6 +182,7 @@ fun ModelsScreen() {
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun Hero(loadedId: String?) {
     val active = ModelCatalog.byId(loadedId.orEmpty())
     Box(modifier = Modifier.fillMaxWidth().background(GoogleColors.AiGradient, RoundedCornerShape(28.dp)).padding(24.dp)) {
@@ -192,7 +194,11 @@ private fun Hero(loadedId: String?) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.9f)
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp).horizontalScroll(rememberScrollState())) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
                 HeroBadge(Icons.Default.WifiOff, "Офлайн")
                 HeroBadge(Icons.Default.Security, "Приватно")
                 HeroBadge(Icons.Default.CheckCircle, active?.name ?: "Модель не выбрана")
@@ -207,7 +213,7 @@ private fun HeroBadge(icon: ImageVector, text: String) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
             Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
-            Text(text, style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1)
+            Text(text, style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
