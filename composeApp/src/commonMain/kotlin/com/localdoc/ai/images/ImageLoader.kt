@@ -7,6 +7,8 @@ import com.localdoc.ai.net.nowMillis
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.MapSerializer
@@ -78,7 +80,10 @@ class ImageLoader(
     }
 
     /** Декодированная картинка, уменьшенная до [maxDimension] по большей стороне. */
-    suspend fun bitmap(entryId: String?, ref: String, maxDimension: Int, referer: String? = null): ImageBitmap? {
+    suspend fun bitmap(entryId: String?, ref: String, maxDimension: Int, referer: String? = null): ImageBitmap? =
+        withContext(Dispatchers.Default) { loadBitmap(entryId, ref, maxDimension, referer) }
+
+    private suspend fun loadBitmap(entryId: String?, ref: String, maxDimension: Int, referer: String?): ImageBitmap? {
         val key = "${entryId.orEmpty()}|$ref|$maxDimension"
         lock.withLock {
             bitmaps.remove(key)?.let { hit ->

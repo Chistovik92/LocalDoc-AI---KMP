@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
@@ -254,7 +255,7 @@ class CatalogRepository(
                 title = meta.title.ifBlank { item.title }, author = meta.author, genres = meta.genres, year = meta.year,
                 language = meta.language, series = meta.series, enriched = true
             ) else item.copy(enriched = true)
-            _items.value = _items.value.map { if (it.uri == item.uri) updated else it }
+            _items.update { list -> list.map { if (it.uri == item.uri) updated else it } }
             _state.value = _state.value.copy(processed = i + 1, total = pending.size)
             if (i % 25 == 24) save()
             yield()
@@ -264,7 +265,7 @@ class CatalogRepository(
 
     /** Помечает файл добавленным в библиотеку. */
     fun markAdded(uri: String, libraryId: String) {
-        _items.value = _items.value.map { if (it.uri == uri) it.copy(libraryId = libraryId) else it }
+        _items.update { list -> list.map { if (it.uri == uri) it.copy(libraryId = libraryId) else it } }
         save()
     }
 

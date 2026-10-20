@@ -1,5 +1,6 @@
 package com.localdoc.ai.net
 
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -42,6 +43,17 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
     private val serializer = ListSerializer(StoredCookie.serializer())
     private var cookies: List<StoredCookie> = load()
 
+    // Загрузка глав идёт в несколько потоков: изменения cookie защищены короткой блокировкой
+    private val mutex = Mutex()
+    private inline fun <T> locked(block: () -> T): T {
+        while (!mutex.tryLock()) { /* критическая секция короткая — ждём активно */ }
+        try {
+            return block()
+        } finally {
+            mutex.unlock()
+        }
+    }
+
     private fun load(): List<StoredCookie> =
         storage.get(KEY)?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() }.orEmpty()
 
@@ -50,7 +62,7 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
     }
 
     /** Значение заголовка `Cookie` для запроса на [url] либо null. */
-    fun header(url: String): String? {
+    private fun headerImpl(url: String): String? {
         val host = hostOf(url)
         val path = pathOf(url)
         val https = url.startsWith("https://", ignoreCase = true)
@@ -61,7 +73,7 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
     }
 
     /** Разбор заголовка `Set-Cookie` ответа на [url]; чужие домены и «публичные суффиксы» отвергаются. */
-    fun store(url: String, setCookie: String) {
+    private fun storeImpl(url: String, setCookie: String) {
         val host = hostOf(url)
         val parts = setCookie.split(';').map { it.trim() }
         val first = parts.firstOrNull()?.split('=', limit = 2)?.takeIf { it.size == 2 && it[0].isNotBlank() } ?: return
@@ -100,7 +112,7 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
     }
 
     /** Cookie из встроенного браузера: строка `a=b; c=d` для хоста [url] (атрибутов у неё нет). */
-    fun importHeader(url: String, cookieHeader: String) {
+    private fun importHeaderImpl(url: String, cookieHeader: String) {
         val host = hostOf(url)
         val time = now()
         val imported = cookieHeader.split(';').mapNotNull { pair ->
@@ -114,23 +126,30 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
         save()
     }
 
-    fun hasCookies(host: String): Boolean {
+    private fun hasCookiesImpl(host: String): Boolean {
         val h = normalizeHost(host)
         val time = now()
         return cookies.any { it.expiresAt > time && domainMatches(h, it) }
     }
 
     /** Забыть сайт: удаляет все cookie хоста и его родительских доменов, которыми он пользуется. */
-    fun clear(host: String) {
+    private fun clearImpl(host: String) {
         val h = normalizeHost(host)
         cookies = cookies.filterNot { domainMatches(h, it) || it.domain == h || it.domain.endsWith(".$h") }
         save()
     }
 
-    fun clearAll() {
+    private fun clearAllImpl() {
         cookies = emptyList()
         save()
     }
+
+    fun header(url: String): String? = locked { headerImpl(url) }
+    fun store(url: String, setCookie: String) = locked { storeImpl(url, setCookie) }
+    fun importHeader(url: String, cookieHeader: String) = locked { importHeaderImpl(url, cookieHeader) }
+    fun hasCookies(host: String): Boolean = locked { hasCookiesImpl(host) }
+    fun clear(host: String) = locked { clearImpl(host) }
+    fun clearAll() = locked { clearAllImpl() }
 
     private fun domainMatches(host: String, cookie: StoredCookie) =
         if (cookie.hostOnly) host == cookie.domain else host == cookie.domain || host.endsWith("." + cookie.domain)
