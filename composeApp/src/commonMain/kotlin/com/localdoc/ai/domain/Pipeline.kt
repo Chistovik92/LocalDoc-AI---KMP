@@ -1,6 +1,8 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.book.PageLink
 import com.localdoc.ai.engine.LlamaEngine
+import com.localdoc.ai.model.ChatTemplate
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.rag.RagRepository
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +27,9 @@ enum class QuickAction(val label: String, val prompt: String) {
  */
 class SmartPipeline(
     private val engine: LlamaEngine,
-    private val rag: RagRepository
+    private val rag: RagRepository,
+    /** Шаблон диалога загруженной модели (у Qwen, Gemma, Llama, Phi они разные). */
+    private val templateProvider: () -> ChatTemplate = { ChatTemplate.CHATML }
 ) {
     companion object {
         // ~12 000 символов (~3 000 токенов) — порог прямого контекста
@@ -37,6 +41,35 @@ class SmartPipeline(
             Ты — точный локальный аналитик документов. Отвечай строго на основе предоставленного текста на русском языке.
             Используй четкую структуру, списки и выделяй ключевые факты, цифры и выводы. Не выдумывай факты, которых нет в источнике.
         """.trimIndent()
+
+        private const val MAX_NAV_LINKS = 120
+
+        /** Убирает блок рассуждений <think>…</think> рассуждающих моделей из видимого ответа. */
+        fun stripThinking(text: String): String {
+            val open = text.indexOf("<think>")
+            if (open < 0) return text
+            val close = text.indexOf("</think>", open)
+            return if (close < 0) text.substring(0, open).ifBlank { "Модель обдумывает ответ…" }
+            else (text.substring(0, open) + text.substring(close + "</think>".length)).trimStart()
+        }
+    }
+
+    /**
+     * Фоллбэк навигации веб-новелл: если эвристики не нашли ссылку, локальная модель
+     * выбирает её номер из списка ссылок страницы. Возвращает URL или null.
+     */
+    suspend fun pickNavigationLink(links: List<PageLink>, target: String): String? {
+        val candidates = links.filter { it.text.isNotBlank() }.distinctBy { it.url }.take(MAX_NAV_LINKS)
+        if (candidates.isEmpty()) return null
+        val list = candidates.mapIndexed { i, l -> "${i + 1}. ${l.text.take(60)} — ${l.url.takeLast(80)}" }.joinToString("\n")
+        val prompt = templateProvider().build(
+            "Ты помогаешь читалке ориентироваться на сайте веб-новеллы. Отвечай только числом.",
+            "Ссылки страницы:\n$list\n\nКакой номер у ссылки на $target? Ответь одним числом. Если такой ссылки нет — ответь 0."
+        )
+        val answer = StringBuilder()
+        engine.generateStream(prompt, 12).collect { answer.append(it) }
+        val number = Regex("\\d+").find(stripThinking(answer.toString()))?.value?.toIntOrNull() ?: return null
+        return candidates.getOrNull(number - 1)?.url
     }
 
     /** Простой чат без документа. */
@@ -100,9 +133,5 @@ class SmartPipeline(
         emitAll(engine.generateStream(reducePrompt, 1024))
     }
 
-    private fun buildPrompt(system: String, user: String): String = buildString {
-        append("<|im_start|>system\n$system<|im_end|>\n")
-        append("<|im_start|>user\n$user<|im_end|>\n")
-        append("<|im_start|>assistant\n")
-    }
+    private fun buildPrompt(system: String, user: String): String = templateProvider().build(system, user)
 }

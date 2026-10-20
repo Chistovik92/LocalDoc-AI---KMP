@@ -2,10 +2,9 @@ package com.localdoc.ai.tts
 
 /**
  * Локальный синтезатор речи без интернета:
- * Android: системный TextToSpeech; iOS: AVSpeechSynthesizer.
+ * Android: системный TextToSpeech (любой установленный движок — Google, RHVoice, sherpa-onnx);
+ * iOS: AVSpeechSynthesizer (системные и загруженные голоса, включая Enhanced/Premium).
  */
-expect class Speaker() {
-    fun speak(text: String)
-    fun stop()
+expect class Speaker() : SpeechEngine {
     fun shutdown()
 }

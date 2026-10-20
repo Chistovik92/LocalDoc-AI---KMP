@@ -7,8 +7,8 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: 1.1.0
-    CURRENT_PROJECT_VERSION: 3
+    MARKETING_VERSION: 1.5.0
+    CURRENT_PROJECT_VERSION: 4
     SWIFT_VERSION: "5.9"
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -32,6 +32,10 @@ targets:
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework
+      - sdk: MediaPlayer.framework
+      - target: LocalDocWidget
+        embed: true
+        codeSign: false
     settings:
       base:
         INFOPLIST_FILE: iosApp/Info.plist
@@ -52,11 +56,31 @@ targets:
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework
+      - sdk: MediaPlayer.framework
+      - target: LocalDocWidget
+        embed: true
+        codeSign: false
     settings:
       base:
         INFOPLIST_FILE: iosApp/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.localdoc.ai
         CODE_SIGN_STYLE: Automatic
+
+  # Виджет рабочего стола (WidgetKit): «Слушать», «Книга», «Ссылка» через localdoc://
+  LocalDocWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: iosWidget
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        INFOPLIST_FILE: iosWidget/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.localdoc.ai.widget
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
 
 schemes:
   LocalDocAI:

@@ -13,6 +13,10 @@ import com.localdoc.ai.ui.App
 
 class MainActivity : ComponentActivity() {
 
+    // Android 13+: разрешение на уведомление-плеер в шторке (без него озвучка работает, но без шторки)
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     private val pdfPickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             AndroidIntents.onPdfPicked(uri?.toString())
@@ -27,6 +31,11 @@ class MainActivity : ComponentActivity() {
         AndroidIntents.registerPdfPicker(pdfPickerLauncher)
 
         handleIntent(intent)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         setContent {
             App()
