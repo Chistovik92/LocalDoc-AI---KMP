@@ -52,6 +52,9 @@ data class UserShelf(val id: String, val name: String, val uris: List<String>)
 @Serializable
 private class CatalogData(val items: List<CatalogItem> = emptyList(), val roots: List<CatalogRoot> = emptyList(), val shelves: List<UserShelf> = emptyList())
 
+/** Итог добавления найденных файлов в библиотеку. */
+data class CatalogImportResult(val added: Int, val failed: List<String>)
+
 /** Состояние сканирования для показа: этап, сколько найдено и обработано. */
 data class ScanState(
     val running: Boolean = false,

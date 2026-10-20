@@ -11,7 +11,14 @@ import com.localdoc.ai.model.ModelCatalog
 import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
+import com.localdoc.ai.catalog.CatalogImportResult
+import com.localdoc.ai.catalog.CatalogItem
+import com.localdoc.ai.catalog.CatalogRepository
+import com.localdoc.ai.catalog.ContentReader
+import com.localdoc.ai.catalog.ScanSource
 import com.localdoc.ai.images.ImageLoader
+import com.localdoc.ai.platform.DeviceScanner
+import com.localdoc.ai.platform.ScannedFile
 import com.localdoc.ai.platform.FileSaver
 import com.localdoc.ai.net.CookieJar
 import com.localdoc.ai.net.SiteAuth
@@ -164,6 +171,40 @@ object AppGraph {
             saver = fileSaver,
             resolveToc = { _, page -> webSession.resolveTableOfContents(WebDocument(page.book, "", page.links, 0)) }
         )
+    }
+
+    /** Каталог книг на устройстве: сканирование, полки, подборки. */
+    val deviceScanner: DeviceScanner by lazy { DeviceScanner() }
+
+    val catalog: CatalogRepository by lazy {
+        CatalogRepository(
+            source = object : ScanSource {
+                override suspend fun scan(rootId: String, extensions: Set<String>, onFound: (ScannedFile) -> Unit) =
+                    deviceScanner.scan(rootId, extensions, onFound)
+            },
+            reader = ContentReader { uri, maxBytes -> runCatching { files.readBytes(uri) }.getOrNull()?.takeIf { it.size <= maxBytes } },
+            store = files.asNovelFiles(),
+            scope = appScope
+        )
+    }
+
+    /** Добавляет найденные файлы в библиотеку; ошибки по отдельным файлам не прерывают остальные. */
+    suspend fun addFromCatalog(items: List<CatalogItem>, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): CatalogImportResult {
+        var added = 0
+        val failed = ArrayList<String>()
+        items.forEachIndexed { index, item ->
+            try {
+                val entry = library.add(importer.import(item.uri))
+                catalog.markAdded(item.uri, entry.id)
+                added++
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failed.add("${item.name}: ${e.message ?: "не удалось открыть"}")
+            }
+            onProgress(index + 1, items.size)
+        }
+        return CatalogImportResult(added, failed)
     }
 
     val updates: com.localdoc.ai.update.UpdateManager by lazy { com.localdoc.ai.update.UpdateManager(appScope) }

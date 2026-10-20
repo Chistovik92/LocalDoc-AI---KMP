@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
@@ -101,6 +102,7 @@ fun LibraryScreen(
     onPickFile: () -> Unit,
     onPasteText: () -> Unit,
     onOpenWeb: () -> Unit,
+    onOpenCatalog: () -> Unit,
     onOpenModels: () -> Unit
 ) {
     val entries by AppGraph.library.entries.collectAsState()
@@ -156,6 +158,7 @@ fun LibraryScreen(
                     ) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = onPickFile) { Text("Открыть файл", maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = onOpenCatalog) { Text("Найти на устройстве", maxLines = 1, softWrap = false) }
                             OutlinedButton(onClick = onOpenWeb) { Text("Веб-страница", maxLines = 1, softWrap = false) }
                         }
                     }
@@ -220,6 +223,7 @@ fun LibraryScreen(
         ModalBottomSheet(onDismissRequest = { showAdd = false }) {
             Text("Добавить в библиотеку", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, PDF, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML, XML") { showAdd = false; onPickFile() }
+            AddOption(Icons.Default.FolderOpen, "Найти книги на устройстве", "Всё устройство, папка или SD-карта: полки по авторам, жанрам и годам") { showAdd = false; onOpenCatalog() }
             AddOption(Icons.Default.Language, "Веб-страница по ссылке", "Статьи и веб-новеллы в режиме чтения") { showAdd = false; onOpenWeb() }
             AddOption(Icons.Default.ContentPaste, "Вставить текст", "Скопированный фрагмент станет документом") { showAdd = false; onPasteText() }
             Spacer(Modifier.height(32.dp))

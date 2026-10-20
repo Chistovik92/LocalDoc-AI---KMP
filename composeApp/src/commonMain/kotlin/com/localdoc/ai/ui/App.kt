@@ -80,6 +80,7 @@ fun App() {
         var pasteText by remember { mutableStateOf(false) }
         var askUrl by remember { mutableStateOf(false) }
         var settingsSection by remember { mutableStateOf<SettingsSection?>(null) }
+        var showCatalog by remember { mutableStateOf(false) }
         val snackbar = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val filePicker = remember { FilePicker() }
@@ -190,7 +191,11 @@ fun App() {
         }
 
         val reading = openBook
-        if (reading != null) {
+        if (showCatalog && reading == null) {
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+                CatalogScreen(onBack = { showCatalog = false }, onOpenEntry = { showCatalog = false; open(it) })
+            }
+        } else if (reading != null) {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
             Box(Modifier.fillMaxSize()) {
@@ -249,6 +254,7 @@ fun App() {
                             onPickFile = ::pickFile,
                             onPasteText = { pasteText = true },
                             onOpenWeb = { tab = Tab.Web },
+                            onOpenCatalog = { showCatalog = true },
                             onOpenModels = ::openModels
                         )
                         Tab.Web -> WebScreen(onOpenAssistant = { tab = Tab.Assistant }, onOpenModels = ::openModels)

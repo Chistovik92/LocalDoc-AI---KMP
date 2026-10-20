@@ -6,7 +6,6 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.Foundation.NSHTTPCookie
-import platform.Foundation.NSHTTPCookieAcceptPolicyNever
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSURL
@@ -17,6 +16,7 @@ import platform.Foundation.NSURLSessionTask
 import platform.Foundation.NSURLSessionTaskDelegateProtocol
 import platform.Foundation.dataTaskWithRequest
 import platform.Foundation.setValue
+import platform.Foundation.timeIntervalSinceNow
 import platform.darwin.NSObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -35,15 +35,14 @@ actual class RawHttp actual constructor() {
                 return@suspendCancellableCoroutine
             }
             val req = NSMutableURLRequest.requestWithURL(nsUrl)
-            req.HTTPMethod = request.method
-            req.timeoutInterval = request.timeoutMs / 1000.0
-            req.HTTPShouldHandleCookies = false
+            req.setHTTPMethod(request.method)
+            req.setTimeoutInterval(request.timeoutMs / 1000.0)
+            req.setHTTPShouldHandleCookies(false)
             request.headers.forEach { (k, v) -> req.setValue(v, forHTTPHeaderField = k) }
-            request.body?.let { req.HTTPBody = it.toNSData() }
+            request.body?.let { req.setHTTPBody(it.toNSData()) }
 
             val config = NSURLSessionConfiguration.ephemeralSessionConfiguration()
             config.HTTPShouldSetCookies = false
-            config.HTTPCookieAcceptPolicy = NSHTTPCookieAcceptPolicyNever
             val session = NSURLSession.sessionWithConfiguration(config, delegate = NoRedirectDelegate, delegateQueue = null)
 
             val task = session.dataTaskWithRequest(req) { data, response, error ->

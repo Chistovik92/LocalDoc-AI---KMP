@@ -18,6 +18,7 @@ import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
 import platform.Foundation.base64EncodedStringWithOptions
 import platform.Foundation.create
+import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
 import platform.UniformTypeIdentifiers.UTTypeFolder
