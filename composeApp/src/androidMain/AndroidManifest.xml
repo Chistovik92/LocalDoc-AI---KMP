@@ -1,11 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Только сеть для загрузки моделей и веб-страниц: файлы открываются через SAF,
-         модели хранятся в папке приложения — доступ ко всему хранилищу не нужен -->
+    <!-- Сеть — для веб-страниц, моделей и проверки обновлений. Файлы открываются через SAF,
+         доступ ко всему хранилищу не нужен -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Плеер озвучки в шторке: чтение продолжается, когда приложение свёрнуто -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Android 11+: без этого список сторонних TTS-движков (RHVoice, sherpa-onnx…) пуст -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 
     <application
+        android:name=".LocalDocApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -20,24 +32,47 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Перехват URL-ссылок и выделенного текста из браузеров -->
+            <!-- Перехват ссылок и выделенного текста из браузеров -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
-            <!-- Открытие PDF из проводника -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="application/pdf" />
-            </intent-filter>
+            <!-- «Поделиться» файлом книги -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-fictionbook+xml" />
+                <data android:mimeType="application/x-fictionbook" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/html" />
+            </intent-filter>
+
+            <!-- Открытие книг из проводника -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/x-fictionbook+xml" />
+                <data android:mimeType="application/x-fictionbook" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="text/html" />
+            </intent-filter>
+
+            <!-- Действия виджета и уведомления: localdoc://continue | play | open-file | open-url -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="localdoc" />
             </intent-filter>
 
             <!-- Основной launcher -->
@@ -46,5 +81,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Плеер озвучки в шторке (MediaSession + уведомление MediaStyle) -->
+        <service
+            android:name=".player.ReadAloudService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Виджет рабочего стола: плеер, «Открыть книгу», «Ссылка» -->
+        <receiver
+            android:name=".player.ReaderWidgetProvider"
+            android:exported="false"
+            android:label="LocalDoc AI — плеер">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_player_info" />
+        </receiver>
     </application>
 </manifest>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Палитра Google Material 3 -->
+<resources>
+    <color name="widget_surface">#FFF0F4F9</color>
+    <color name="widget_container">#FFD3E3FD</color>
+    <color name="widget_primary">#FF0B57D0</color>
+    <color name="widget_on_primary">#FFFFFFFF</color>
+    <color name="widget_text">#FF1F1F1F</color>
+    <color name="widget_text_secondary">#FF444746</color>
+</resources>

@@ -1,132 +1,280 @@
 package com.localdoc.ai.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import com.localdoc.ai.model.ModelCatalog
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Memory
+import com.localdoc.ai.book.Book
+import com.localdoc.ai.book.BookEntry
+import com.localdoc.ai.domain.AppAction
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.IncomingDoc
-import com.localdoc.ai.parser.ParsedDoc
+import com.localdoc.ai.platform.FilePicker
+import com.localdoc.ai.platform.PlatformBackHandler
+import com.localdoc.ai.platform.SystemPlayer
+import com.localdoc.ai.ui.reader.PlayerBar
+import com.localdoc.ai.ui.reader.ReaderView
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-private enum class Screen(val label: String, val icon: ImageVector) {
-    Chat("Чат", Icons.AutoMirrored.Filled.Chat),
-    Library("Документ", Icons.Default.Description),
-    Models("Модели", Icons.Default.Memory)
+private enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
+    Books("Книги", Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
+    Web("Веб", Icons.Outlined.Language, Icons.Filled.Language),
+    Assistant("Ассистент", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome),
+    Models("Модели", Icons.Outlined.Memory, Icons.Filled.Memory)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Открытая книга в читалке. */
+private class OpenBook(val entryId: String, val book: Book, val startBlock: Int)
+
+private fun bookKey(entryId: String) = "book:$entryId"
+
 @Composable
 fun App() {
     LocalDocTheme {
-        var screen by remember { mutableStateOf(Screen.Chat) }
-        val loadedModelId by AppGraph.loadedModelId.collectAsState()
-
-        // Обработка входящих документов (Share Intent на Android, файлы)
+        var tab by remember { mutableStateOf(Tab.Books) }
+        var openBook by remember { mutableStateOf<OpenBook?>(null) }
+        var processing by remember { mutableStateOf<String?>(null) }
+        var pasteText by remember { mutableStateOf(false) }
+        var askUrl by remember { mutableStateOf(false) }
+        val snackbar = remember { SnackbarHostState() }
+        val scope = rememberCoroutineScope()
+        val filePicker = remember { FilePicker() }
         val incoming by AppGraph.incoming.collectAsState()
-        val scope = androidx.compose.runtime.rememberCoroutineScope()
-        var processingTitle by remember { mutableStateOf<String?>(null) }
+        val action by AppGraph.pendingAction.collectAsState()
+        val update by AppGraph.updates.update.collectAsState()
+        val player by AppGraph.readAloud.state.collectAsState()
+        val webDocument by AppGraph.webSession.document.collectAsState()
 
-        // Восстанавливаем модель, загруженную до перезапуска приложения
-        LaunchedEffect(Unit) { AppGraph.restoreLastModel() }
+        fun open(entry: BookEntry, listen: Boolean = false) {
+            scope.launch {
+                val book = AppGraph.library.load(entry.id)
+                if (book == null) {
+                    snackbar.showSnackbar("Книга не найдена — добавьте её снова")
+                    return@launch
+                }
+                AppGraph.library.touch(entry.id)
+                AppGraph.currentDoc.value = book.toParsedDoc()
+                openBook = OpenBook(entry.id, book, entry.progressBlock)
+                if (listen) AppGraph.readAloud.start(bookKey(entry.id), book.blocks, book.chapters, entry.progressBlock, book.title)
+            }
+        }
 
+        fun importAndOpen(label: String, block: suspend () -> Book) {
+            scope.launchImport(
+                onStart = { processing = label },
+                onDone = { processing = null },
+                onError = { message -> scope.launch { snackbar.showSnackbar(message) } }
+            ) {
+                val entry = AppGraph.library.add(block())
+                open(entry)
+            }
+        }
+
+        fun pickFile() {
+            filePicker.pick("*/*") { uri ->
+                if (uri != null) importAndOpen("Открываем книгу") { AppGraph.importer.import(uri) }
+            }
+        }
+
+        // Восстанавливаем модель, загруженную до перезапуска; тихо проверяем обновления
+        LaunchedEffect(Unit) {
+            SystemPlayer.start()
+            AppGraph.updates.check(silent = true)
+            AppGraph.restoreLastModel()
+        }
+
+        // Документы извне: «Поделиться», открытие файла, ссылки
         LaunchedEffect(incoming) {
             val item = incoming ?: return@LaunchedEffect
             AppGraph.acceptIncoming(null)
-            processingTitle = when (item.type) {
-                IncomingDoc.IncomingType.URL -> item.payload
-                IncomingDoc.IncomingType.PDF -> item.payload.substringAfterLast('/')
-                IncomingDoc.IncomingType.TEXT -> "Текст из буфера"
+            when (item.type) {
+                IncomingDoc.IncomingType.URL -> {
+                    openBook = null
+                    tab = Tab.Web
+                    AppGraph.webSession.open(item.payload)
+                }
+                IncomingDoc.IncomingType.TEXT -> importAndOpen("Присланный текст") { AppGraph.importer.importText(item.payload, "Присланный текст") }
+                IncomingDoc.IncomingType.FILE -> importAndOpen("Открываем книгу") { AppGraph.importer.import(item.payload) }
             }
-            scope.launch {
-                try {
-                    val doc: ParsedDoc = when (item.type) {
-                        IncomingDoc.IncomingType.URL -> AppGraph.webParser.parseUrl(item.payload)
-                        IncomingDoc.IncomingType.TEXT -> ParsedDoc(
-                            title = "Присланный текст",
-                            content = item.payload,
-                            source = "Share Intent"
-                        )
-                        IncomingDoc.IncomingType.PDF -> AppGraph.pdfExtractor.extract(item.payload)
-                    }
-                    AppGraph.currentDoc.value = doc
-                } catch (t: Throwable) {
-                    if (t is kotlinx.coroutines.CancellationException) throw t
-                    AppGraph.messages.value = AppGraph.messages.value + com.localdoc.ai.domain.ChatMessage(
-                        com.localdoc.ai.domain.ChatMessage.Role.ASSISTANT,
-                        "Не удалось обработать источник: ${t.message}"
-                    )
-                } finally {
-                    processingTitle = null
+        }
+
+        // Действия виджета рабочего стола и deep link
+        LaunchedEffect(action) {
+            val current = action ?: return@LaunchedEffect
+            AppGraph.requestAction(null)
+            val last = AppGraph.library.entries.value.firstOrNull()
+            when (current) {
+                AppAction.CONTINUE_READING -> if (last != null) open(last) else tab = Tab.Books
+                AppAction.OPEN_FILE -> pickFile()
+                AppAction.OPEN_URL -> {
+                    openBook = null
+                    tab = Tab.Web
+                    askUrl = true
+                }
+                AppAction.TOGGLE_PLAYBACK -> when {
+                    AppGraph.readAloud.state.value.active -> AppGraph.readAloud.toggle()
+                    last != null -> open(last, listen = true)
                 }
             }
         }
 
-        Scaffold(
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("LocalDoc AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                ModelCatalog.models.firstOrNull { it.id == loadedModelId }?.name ?: "модель не загружена",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (loadedModelId != null) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
+        val reading = openBook
+        if (reading != null) {
+            PlatformBackHandler(enabled = true) { openBook = null }
+            key(bookKey(reading.entryId)) {
+            ReaderView(
+                book = reading.book,
+                docKey = bookKey(reading.entryId),
+                startBlock = reading.startBlock,
+                onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
+                onBack = { openBook = null },
+                onOpenAssistant = { openBook = null; tab = Tab.Assistant },
+                onOpenModels = { openBook = null; tab = Tab.Models }
+            )
+            }
+        } else {
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = {
+                    Column {
+                        // Мини-плеер: озвучка продолжается, пока вы в другой вкладке
+                        val webShowsPlayer = tab == Tab.Web && webDocument != null
+                        if (player.active && !webShowsPlayer) {
+                            PlayerBar(state = player, title = player.title.ifBlank { "Сейчас читается" }, onVoiceSettings = {
+                                val id = AppGraph.readAloud.documentKey?.removePrefix("book:")
+                                id?.let(AppGraph.library::entry)?.let { open(it) }
+                            })
+                        }
+                        NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                            Tab.entries.forEach { entry ->
+                                NavigationBarItem(
+                                    selected = tab == entry,
+                                    onClick = { tab = entry },
+                                    icon = { Icon(if (tab == entry) entry.selectedIcon else entry.icon, contentDescription = entry.label) },
+                                    label = { Text(entry.label) }
+                                )
+                            }
                         }
                     }
-                )
-            },
-            bottomBar = {
-                NavigationBar {
-                    Screen.entries.forEach { entry ->
-                        NavigationBarItem(
-                            selected = screen == entry,
-                            onClick = { screen = entry },
-                            icon = { Icon(entry.icon, contentDescription = entry.label) },
-                            label = { Text(entry.label) }
+                }
+            ) { padding ->
+                // Читалка веб-страницы сама обрабатывает статус-бар (панели поверх текста)
+                val readerOnTop = tab == Tab.Web && webDocument != null
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = padding.calculateBottomPadding())
+                        .then(if (readerOnTop) Modifier else Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                ) {
+                    when (tab) {
+                        Tab.Books -> LibraryScreen(
+                            onOpen = { open(it) },
+                            onListen = { open(it, listen = true) },
+                            onPickFile = ::pickFile,
+                            onPasteText = { pasteText = true },
+                            onOpenWeb = { tab = Tab.Web },
+                            onOpenModels = { tab = Tab.Models }
                         )
+                        Tab.Web -> WebScreen(onOpenAssistant = { tab = Tab.Assistant }, onOpenModels = { tab = Tab.Models })
+                        Tab.Assistant -> ChatScreen(onOpenModels = { tab = Tab.Models })
+                        Tab.Models -> ModelsScreen()
                     }
                 }
             }
-        ) { padding ->
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier.fillMaxSize().padding(padding)
-            ) {
-                when (screen) {
-                    Screen.Models -> ModelsScreen()
-                    Screen.Library -> LibraryScreen(onOpenChat = { screen = Screen.Chat })
-                    Screen.Chat -> ChatScreen(onOpenModels = { screen = Screen.Models })
-                }
-                ProcessingOverlay(processingTitle)
+        }
+
+        TextInputDialog(
+            visible = pasteText,
+            title = "Вставить текст",
+            placeholder = "Вставьте или введите текст",
+            confirmLabel = "Читать",
+            singleLine = false,
+            onDismiss = { pasteText = false },
+            onConfirm = { text ->
+                pasteText = false
+                importAndOpen("Готовим текст") { AppGraph.importer.importText(text, text.lineSequence().first().take(60)) }
             }
+        )
+        TextInputDialog(
+            visible = askUrl,
+            title = "Открыть страницу",
+            placeholder = "https://…",
+            confirmLabel = "Открыть",
+            onDismiss = { askUrl = false },
+            onConfirm = { url ->
+                askUrl = false
+                AppGraph.webSession.open(url)
+            }
+        )
+        ProcessingDialog(processing)
+
+        update?.let { found ->
+            AlertDialog(
+                onDismissRequest = { AppGraph.updates.dismiss() },
+                title = { Text("Доступна версия ${found.version}") },
+                text = { Text(found.notes.ifBlank { found.title }.take(900)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        AppGraph.updates.install(found)
+                        AppGraph.updates.dismiss()
+                    }) { Text(if (found.downloadUrl != null) "Обновить" else "Подробнее") }
+                },
+                dismissButton = { TextButton(onClick = { AppGraph.updates.dismiss() }) { Text("Позже") } }
+            )
+        }
+    }
+}
+
+/** Импорт с индикатором и понятной ошибкой вместо падения. */
+private fun CoroutineScope.launchImport(
+    onStart: () -> Unit,
+    onDone: () -> Unit,
+    onError: (String) -> Unit,
+    block: suspend () -> Unit
+) {
+    launch {
+        onStart()
+        try {
+            block()
+        } catch (t: Throwable) {
+            if (t is kotlinx.coroutines.CancellationException) throw t
+            onError("Не удалось открыть: ${t.message ?: t::class.simpleName}")
+        } finally {
+            onDone()
         }
     }
 }

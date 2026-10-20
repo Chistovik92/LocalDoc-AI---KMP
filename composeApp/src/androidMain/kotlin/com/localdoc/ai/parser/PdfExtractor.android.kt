@@ -28,7 +28,7 @@ actual class PdfExtractor actual constructor() {
 
     actual suspend fun extract(pathOrUri: String): ParsedDoc = withContext(Dispatchers.IO) {
         PDFBoxResourceLoader.init(context)
-        val uri = Uri.parse(pathOrUri)
+        val uri = if (pathOrUri.startsWith("/")) Uri.fromFile(java.io.File(pathOrUri)) else Uri.parse(pathOrUri)
         val fullText = StringBuilder()
         var totalPages = 0
 

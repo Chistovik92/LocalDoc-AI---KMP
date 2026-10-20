@@ -22,9 +22,16 @@ object AndroidIntents {
         pdfPickerLauncher = launcher
     }
 
+    /** Все форматы читалки: часть провайдеров не знает MIME для fb2/md — поэтому и octet-stream. */
+    private val BOOK_MIME_TYPES = arrayOf(
+        "application/pdf", "application/epub+zip", "application/x-fictionbook+xml", "application/x-fictionbook",
+        "application/zip", "text/plain", "text/markdown", "text/x-markdown", "text/html", "application/xhtml+xml",
+        "application/octet-stream", "*/*"
+    )
+
     fun launchPdfPicker(onResult: (String?) -> Unit) {
         pickCallback = onResult
-        pdfPickerLauncher?.launch(arrayOf("application/pdf"))
+        pdfPickerLauncher?.launch(BOOK_MIME_TYPES)
     }
 
     fun onPdfPicked(uriString: String?) {
@@ -37,12 +44,10 @@ object AndroidIntents {
         intent ?: return
         when (intent.action) {
             Intent.ACTION_SEND -> {
-                if (intent.type == "application/pdf") {
-                    @Suppress("DEPRECATION")
-                    val uri = intent.getParcelableExtra(Intent.EXTRA_STREAM) as? android.net.Uri
-                    if (uri != null) {
-                        AppGraph.acceptIncoming(IncomingDoc(IncomingDoc.IncomingType.PDF, uri.toString()))
-                    }
+                @Suppress("DEPRECATION")
+                val stream = intent.getParcelableExtra(Intent.EXTRA_STREAM) as? android.net.Uri
+                if (stream != null) {
+                    AppGraph.acceptIncoming(IncomingDoc(IncomingDoc.IncomingType.FILE, stream.toString()))
                 } else {
                     val text = intent.getStringExtra(Intent.EXTRA_TEXT)
                     if (!text.isNullOrBlank()) {
@@ -59,11 +64,10 @@ object AndroidIntents {
             }
             Intent.ACTION_VIEW -> {
                 val data = intent.data ?: return
-                when (intent.type ?: data.scheme) {
-                    "application/pdf", "content", "file" ->
-                        AppGraph.acceptIncoming(IncomingDoc(IncomingDoc.IncomingType.PDF, data.toString()))
-                    "http", "https" ->
-                        AppGraph.acceptIncoming(IncomingDoc(IncomingDoc.IncomingType.URL, data.toString()))
+                when (data.scheme) {
+                    "localdoc" -> AppGraph.handleDeepLink(data.toString())
+                    "http", "https" -> AppGraph.acceptIncoming(IncomingDoc(IncomingDoc.IncomingType.URL, data.toString()))
+                    else -> AppGraph.acceptIncoming(IncomingDoc(IncomingDoc.IncomingType.FILE, data.toString()))
                 }
             }
         }

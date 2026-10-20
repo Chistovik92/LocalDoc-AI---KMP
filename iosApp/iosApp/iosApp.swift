@@ -6,6 +6,10 @@ struct LocalDocAIApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // Виджет (localdoc://…), файлы книг из «Файлов» и ссылки «Поделиться»
+                .onOpenURL { url in
+                    MainViewControllerKt.handleOpenUrl(url: url.isFileURL ? url.path : url.absoluteString)
+                }
         }
     }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Тёмная палитра Google Material 3 -->
+<resources>
+    <color name="widget_surface">#FF1E1F20</color>
+    <color name="widget_container">#FF0842A0</color>
+    <color name="widget_primary">#FFA8C7FA</color>
+    <color name="widget_on_primary">#FF062E6F</color>
+    <color name="widget_text">#FFE3E3E3</color>
+    <color name="widget_text_secondary">#FFC4C7C5</color>
+</resources>

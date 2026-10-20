@@ -9,6 +9,7 @@ import platform.UIKit.UIDocumentPickerViewController
 import platform.UIKit.UIViewController
 import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
+import platform.UniformTypeIdentifiers.UTTypeData
 import platform.UniformTypeIdentifiers.UTTypePDF
 
 @OptIn(ExperimentalForeignApi::class)
@@ -24,7 +25,8 @@ actual class FilePicker actual constructor() {
         }
 
         val picker = UIDocumentPickerViewController(
-            forOpeningContentTypes = listOf(UTTypePDF),
+            // Любые файлы с данными: формат книги (EPUB, FB2, MD, TXT, HTML, PDF) определяет импортёр
+            forOpeningContentTypes = listOf(UTTypeData, UTTypePDF),
             asCopy = true
         )
         picker.allowsMultipleSelection = false
