@@ -136,7 +136,8 @@ object CatalogQuery {
         if (q.isNotEmpty()) {
             result = result.filter { q in it.title.lowercase() || q in it.author.lowercase() || q in it.series.lowercase() || q in it.name.lowercase() }
         }
-        val sorted = when (f.sort) {
+        // Полка «Недавние» всегда идёт от новых к старым
+        val sorted = when (if (f.kind == ShelfKind.RECENT) CatalogSort.ADDED else f.sort) {
             CatalogSort.TITLE -> result.sortedBy { it.title.lowercase() }
             CatalogSort.AUTHOR -> result.sortedWith(compareBy<CatalogItem> { it.author.isBlank() }.thenBy { it.author.lowercase() }.thenBy { it.title.lowercase() })
             CatalogSort.YEAR -> result.sortedWith(compareByDescending<CatalogItem> { it.year ?: 0 }.thenBy { it.title.lowercase() })

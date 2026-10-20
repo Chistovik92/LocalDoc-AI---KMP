@@ -155,7 +155,7 @@ object BookMetadata {
         }
         val title = field("Title")?.trim().orEmpty()
         val author = field("Author")?.trim().orEmpty()
-        val year = field("CreationDate")?.let { YEAR.find(it)?.value?.toIntOrNull() }
+        val year = field("CreationDate")?.let { Regex("D:(\\d{4})").find(it)?.groupValues?.get(1)?.toIntOrNull() ?: YEAR.find(it)?.value?.toIntOrNull() }
         if (title.isEmpty() && author.isEmpty() && year == null) return null
         return Meta(title = title, author = author, year = year)
     }
