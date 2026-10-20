@@ -15,8 +15,14 @@ import com.localdoc.ai.platform.KeyValueStore
 import com.localdoc.ai.rag.HashingEmbedder
 import com.localdoc.ai.rag.RagRepository
 import com.localdoc.ai.rag.VectorStore
+import com.localdoc.ai.tts.PiperSpeechEngine
 import com.localdoc.ai.tts.ReadAloudController
 import com.localdoc.ai.tts.Speaker
+import com.localdoc.ai.tts.SpeechRouter
+import com.localdoc.ai.tts.VoicePackManager
+import com.localdoc.ai.tts.VoicePackStorage
+import com.localdoc.ai.tts.createPcmOutput
+import com.localdoc.ai.tts.createPiperBackend
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +56,6 @@ object AppGraph {
     val kv: KeyValueStore = KeyValueStore()
     val engine: LlamaEngine = LlamaEngine()
     val downloader: ModelDownloader = ModelDownloader()
-    val speaker: Speaker = Speaker()
     val webParser: WebArticleParser = WebArticleParser()
     val pdfExtractor: PdfExtractor = PdfExtractor()
     val files: FileAccess = FileAccess()
@@ -73,16 +78,28 @@ object AppGraph {
      */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    /** Плеер чтения вслух — общий для книг и веб-страниц. */
-    val readAloud: ReadAloudController by lazy {
-        voiceSettings.value.value.let { v ->
-            v.engineId?.let(speaker::setEngine)
-            speaker.setRate(v.rate)
-            speaker.setPitch(v.pitch)
-            speaker.setVoice(v.voiceId)
-        }
-        ReadAloudController(speaker, appScope)
+    /** Встроенные голоса Piper: скачивание, распаковка, удаление. */
+    val voicePacks: VoicePackManager by lazy {
+        VoicePackManager(VoicePackStorage(), ModelDownloader("voices", ".tar.bz2"), appScope, Dispatchers.Default)
     }
+
+    /** Озвучка: системный синтезатор или встроенный Piper — по настройкам голоса. */
+    val speaker: SpeechRouter by lazy {
+        val builtin = PiperSpeechEngine(createPiperBackend(), createPcmOutput(), appScope, Dispatchers.Default) { id ->
+            voicePacks.paths(id)
+        }
+        // Сохранённые настройки применяются сразу: шторка голосов может открыться раньше плеера
+        SpeechRouter(Speaker(), builtin).apply {
+            val v = voiceSettings.value.value
+            v.engineId?.let(::setEngine)
+            setRate(v.rate)
+            setPitch(v.pitch)
+            setVoice(v.voiceId)
+        }
+    }
+
+    /** Плеер чтения вслух — общий для книг и веб-страниц. */
+    val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope) }
 
     val updates: com.localdoc.ai.update.UpdateManager by lazy { com.localdoc.ai.update.UpdateManager(appScope) }
 

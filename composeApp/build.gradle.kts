@@ -35,6 +35,15 @@ kotlin {
                     defFile(project.file("src/nativeInterop/cinterop/llama.def"))
                     compilerOpts("-I${project.rootProject.projectDir}/cpp_core/bridge")
                 }
+                // Офлайн-синтез Piper: C API sherpa-onnx (фреймворк линкует Xcode)
+                val sherpaOnnx by creating {
+                    defFile(project.file("src/nativeInterop/cinterop/sherpa_onnx.def"))
+                    compilerOpts("-I${project.rootProject.projectDir}/cpp_core/third_party/sherpa-onnx")
+                }
+                // Системная libbz2 — распаковка голосовых пакетов
+                val bzip2 by creating {
+                    defFile(project.file("src/nativeInterop/cinterop/bzip2.def"))
+                }
             }
         }
     }
@@ -63,6 +72,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.pdfbox.android)
             implementation(libs.mlkit.text.recognition)
+            // sherpa-onnx: JNI + Kotlin API OfflineTts, onnxruntime слинкован статически
+            implementation("com.k2fsa.sherpa:sherpa-onnx-static-link-onnxruntime:${libs.versions.sherpaOnnx.get()}@aar")
+            // bzip2 для распаковки голосовых пакетов (tar разбирает общий TarReader)
+            implementation(libs.commons.compress)
         }
     }
 }
@@ -109,8 +122,8 @@ android {
         applicationId = "com.localdoc.ai"
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.5.0"
+        versionCode = 5
+        versionName = "1.6.0"
 
         ndk {
             // Современные флагманские устройства (Snapdragon 8 серии / Dimensity)

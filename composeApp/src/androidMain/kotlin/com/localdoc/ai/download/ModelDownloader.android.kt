@@ -1,6 +1,5 @@
 package com.localdoc.ai.download
 
-import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.platform.AppContextHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -11,38 +10,40 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Android-загрузчик GGUF: внутреннее хранилище приложения + докачка по HTTP Range. */
-actual class ModelDownloader actual constructor() {
+/** Android-загрузчик: внутреннее хранилище приложения + докачка по HTTP Range. */
+actual class ModelDownloader actual constructor(
+    private val dirName: String,
+    private val extension: String
+) {
 
     private val dir: File by lazy {
         val ctx = AppContextHolder.appContext
         val base = ctx.getExternalFilesDir(null) ?: ctx.filesDir
-        File(base, "models").apply { mkdirs() }
+        File(base, dirName).apply { mkdirs() }
     }
 
-    @Volatile
-    private var activeConnection: HttpURLConnection? = null
+    // Соединения и флаги отмены — по id: параллельные загрузки (несколько голосов)
+    // не должны обрывать друг друга
+    private val activeConnections = java.util.concurrent.ConcurrentHashMap<String, HttpURLConnection>()
+    private val cancelledIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
-    @Volatile
-    private var cancelled = false
-
-    private fun fileFor(spec: ModelSpec) = File(dir, "${spec.id}.gguf")
-    private fun tempFor(spec: ModelSpec) = File(dir, "${spec.id}.gguf.part")
+    private fun fileFor(spec: Downloadable) = File(dir, "${spec.id}$extension")
+    private fun tempFor(spec: Downloadable) = File(dir, "${spec.id}$extension.part")
 
     actual fun modelsDir(): String = dir.absolutePath
 
-    actual fun localPathFor(spec: ModelSpec): String = fileFor(spec).absolutePath
+    actual fun localPathFor(spec: Downloadable): String = fileFor(spec).absolutePath
 
-    actual fun isDownloaded(spec: ModelSpec): Boolean = fileFor(spec).exists() && fileFor(spec).length() > 0
+    actual fun isDownloaded(spec: Downloadable): Boolean = fileFor(spec).exists() && fileFor(spec).length() > 0
 
-    actual fun downloadedBytes(spec: ModelSpec): Long = tempFor(spec).takeIf { it.exists() }?.length() ?: 0L
+    actual fun downloadedBytes(spec: Downloadable): Long = tempFor(spec).takeIf { it.exists() }?.length() ?: 0L
 
-    actual fun download(spec: ModelSpec): Flow<DownloadState> = flow {
+    actual fun download(spec: Downloadable): Flow<DownloadState> = flow {
         val target = fileFor(spec)
         val temp = tempFor(spec)
         var connection: HttpURLConnection? = null
         var offset = if (temp.exists()) temp.length() else 0L
-        cancelled = false
+        cancelledIds.remove(spec.id)
 
         try {
             val url = URL(spec.url)
@@ -55,7 +56,7 @@ actual class ModelDownloader actual constructor() {
                 emit(DownloadState.Failed("Неподдерживаемый протокол: ${url.protocol}"))
                 return@flow
             }
-            activeConnection = connection
+            activeConnections[spec.id] = connection
 
             val code = connection.responseCode
             if (code == HTTP_RANGE_NOT_SATISFIABLE && offset > 0) {
@@ -84,7 +85,7 @@ actual class ModelDownloader actual constructor() {
             val contentLength = connection.contentLengthLong.takeIf { it > 0 }
             val total = when {
                 code == HttpURLConnection.HTTP_PARTIAL -> contentLength?.let { offset + it } ?: -1L
-                else -> contentLength ?: spec.sizeMb * 1024L * 1024L
+                else -> contentLength ?: spec.sizeBytes
             }
 
             connection.inputStream.use { input ->
@@ -110,10 +111,10 @@ actual class ModelDownloader actual constructor() {
             if (e is kotlinx.coroutines.CancellationException) throw e
             // cancel() закрывает соединение — это приходит как IOException.
             // Частичный файл сохраняется в обоих случаях и позволит докачать модель позже.
-            val message = if (cancelled) "Загрузка отменена" else "Загрузка прервана: ${e.message ?: "ошибка сети"}"
+            val message = if (spec.id in cancelledIds) "Загрузка отменена" else "Загрузка прервана: ${e.message ?: "ошибка сети"}"
             emit(DownloadState.Failed(message))
         } finally {
-            activeConnection = null
+            connection?.let { activeConnections.remove(spec.id, it) }
             connection?.disconnect()
         }
     }.flowOn(Dispatchers.IO)
@@ -127,13 +128,12 @@ actual class ModelDownloader actual constructor() {
         }
     }
 
-    actual fun cancel(spec: ModelSpec) {
-        cancelled = true
-        activeConnection?.disconnect()
-        activeConnection = null
+    actual fun cancel(spec: Downloadable) {
+        cancelledIds.add(spec.id)
+        activeConnections.remove(spec.id)?.disconnect()
     }
 
-    actual suspend fun delete(spec: ModelSpec) = withContext(Dispatchers.IO) {
+    actual suspend fun delete(spec: Downloadable) = withContext(Dispatchers.IO) {
         fileFor(spec).delete()
         tempFor(spec).delete()
         Unit
