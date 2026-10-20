@@ -129,7 +129,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                     GooglePillField(
                         value = filter.query,
                         onValueChange = { filter = filter.copy(query = it) },
-                        placeholder = "Поиск по названию, автору, серии",
+                        placeholder = "Поиск по каталогу",
                         leadingIcon = Icons.Default.Search,
                         trailing = { if (filter.query.isNotEmpty()) IconButton(onClick = { filter = filter.copy(query = "") }) { Icon(Icons.Default.Close, contentDescription = "Очистить") } }
                     )
@@ -284,7 +284,7 @@ private fun ScanCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            FilterChip(selected = includeText, onClick = { onIncludeText(!includeText) }, label = { Text("Включая TXT, HTML, Markdown, XML", maxLines = 1, softWrap = false) })
+            FilterChip(selected = includeText, onClick = { onIncludeText(!includeText) }, label = { Text("И TXT, HTML, MD, XML", maxLines = 1, softWrap = false) })
             roots.forEach { root ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 10.dp))

@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -192,8 +194,10 @@ fun App() {
 
         val reading = openBook
         if (showCatalog && reading == null) {
-            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
-                CatalogScreen(onBack = { showCatalog = false }, onOpenEntry = { showCatalog = false; open(it) })
+            Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+                    CatalogScreen(onBack = { showCatalog = false }, onOpenEntry = { showCatalog = false; open(it) })
+                }
             }
         } else if (reading != null) {
             PlatformBackHandler(enabled = true) { openBook = null }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
@@ -118,12 +119,12 @@ fun DownloadBanner(modifier: Modifier = Modifier) {
                 if (p.total > 0) LinearProgressIndicator(progress = { (p.done.toFloat() / p.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = { AppGraph.downloads.cancel() }) { Text("Отмена", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { AppGraph.downloads.cancel() }, colors = bannerButtonColors()) { Text("Отмена", maxLines = 1, softWrap = false) }
                 }
             } else {
                 current.summary?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = { AppGraph.downloads.dismiss() }) {
+                    TextButton(onClick = { AppGraph.downloads.dismiss() }, colors = bannerButtonColors()) {
                         Text(if (p.phase == DownloadPhase.DONE) "Готово" else "Закрыть", maxLines = 1, softWrap = false)
                     }
                 }
@@ -131,3 +132,6 @@ fun DownloadBanner(modifier: Modifier = Modifier) {
         }
     }
 }
+
+@Composable
+private fun bannerButtonColors() = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
