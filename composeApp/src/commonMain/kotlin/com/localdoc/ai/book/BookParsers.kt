@@ -85,10 +85,13 @@ object PdfTextAdapter {
 object MarkdownParser {
     private val HEADING = Regex("^(#{1,6})\\s+(.*?)\\s*#*$")
     private val LIST = Regex("^(\\s*)([-*+]|\\d+[.)])\\s+(.*)$")
+    const val COVER_ALT = "cover"
     private val IMAGE_LINE = Regex("^!\\[([^\\]]*)]\\(([^)\\s]+)[^)]*\\)$")
 
     fun parse(text: String, title: String): Book {
         val blocks = ArrayList<Block>()
+        val images = ImageCollector()
+        var cover: String? = null
         val paragraph = StringBuilder()
         var inCode = false
         val code = StringBuilder()
@@ -112,10 +115,16 @@ object MarkdownParser {
             val imageLine = IMAGE_LINE.matchEntire(line.trim())
             if (imageLine != null) {
                 flushParagraph()
+                val alt = imageLine.groupValues[1].trim()
                 val url = imageLine.groupValues[2]
-                if (url.startsWith("http://", true) || url.startsWith("https://", true)) {
-                    blocks.add(Block(BlockType.IMAGE, imageLine.groupValues[1].trim(), image = url))
+                val ref = when {
+                    url.startsWith("http://", true) || url.startsWith("https://", true) -> url
+                    url.startsWith("data:image/", true) -> HtmlImageResolver.decodeDataUri(url)?.let(images::add)
+                    else -> null
                 }
+                // Первая строка-картинка с подписью «cover» — обложка (так её пишет экспорт)
+                if (ref != null && alt == COVER_ALT && cover == null && blocks.isEmpty()) cover = ref
+                else if (ref != null) blocks.add(Block(BlockType.IMAGE, alt, image = ref))
                 continue
             }
             val heading = HEADING.find(line)
@@ -143,6 +152,7 @@ object MarkdownParser {
 
         val docTitle = blocks.firstOrNull { it.type == BlockType.HEADING && it.level == 1 }?.text ?: title
         return Book(title = docTitle, format = BookFormat.MARKDOWN, blocks = blocks, chapters = chaptersFromHeadings(blocks))
+            .withImages(images, cover)
     }
 
     /** Снимает разметку `**`, `*`, `_`, `` ` ``, ссылки `[текст](url)` и запоминает выделения. */
@@ -184,8 +194,8 @@ object HtmlFileParser {
     fun parse(html: String, title: String, source: String): Book {
         val doc = Ksoup.parse(html, source)
         val docTitle = doc.title().ifBlank { title }
-        val cover = PageCover.find(doc, source)
         val images = ImageCollector()
+        val cover = PageCover.find(doc, source, images)
         val blocks = ArticleExtractor.extract(doc, HtmlImageResolver(source, images))
         return Book(title = docTitle, format = BookFormat.HTML, source = source, blocks = blocks, chapters = chaptersFromHeadings(blocks))
             .withImages(images, cover)
@@ -245,7 +255,7 @@ object Fb2Parser {
                     }
                 }
                 "section" -> walkSection(child, depth + 1, blocks, chapters, imageFor)
-                "p" -> addText(blocks, BlockType.PARAGRAPH, child.text())
+                "p" -> addInline(blocks, child)
                 "subtitle" -> addText(blocks, BlockType.HEADING, child.text(), level = (depth + 2).coerceIn(2, 6))
                 "epigraph", "cite", "annotation" -> child.children().forEach { addText(blocks, BlockType.QUOTE, it.text()) }
                 "poem" -> child.getElementsByTag("stanza").forEach { stanza ->
@@ -257,6 +267,28 @@ object Fb2Parser {
                 else -> walkSection(child, depth, blocks, chapters, imageFor)
             }
         }
+    }
+
+    /** Абзац с выделениями: `strong` → жирный, `emphasis` → курсив, `code` → моноширинный. */
+    private fun addInline(blocks: MutableList<Block>, el: Element) {
+        val builder = DocxParser.RunTextBuilder()
+        fun walk(e: Element, bold: Boolean, italic: Boolean, code: Boolean) {
+            for (node in e.childNodes()) {
+                when (node) {
+                    is com.fleeksoft.ksoup.nodes.TextNode -> builder.append(node.getWholeText(), bold, italic, code)
+                    is Element -> walk(
+                        node,
+                        bold || node.normalName() == "strong",
+                        italic || node.normalName() == "emphasis",
+                        code || node.normalName() == "code"
+                    )
+                    else -> Unit
+                }
+            }
+        }
+        walk(el, bold = false, italic = false, code = false)
+        val (text, spans) = builder.build()
+        if (text.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, text, 0, spans))
     }
 
     private fun addText(blocks: MutableList<Block>, type: BlockType, text: String, level: Int = 0) {

@@ -65,6 +65,7 @@ private class RtfReader(private val s: String) {
     private var parStyle = -1
     private var outline = -1
     private var isList = false
+    private var listLevel = 0
     private var builder = DocxParser.RunTextBuilder()
     private val pending = StringBuilder()
     private var pendingStyle = Triple(false, false, false)
@@ -168,6 +169,10 @@ private class RtfReader(private val s: String) {
             Dest.FONTTBL -> { fontWord(word, param); return }
             Dest.STYLESHEET -> { styleWord(word, param); return }
             Dest.PICT -> { pictWord(word); return }
+            Dest.TITLE, Dest.AUTHOR -> {
+                if (word == "u") unicode(param ?: return) else if (word == "uc") group = group.with(uc = param ?: 1)
+                return
+            }
             Dest.NORMAL -> Unit
             else -> return
         }
@@ -176,7 +181,8 @@ private class RtfReader(private val s: String) {
             "uc" -> group = group.with(uc = param ?: 1)
             "u" -> unicode(param ?: return)
             "par", "sect" -> endParagraph()
-            "pard" -> { parStyle = -1; outline = -1; isList = false }
+            "pard" -> { parStyle = -1; outline = -1; isList = false; listLevel = 0 }
+            "ilvl" -> listLevel = (param ?: 0).coerceIn(0, 8)
             "s" -> parStyle = param ?: -1
             "outlinelvl" -> outline = param ?: -1
             "ls" -> isList = true
@@ -280,10 +286,13 @@ private class RtfReader(private val s: String) {
         val level = HEADING_STYLE.find(styleTitle)?.groupValues?.get(1)?.toIntOrNull()
             ?: (if (styleTitle.equals("title", true) || styleTitle.equals("название", true)) 1 else null)
             ?: outline.takeIf { it in 0..8 }?.plus(1)
+        val lowerStyle = styleTitle.lowercase()
         blocks.add(
             when {
                 level != null -> Block(BlockType.HEADING, text, level.coerceIn(1, 6))
-                isList -> Block(BlockType.LIST_ITEM, text, 0, spans.take(MAX_SPANS))
+                lowerStyle == "quote" || lowerStyle == "цитата" || lowerStyle == "block text" -> Block(BlockType.QUOTE, text, 0, spans.take(MAX_SPANS))
+                lowerStyle == "code" || lowerStyle == "preformatted" -> Block(BlockType.CODE, text)
+                isList -> Block(BlockType.LIST_ITEM, text, listLevel, spans.take(MAX_SPANS))
                 else -> Block(BlockType.PARAGRAPH, text, 0, spans.take(MAX_SPANS))
             }
         )

@@ -12,7 +12,12 @@ import com.fleeksoft.ksoup.nodes.TextNode
 internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
 
     private val blocks = ArrayList<Block>()
-    private val inline = StringBuilder()
+    private var inline = DocxParser.RunTextBuilder()
+    private var inlineEmpty = true
+    private var pendingBr = false
+    private var bold = 0
+    private var italic = 0
+    private var code = 0
 
     fun build(root: Element): List<Block> {
         walk(root, listDepth = 0)
@@ -23,11 +28,18 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
     private fun walk(element: Element, listDepth: Int) {
         for (node in element.childNodes()) {
             when (node) {
-                is TextNode -> inline.append(node.text())
+                is TextNode -> appendInline(node.text())
                 is Element -> handleElement(node, listDepth)
                 else -> Unit
             }
         }
+    }
+
+    private fun appendInline(text: String) {
+        if (text.isEmpty()) return
+        inline.append(text, bold > 0, italic > 0, code > 0)
+        inlineEmpty = false
+        pendingBr = false
     }
 
     private fun handleElement(el: Element, listDepth: Int) {
@@ -35,8 +47,11 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
         when {
             tag == "img" -> imageBlock(el)
             tag in SKIP_TAGS -> Unit
-            tag == "br" -> inline.append('\n')
-            tag.length == 2 && tag[0] == 'h' && tag[1] in '1'..'6' -> emit(BlockType.HEADING, el.text(), tag[1] - '0')
+            tag == "br" -> {
+                // Два <br> подряд — разрыв абзаца, одиночный — просто пробел
+                if (pendingBr) { flush(); pendingBr = false } else { appendInline(" "); pendingBr = true }
+            }
+            tag.length == 2 && tag[0] == 'h' && tag[1] in '1'..'6' -> emit(BlockType.HEADING, el, tag[1] - '0')
             tag == "p" || tag == "dd" || tag == "dt" || tag == "figcaption" -> {
                 flush()
                 walk(el, listDepth)
@@ -47,7 +62,7 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
                 // Вложенные списки обрабатываем отдельно, чтобы не склеивать их с пунктом
                 val nested = el.children().filter { it.normalName() == "ul" || it.normalName() == "ol" }
                 nested.forEach { it.remove() }
-                emit(BlockType.LIST_ITEM, el.text(), listDepth)
+                emit(BlockType.LIST_ITEM, el, (listDepth - 1).coerceAtLeast(0))
                 nested.forEach { walk(it, listDepth + 1) }
             }
             tag == "ul" || tag == "ol" -> {
@@ -55,15 +70,32 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
                 walk(el, listDepth + 1)
                 flush()
             }
-            tag == "blockquote" -> emit(BlockType.QUOTE, el.text())
-            tag == "pre" -> emit(BlockType.CODE, el.wholeTextSafe())
-            tag == "tr" -> emit(BlockType.PARAGRAPH, el.children().joinToString(" · ") { it.text() })
+            tag == "blockquote" -> emit(BlockType.QUOTE, el)
+            tag == "pre" -> emitCode(el)
+            tag == "tr" -> {
+                val cells = el.children().joinToString(" · ") { it.text() }
+                flush()
+                val clean = normalizeSpaces(cells)
+                if (clean.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, clean))
+            }
             tag in BLOCK_CONTAINERS -> {
                 flush()
                 walk(el, listDepth)
                 flush()
             }
-            else -> walk(el, listDepth) // инлайн: span, a, b, i, em, strong, sup…
+            else -> {
+                // инлайн: span, a, b, i, em, strong, code, sup…
+                val b = tag == "b" || tag == "strong"
+                val i = tag == "i" || tag == "em" || tag == "cite" || tag == "dfn" || tag == "var"
+                val c = tag == "code" || tag == "tt" || tag == "kbd" || tag == "samp"
+                if (b) bold++
+                if (i) italic++
+                if (c) code++
+                walk(el, listDepth)
+                if (b) bold--
+                if (i) italic--
+                if (c) code--
+            }
         }
     }
 
@@ -80,21 +112,58 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
         blocks.add(Block(BlockType.IMAGE, normalizeSpaces(el.attr("alt")).take(300), image = ref))
     }
 
-    private fun emit(type: BlockType, text: String, level: Int = 0) {
+    /** Блок целиком из содержимого элемента, с сохранением жирного / курсива / кода. */
+    private fun emit(type: BlockType, el: Element, level: Int = 0) {
         flush()
-        val clean = if (type == BlockType.CODE) text.trimEnd() else normalizeSpaces(text)
-        if (clean.isNotBlank()) blocks.add(Block(type, clean, level))
+        val saved = Triple(bold, italic, code)
+        val outer = inline
+        inline = DocxParser.RunTextBuilder()
+        bold = 0; italic = 0; code = 0
+        walkInlineOnly(el)
+        val (text, spans) = inline.build()
+        inline = outer
+        bold = saved.first; italic = saved.second; code = saved.third
+        if (text.isNotBlank()) blocks.add(Block(type, text, level, spans))
+    }
+
+    /** Обход содержимого блока без создания вложенных блоков (внутри заголовка, пункта, цитаты). */
+    private fun walkInlineOnly(el: Element) {
+        for (node in el.childNodes()) {
+            when (node) {
+                is TextNode -> inline.append(node.text(), bold > 0, italic > 0, code > 0)
+                is Element -> {
+                    val tag = node.normalName()
+                    if (tag in SKIP_TAGS) continue
+                    if (tag == "br") { inline.append(" ", false, false, false); continue }
+                    val b = tag == "b" || tag == "strong"
+                    val i = tag == "i" || tag == "em" || tag == "cite" || tag == "dfn" || tag == "var"
+                    val c = tag == "code" || tag == "tt" || tag == "kbd" || tag == "samp"
+                    if (b) bold++
+                    if (i) italic++
+                    if (c) code++
+                    walkInlineOnly(node)
+                    if (b) bold--
+                    if (i) italic--
+                    if (c) code--
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    private fun emitCode(el: Element) {
+        flush()
+        val text = el.wholeTextSafe().trimEnd()
+        if (text.isNotBlank()) blocks.add(Block(BlockType.CODE, text))
     }
 
     private fun flush() {
-        if (inline.isEmpty()) return
-        val text = inline.toString()
-        inline.clear()
-        // <br><br> внутри одного контейнера — это разрыв абзаца
-        text.split(Regex("\n\\s*\n")).forEach { part ->
-            val clean = normalizeSpaces(part)
-            if (clean.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, clean))
-        }
+        if (inlineEmpty) return
+        val (text, spans) = inline.build()
+        inline = DocxParser.RunTextBuilder()
+        inlineEmpty = true
+        pendingBr = false
+        if (text.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, text, 0, spans))
     }
 
     private fun Element.wholeTextSafe(): String =

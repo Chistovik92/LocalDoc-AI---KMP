@@ -48,10 +48,11 @@ object DocxParser {
     private fun paragraphImages(p: Element, ctx: DocxContext): List<Block> {
         val ids = (p.getElementsByTag("a:blip").map { it.attr("r:embed") } + p.getElementsByTag("v:imagedata").map { it.attr("r:id") })
             .filter { it.isNotEmpty() }
+        val alt = p.getElementsByTag("wp:docPr").firstOrNull()?.attr("descr")?.trim().orEmpty()
         return ids.mapNotNull { rid ->
             val target = ctx.rels[rid] ?: return@mapNotNull null
             val ref = zipImage(ctx.zip, "word/", target, ctx.images) ?: return@mapNotNull null
-            Block(BlockType.IMAGE, "", image = ref)
+            Block(BlockType.IMAGE, alt, image = ref)
         }
     }
 

@@ -13,6 +13,7 @@ import com.fleeksoft.ksoup.parser.Parser
 object OdtParser {
 
     private const val CONTENT = "content.xml"
+    private val MONO_FONTS = listOf("courier", "mono", "consolas", "menlo")
     private val MIMETYPE = "application/vnd.oasis.opendocument.text"
 
     fun isOdt(zip: ZipArchive): Boolean =
@@ -38,7 +39,7 @@ object OdtParser {
     }
 
     /** Стиль текста: жирный / курсив из `style:text-properties`. */
-    private data class TextStyle(val bold: Boolean, val italic: Boolean)
+    private data class TextStyle(val bold: Boolean, val italic: Boolean, val mono: Boolean = false)
 
     private fun readStyles(root: Element?): Map<String, TextStyle> {
         root ?: return emptyMap()
@@ -46,7 +47,9 @@ object OdtParser {
             val props = style.getElementsByTag("style:text-properties").firstOrNull()
             style.attr("style:name") to TextStyle(
                 bold = props?.attr("fo:font-weight") == "bold",
-                italic = props?.attr("fo:font-style") == "italic"
+                italic = props?.attr("fo:font-style") == "italic",
+                mono = (props?.attr("style:font-name").orEmpty() + props?.attr("fo:font-family").orEmpty()).lowercase()
+                    .let { f -> MONO_FONTS.any { it in f } }
             )
         }
     }
@@ -104,7 +107,8 @@ object OdtParser {
         p.getElementsByTag("draw:image").mapNotNull { img ->
             val href = img.attr("xlink:href").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val ref = zipImage(zip, "", href, images) ?: return@mapNotNull null
-            Block(BlockType.IMAGE, "", image = ref)
+            val alt = img.parent()?.getElementsByTag("svg:title")?.firstOrNull()?.text()?.trim().orEmpty()
+            Block(BlockType.IMAGE, alt, image = ref)
         }
 
     private fun table(table: Element, styles: Map<String, TextStyle>, out: MutableList<Block>, images: ImageCollector, zip: ZipArchive) {
@@ -122,14 +126,15 @@ object OdtParser {
     private fun inline(parent: Element, styles: Map<String, TextStyle>, builder: DocxParser.RunTextBuilder, current: TextStyle) {
         for (node: Node in parent.childNodes()) {
             when (node) {
-                is TextNode -> builder.append(node.getWholeText(), current.bold, current.italic, false)
+                is TextNode -> builder.append(node.getWholeText(), current.bold, current.italic, current.mono)
                 is Element -> when (node.normalName()) {
                     "text:span", "text:a" -> {
                         val own = styles[node.attr("text:style-name")]
-                        inline(node, styles, builder, TextStyle(current.bold || own?.bold == true, current.italic || own?.italic == true))
+                        inline(node, styles, builder, TextStyle(current.bold || own?.bold == true, current.italic || own?.italic == true, current.mono || own?.mono == true))
                     }
                     "text:s", "text:tab", "text:line-break" -> builder.append(" ", false, false, false)
-                    "text:note", "text:bookmark", "text:bookmark-start", "text:bookmark-end" -> Unit
+                    "text:note", "text:bookmark", "text:bookmark-start", "text:bookmark-end",
+                    "draw:frame", "draw:image", "svg:title", "svg:desc", "draw:object" -> Unit
                     else -> inline(node, styles, builder, current)
                 }
             }

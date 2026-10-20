@@ -57,8 +57,8 @@ class WebArticleParser {
         val navigation = WebNavigationDetector.detect(doc, url)
         val links = WebNavigationDetector.links(doc, url)
         val title = doc.select("h1").firstOrNull()?.text()?.trim().orEmpty().ifBlank { doc.title() }.ifBlank { url }
-        val cover = PageCover.find(doc, url)
         val images = ImageCollector()
+        val cover = PageCover.find(doc, url, images)
         val blocks = ArticleExtractor.extract(doc, HtmlImageResolver(url, images))
         val book = Book(
             title = title,

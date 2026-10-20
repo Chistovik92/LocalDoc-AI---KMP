@@ -223,7 +223,8 @@ internal object Proto {
 /** Накопитель байтов без зависимости от платформы. */
 internal class ByteArrayBuilder {
     private var data = ByteArray(1024)
-    private var size = 0
+    var size = 0
+        private set
 
     fun append(src: ByteArray) {
         if (size + src.size > data.size) data = data.copyOf(maxOf(data.size * 2, size + src.size))

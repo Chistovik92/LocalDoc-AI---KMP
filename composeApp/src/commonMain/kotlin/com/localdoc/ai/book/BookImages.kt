@@ -129,7 +129,7 @@ internal fun zipImage(zip: ZipArchive, baseDir: String, src: String, images: Ima
 
 /** Обложка веб-страницы: Open Graph / Twitter-карточка / `image_src`. */
 object PageCover {
-    fun find(doc: com.fleeksoft.ksoup.nodes.Element, pageUrl: String): String? {
+    fun find(doc: com.fleeksoft.ksoup.nodes.Element, pageUrl: String, images: ImageCollector? = null): String? {
         val candidates = listOf(
             doc.select("meta[property=og:image]").firstOrNull()?.attr("content"),
             doc.select("meta[property=og:image:url]").firstOrNull()?.attr("content"),
@@ -137,6 +137,7 @@ object PageCover {
             doc.select("link[rel=image_src]").firstOrNull()?.attr("href")
         )
         val src = candidates.firstOrNull { !it.isNullOrBlank() }?.trim() ?: return null
+        if (src.startsWith("data:image/", ignoreCase = true)) return images?.let { c -> HtmlImageResolver.decodeDataUri(src)?.let(c::add) }
         if (src.startsWith("data:")) return null
         val absolute = if (src.startsWith("http://", true) || src.startsWith("https://", true)) src else WebNavigationDetector.resolveUrl(pageUrl, src)
         return absolute?.takeIf { it.length <= 2000 }
