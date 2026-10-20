@@ -19,6 +19,7 @@ actual class Speaker actual constructor() : SpeechEngine {
     @Volatile private var ready = false
     private var engineId: String? = null
     private var voiceId: String? = null
+    private var languageTag: String? = null
     private var rate = 1f
     private var pitch = 1f
     private val callbacks = ConcurrentHashMap<String, (Boolean) -> Unit>()
@@ -70,7 +71,7 @@ actual class Speaker actual constructor() : SpeechEngine {
         if (selected != null) {
             engine.voice = selected
         } else {
-            val result = engine.setLanguage(Locale.forLanguageTag("ru-RU"))
+            val result = engine.setLanguage(Locale.forLanguageTag(languageTag ?: "ru-RU"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 engine.setLanguage(Locale.getDefault())
             }
@@ -128,6 +129,11 @@ actual class Speaker actual constructor() : SpeechEngine {
 
     override fun setVoice(id: String?) {
         voiceId = id
+        if (ready) applyLanguageAndVoice()
+    }
+
+    override fun setLanguage(tag: String?) {
+        languageTag = tag
         if (ready) applyLanguageAndVoice()
     }
 

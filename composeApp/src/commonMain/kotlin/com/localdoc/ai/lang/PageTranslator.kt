@@ -50,7 +50,8 @@ class PageTranslator(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val holds = MutableStateFlow(0)
+    private var holdCount = 0
+    private var released = CompletableDeferred(Unit)
 
     fun cached(key: PageKey): List<Block>? = cache[key]
 
@@ -99,11 +100,11 @@ class PageTranslator(
     }
 
     fun hold() {
-        holds.value += 1
+        if (holdCount++ == 0) released = CompletableDeferred()
     }
 
     fun release() {
-        holds.value = (holds.value - 1).coerceAtLeast(0)
+        if (holdCount > 0 && --holdCount == 0) released.complete(Unit)
     }
 
     /** Ждёт, пока движок освободится от перевода текущего блока. */
@@ -129,7 +130,7 @@ class PageTranslator(
 
     private suspend fun translateBlock(block: Block, target: Language, source: Language?): Block {
         val parts = splitForTranslation(block.text, MAX_CHUNK_CHARS).map { chunk ->
-            holds.first { it == 0 }
+            while (holdCount > 0) released.await()
             _generating.value = true
             try {
                 val raw = translateText(chunk, target, source).toList().joinToString("")

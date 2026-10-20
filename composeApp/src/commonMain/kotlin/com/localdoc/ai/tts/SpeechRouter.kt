@@ -47,6 +47,8 @@ class SpeechRouter(
 
     override fun setVoice(id: String?) = active.setVoice(id)
 
+    override fun setLanguage(tag: String?) = system.setLanguage(tag)
+
     /** Только системные движки: встроенные голоса показываются отдельным разделом. */
     override fun engines(): List<TtsEngineInfo> = system.engines()
 

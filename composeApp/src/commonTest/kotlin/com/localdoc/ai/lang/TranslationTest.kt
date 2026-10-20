@@ -5,6 +5,7 @@ import com.localdoc.ai.book.BlockType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -68,7 +69,7 @@ class PageTranslatorTest {
 
     @Test
     fun `blocks are translated keeping types and code stays untouched`() = runTest {
-        val translator = PageTranslator(fake(), this)
+        val translator = PageTranslator(fake(), backgroundScope)
         val blocks = listOf(
             Block(BlockType.HEADING, "Chapter One of the long story", 1),
             Block(BlockType.PARAGRAPH, englishText),
@@ -86,7 +87,7 @@ class PageTranslatorTest {
 
     @Test
     fun `finished pages come from cache without calling the model again`() = runTest {
-        val translator = PageTranslator(fake(), this)
+        val translator = PageTranslator(fake(), backgroundScope)
         val blocks = page(englishText)
         translator.translate(key, blocks, ru, null)
         translator.translate(key, blocks, ru, null)
@@ -97,7 +98,7 @@ class PageTranslatorTest {
 
     @Test
     fun `text already in the target language is not translated`() = runTest {
-        val translator = PageTranslator(fake(), this)
+        val translator = PageTranslator(fake(), backgroundScope)
         val russian = page("Это обычное русское предложение, которое не нужно переводить на русский.")
         val result = translator.translate(key, russian, ru, null)
 
@@ -121,7 +122,7 @@ class PageTranslatorTest {
         var fail = true
         val translator = PageTranslator(
             { text, _, _ -> flow { if (fail) throw IllegalStateException("Модель не загружена"); emit("ok $text") } },
-            this
+            backgroundScope
         )
 
         assertFailsWith<IllegalStateException> { translator.translate(key, page(englishText), ru, null) }
@@ -135,7 +136,7 @@ class PageTranslatorTest {
     @Test
     fun `thinking blocks are stripped and empty answers fall back to the original`() = runTest {
         val outputs = ArrayDeque(listOf("<think>размышляю</think>Привет, мир", "   "))
-        val translator = PageTranslator({ _, _, _ -> flow { emit(outputs.removeFirst()) } }, this)
+        val translator = PageTranslator({ _, _, _ -> flow { emit(outputs.removeFirst()) } }, backgroundScope)
         val result = translator.translate(
             key,
             page("Hello world, this is the first block of text for you.", "Second block of english text goes here, friend."),
@@ -149,7 +150,7 @@ class PageTranslatorTest {
 
     @Test
     fun `retainOnly cancels pages that are no longer needed`() = runTest {
-        val translator = PageTranslator({ text, _, _ -> flow { kotlinx.coroutines.delay(1_000); emit(text) } }, this)
+        val translator = PageTranslator({ text, _, _ -> flow { kotlinx.coroutines.delay(1_000); emit(text) } }, backgroundScope)
         val far = PageKey("b", 50, "ru", null)
         val job = translator.request(far, page(englishText), ru, null)
 
@@ -162,14 +163,14 @@ class PageTranslatorTest {
 
     @Test
     fun `hold pauses the queue until released`() = runTest {
-        val translator = PageTranslator(fake(), this)
+        val translator = PageTranslator(fake(), backgroundScope)
         translator.hold()
         val job = translator.request(key, page(englishText), ru, null)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(0, calls)
 
         translator.release()
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(1, calls)
         assertTrue(job.isCompleted)
     }
