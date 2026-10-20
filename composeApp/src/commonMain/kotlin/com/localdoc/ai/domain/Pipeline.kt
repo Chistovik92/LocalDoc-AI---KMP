@@ -2,6 +2,7 @@ package com.localdoc.ai.domain
 
 import com.localdoc.ai.book.PageLink
 import com.localdoc.ai.engine.LlamaEngine
+import com.localdoc.ai.lang.Language
 import com.localdoc.ai.model.ChatTemplate
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.rag.RagRepository
@@ -70,6 +71,18 @@ class SmartPipeline(
         engine.generateStream(prompt, 12).collect { answer.append(it) }
         val number = Regex("\\d+").find(stripThinking(answer.toString()))?.value?.toIntOrNull() ?: return null
         return candidates.getOrNull(number - 1)?.url
+    }
+
+    /**
+     * Перевод фрагмента на язык [target] (с [source], если он известен; иначе модель определяет его сама).
+     * Запрос на английском: маленькие локальные модели точнее следуют таким инструкциям.
+     */
+    fun translate(text: String, target: Language, source: Language? = null, maxTokens: Int = 1536): Flow<String> {
+        val from = source?.let { " from ${it.english}" }.orEmpty()
+        val system = "You are a professional literary translator. Translate faithfully, keep the meaning, tone and " +
+            "names. Output only the translation: no comments, no quotes, no original text."
+        val user = "Translate the following text$from to ${target.english}.\n\n$text"
+        return engine.generateStream(buildPrompt(system, user), maxTokens)
     }
 
     /** Простой чат без документа. */
