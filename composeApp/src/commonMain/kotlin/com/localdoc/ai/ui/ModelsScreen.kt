@@ -95,7 +95,7 @@ private fun ModelFamily.color(): Color = when (this) {
 
 /**
  * Каталог локальных моделей: фильтр по ОЗУ, оценки качества/скорости/русского языка,
- * установка и загрузка в память. Ниже — раздел «О приложении» с проверкой обновлений.
+ * установка и загрузка в память. Экран — раздел «Нейросети» во вкладке «Настройки».
  */
 @Composable
 fun ModelsScreen() {
@@ -180,7 +180,6 @@ fun ModelsScreen() {
             )
         }
 
-        item { AboutSection() }
     }
 }
 
@@ -342,7 +341,7 @@ private fun Rating(label: String, value: Int, color: Color) {
 }
 
 @Composable
-private fun AboutSection() {
+internal fun AboutSection() {
     val updates = AppGraph.updates
     val update by updates.update.collectAsState()
     val status by updates.status.collectAsState()

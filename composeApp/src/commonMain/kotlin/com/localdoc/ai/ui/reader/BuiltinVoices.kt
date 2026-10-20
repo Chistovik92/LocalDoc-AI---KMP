@@ -31,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.domain.AppGraph
+import com.localdoc.ai.domain.LanguageVoice
+import com.localdoc.ai.lang.Languages
 import com.localdoc.ai.tts.PiperSpeechEngine
 import com.localdoc.ai.tts.PiperVoice
 import com.localdoc.ai.tts.PiperVoiceCatalog
@@ -84,7 +86,15 @@ internal fun BuiltinVoicesSection() {
 }
 
 private fun select(pack: PiperVoice) {
-    AppGraph.updateVoice { it.copy(engineId = PiperSpeechEngine.ENGINE_ID, voiceId = pack.id) }
+    AppGraph.updateVoice { settings ->
+        val code = Languages.baseCode(pack.language)
+        val choice = LanguageVoice(PiperSpeechEngine.ENGINE_ID, pack.id)
+        settings.copy(
+            engineId = choice.engineId,
+            voiceId = choice.voiceId,
+            perLanguage = if (code != null) settings.perLanguage + (code to choice) else settings.perLanguage
+        )
+    }
     // Пробная фраза не должна сбивать идущую озвучку книги
     if (!AppGraph.readAloud.state.value.playing) {
         val sample = if (pack.language.startsWith("ru")) "Так звучит выбранный голос." else "This is how the selected voice sounds."

@@ -14,6 +14,9 @@ class SpeechRouter(
 
     val isBuiltinActive: Boolean get() = active === builtin
 
+    /** Голоса системного синтезатора независимо от активного движка (после [prepareSystem]). */
+    fun systemVoices(): List<Voice> = system.voices()
+
     override fun speak(text: String, onFinished: (Boolean) -> Unit) = active.speak(text, onFinished)
 
     override fun prefetch(text: String) = active.prefetch(text)
