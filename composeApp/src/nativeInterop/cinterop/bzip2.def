@@ -1,6 +1,28 @@
-headers = bzlib.h
-headerFilter = bzlib.h
 package = com.localdoc.ai.bzip2
+linkerOpts = -lbz2
 
-# Системная libbz2 из iOS SDK (распаковка голосовых пакетов .tar.bz2).
-# Xcode линкует её флагом -lbz2 (iosApp/project.yml).
+# Системная libbz2 из iOS SDK (распаковка голосовых пакетов .tar.bz2); Xcode линкует -lbz2
+# (iosApp/project.yml). headerFilter не срабатывает для модульного bzlib.h из SDK — поэтому
+# стабильный ABI bzip2 1.0 (bz_stream и три функции распаковки) объявлен здесь напрямую.
+---
+typedef struct {
+    char *next_in;
+    unsigned int avail_in;
+    unsigned int total_in_lo32;
+    unsigned int total_in_hi32;
+    char *next_out;
+    unsigned int avail_out;
+    unsigned int total_out_lo32;
+    unsigned int total_out_hi32;
+    void *state;
+    void *(*bzalloc)(void *, int, int);
+    void (*bzfree)(void *, void *);
+    void *opaque;
+} bz_stream;
+
+static const int BZ_OK = 0;
+static const int BZ_STREAM_END = 4;
+
+int BZ2_bzDecompressInit(bz_stream *strm, int verbosity, int small);
+int BZ2_bzDecompress(bz_stream *strm);
+int BZ2_bzDecompressEnd(bz_stream *strm);
