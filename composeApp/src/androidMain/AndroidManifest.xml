@@ -47,6 +47,7 @@
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/x-fictionbook+xml" />
                 <data android:mimeType="application/x-fictionbook" />
+                <data android:mimeType="application/zip" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/html" />
             </intent-filter>
@@ -62,6 +63,7 @@
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="application/x-fictionbook+xml" />
                 <data android:mimeType="application/x-fictionbook" />
+                <data android:mimeType="application/zip" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />

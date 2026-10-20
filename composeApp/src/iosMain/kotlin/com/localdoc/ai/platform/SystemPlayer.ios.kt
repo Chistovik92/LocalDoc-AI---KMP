@@ -14,7 +14,7 @@ import platform.MediaPlayer.MPNowPlayingInfoCenter
 import platform.MediaPlayer.MPNowPlayingInfoPropertyElapsedPlaybackTime
 import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
-import platform.MediaPlayer.MPRemoteCommandHandlerStatus
+import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
 
 /**
  * iOS: плеер озвучки в «Пункте управления», на экране блокировки и в наушниках —
@@ -34,7 +34,7 @@ actual object SystemPlayer {
 
         val player = AppGraph.readAloud
         val commands = MPRemoteCommandCenter.sharedCommandCenter()
-        val ok = MPRemoteCommandHandlerStatus.MPRemoteCommandHandlerStatusSuccess
+        val ok = MPRemoteCommandHandlerStatusSuccess
         listOf(
             commands.playCommand, commands.pauseCommand, commands.togglePlayPauseCommand,
             commands.nextTrackCommand, commands.previousTrackCommand, commands.stopCommand
