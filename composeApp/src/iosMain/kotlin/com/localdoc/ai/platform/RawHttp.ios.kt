@@ -8,23 +8,34 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.Foundation.HTTPBody
 import platform.Foundation.HTTPMethod
 import platform.Foundation.HTTPShouldHandleCookies
+import platform.Foundation.NSData
+import platform.Foundation.NSError
 import platform.Foundation.NSHTTPCookie
 import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSMutableData
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
+import platform.Foundation.NSURLResponse
 import platform.Foundation.NSURLSession
 import platform.Foundation.NSURLSessionConfiguration
+import platform.Foundation.NSURLSessionDataDelegateProtocol
+import platform.Foundation.NSURLSessionDataTask
+import platform.Foundation.NSURLSessionResponseAllow
+import platform.Foundation.NSURLSessionResponseCancel
+import platform.Foundation.NSURLSessionResponseDisposition
 import platform.Foundation.NSURLSessionTask
-import platform.Foundation.NSURLSessionTaskDelegateProtocol
-import platform.Foundation.dataTaskWithRequest
+import platform.Foundation.appendData
 import platform.Foundation.setValue
 import platform.Foundation.timeIntervalSinceNow
 import platform.darwin.NSObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/** iOS: NSURLSession без редиректов и без системных cookie; Set-Cookie собираются из разобранных системой cookie. */
+/**
+ * iOS: NSURLSession без редиректов и без системных cookie; тело читается потоком и обрывается, как только
+ * превышен [maxBytes] (память не раздувается); Set-Cookie собираются из разобранных системой cookie.
+ */
 actual class RawHttp actual constructor() {
 
     actual val userAgent: String =
@@ -46,15 +57,16 @@ actual class RawHttp actual constructor() {
 
             val config = NSURLSessionConfiguration.ephemeralSessionConfiguration()
             config.HTTPShouldSetCookies = false
-            val session = NSURLSession.sessionWithConfiguration(config, delegate = NoRedirectDelegate(), delegateQueue = null)
 
-            val task = session.dataTaskWithRequest(req) { data, response, error ->
-                session.finishTasksAndInvalidate()
-                val http = response as? NSHTTPURLResponse
+            var sessionRef: NSURLSession? = null
+            var finished = false
+            val delegate = CollectingDelegate(maxBytes) { http, body, tooLarge, error ->
+                sessionRef?.finishTasksAndInvalidate()
+                if (finished) return@CollectingDelegate
+                finished = true
                 when {
-                    error != null -> cont.resumeWithException(IllegalStateException(error.localizedDescription))
-                    http == null -> cont.resumeWithException(IllegalStateException("Нет ответа от сервера"))
-                    data != null && data.length.toLong() > maxBytes -> cont.resumeWithException(ResponseTooLargeException(maxBytes))
+                    tooLarge -> cont.resumeWithException(ResponseTooLargeException(maxBytes))
+                    http == null -> cont.resumeWithException(IllegalStateException(error ?: "Нет ответа от сервера"))
                     else -> {
                         val fields = http.allHeaderFields
                         val headers = HashMap<String, String>()
@@ -65,10 +77,13 @@ actual class RawHttp actual constructor() {
                         val cookies = NSHTTPCookie.cookiesWithResponseHeaderFields(fields, forURL = nsUrl)
                             .filterIsInstance<NSHTTPCookie>()
                             .map(::setCookieLine)
-                        cont.resume(RawResponse(http.statusCode.toInt(), headers, cookies, data?.toByteArray() ?: ByteArray(0)))
+                        cont.resume(RawResponse(http.statusCode.toInt(), headers, cookies, body.toByteArray()))
                     }
                 }
             }
+            val session = NSURLSession.sessionWithConfiguration(config, delegate = delegate, delegateQueue = null)
+            sessionRef = session
+            val task = session.dataTaskWithRequest(req)
             cont.invokeOnCancellation { task.cancel(); session.invalidateAndCancel() }
             task.resume()
         }
@@ -84,8 +99,19 @@ actual class RawHttp actual constructor() {
     }
 }
 
-/** Редиректы не выполняются: ответ 30x возвращается вызывающему коду, который сам решает, куда идти. */
-private class NoRedirectDelegate : NSObject(), NSURLSessionTaskDelegateProtocol {
+/**
+ * Делегат сессии: редиректы не выполняются (ответ 30x отдаётся вызывающему коду), тело накапливается потоком
+ * и обрывается при превышении лимита — как по заголовку Content-Length, так и по фактическому объёму.
+ */
+private class CollectingDelegate(
+    private val maxBytes: Long,
+    private val onFinish: (NSHTTPURLResponse?, NSData, Boolean, String?) -> Unit
+) : NSObject(), NSURLSessionDataDelegateProtocol {
+
+    private var response: NSHTTPURLResponse? = null
+    private val buffer = NSMutableData()
+    private var tooLarge = false
+
     override fun URLSession(
         session: NSURLSession,
         task: NSURLSessionTask,
@@ -94,5 +120,34 @@ private class NoRedirectDelegate : NSObject(), NSURLSessionTaskDelegateProtocol 
         completionHandler: (NSURLRequest?) -> Unit
     ) {
         completionHandler(null)
+    }
+
+    override fun URLSession(
+        session: NSURLSession,
+        dataTask: NSURLSessionDataTask,
+        didReceiveResponse: NSURLResponse,
+        completionHandler: (NSURLSessionResponseDisposition) -> Unit
+    ) {
+        response = didReceiveResponse as? NSHTTPURLResponse
+        if (didReceiveResponse.expectedContentLength > maxBytes) {
+            tooLarge = true
+            completionHandler(NSURLSessionResponseCancel)
+        } else {
+            completionHandler(NSURLSessionResponseAllow)
+        }
+    }
+
+    override fun URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveData: NSData) {
+        if (tooLarge) return
+        if (buffer.length.toLong() + didReceiveData.length.toLong() > maxBytes) {
+            tooLarge = true
+            dataTask.cancel()
+            return
+        }
+        buffer.appendData(didReceiveData)
+    }
+
+    override fun URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError: NSError?) {
+        onFinish(response, buffer, tooLarge, didCompleteWithError?.localizedDescription)
     }
 }

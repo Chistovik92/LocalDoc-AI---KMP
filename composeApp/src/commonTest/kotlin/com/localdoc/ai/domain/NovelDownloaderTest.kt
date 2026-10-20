@@ -108,6 +108,23 @@ class NovelDownloaderTest {
     }
 
     @Test
+    fun `saved chapters are matched by address when the table of contents changes`() = runTest {
+        val files = MemoryNovelFiles()
+        val site = FakeSite(5)
+        fun toc(vararg n: Int) = n.map { PageLink("Глава $it", "https://site.example/ch/$it") }
+        downloader(site, files).run("https://site.example/ch/1", "https://site.example/toc", toc(1, 2, 3)) {}
+
+        site.loads.clear()
+        // Оглавление изменилось: порядок другой и добавилась глава 4 — старые файлы не должны попасть не туда
+        val result = downloader(site, files).run("https://site.example/ch/1", "https://site.example/toc", toc(1, 3, 4, 2)) {}
+        assertEquals(listOf("Глава 1", "Глава 3", "Глава 4", "Глава 2"), result.book.chapters.map { it.title })
+        val bodies = result.book.blocks.filter { it.type == BlockType.PARAGRAPH }.map { it.text }
+        assertEquals(listOf("Текст главы 1.", "Текст главы 3.", "Текст главы 4.", "Текст главы 2."), bodies.map { it.substringBefore("Слова").trim() })
+        // Стартовая страница (глава 1) и оглавление открываются всегда; из списка скачивается только новая глава 4
+        assertEquals(setOf("https://site.example/ch/1", "https://site.example/ch/4", "https://site.example/toc"), site.loads.keys)
+    }
+
+    @Test
     fun `a ready made file offered by the site is preferred over crawling`() = runTest {
         val text = ("Абзац книги. ".repeat(40) + "\n\n").repeat(10).encodeToByteArray()
         val link = PageLink("Скачать книгу (txt)", "https://site.example/files/book.txt")

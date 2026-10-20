@@ -91,8 +91,8 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
             when (key) {
                 "domain" -> {
                     val d = v.removePrefix(".").lowercase()
-                    // Domain обязан покрывать хост ответа и не быть «com» / «co.uk»
-                    if (d.contains('.') && (host == d || host.endsWith(".$d"))) { domain = d; hostOnly = false } else return
+                    // Domain обязан покрывать хост ответа и не быть публичным суффиксом («com», «co.uk», «github.io»)
+                    if (!PublicSuffixes.isPublicSuffix(d) && (host == d || host.endsWith(".$d"))) { domain = d; hostOnly = false } else return
                 }
                 "path" -> if (v.startsWith("/")) path = v
                 "max-age" -> maxAge = v.toLongOrNull()
@@ -127,15 +127,14 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
     }
 
     private fun hasCookiesImpl(host: String): Boolean {
-        val h = normalizeHost(host)
         val time = now()
-        return cookies.any { it.expiresAt > time && domainMatches(h, it) }
+        return hostVariants(host).any { h -> cookies.any { it.expiresAt > time && domainMatches(h, it) } }
     }
 
     /** Забыть сайт: удаляет все cookie хоста и его родительских доменов, которыми он пользуется. */
     private fun clearImpl(host: String) {
-        val h = normalizeHost(host)
-        cookies = cookies.filterNot { domainMatches(h, it) || it.domain == h || it.domain.endsWith(".$h") }
+        val variants = hostVariants(host)
+        cookies = cookies.filterNot { c -> variants.any { h -> domainMatches(h, c) || c.domain == h || c.domain.endsWith(".$h") } }
         save()
     }
 
@@ -168,10 +167,17 @@ class CookieJar(private val storage: SecretStorage, private val now: () -> Long 
         const val SESSION_LIFETIME_MS = 30L * 24 * 60 * 60 * 1000
         private const val MAX_COOKIES = 3000
 
+        /** Точный хост адреса в нижнем регистре: «www.site.ru» и «site.ru» — разные хосты для host-only cookie. */
         fun hostOf(url: String): String =
-            normalizeHost(url.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#').substringBefore(':'))
+            url.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#').substringBefore(':').trim().lowercase()
 
+        /** Ключ сайта для списка входов и «Забыть сайт»: без «www.». */
         fun normalizeHost(host: String): String = host.trim().lowercase().removePrefix("www.")
+
+        private fun hostVariants(host: String): List<String> {
+            val h = normalizeHost(host)
+            return listOf(h, "www.$h")
+        }
 
         private fun pathOf(url: String): String {
             val afterHost = url.substringAfter("://").substringAfter('/', "")

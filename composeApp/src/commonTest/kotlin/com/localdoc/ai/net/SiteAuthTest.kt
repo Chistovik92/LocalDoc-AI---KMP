@@ -143,6 +143,35 @@ class SiteAuthTest {
     }
 
     @Test
+    fun `host only cookies do not leak between www and the apex host`() {
+        val jar = CookieJar(MemoryStorage()) { 1_000_000_000_000L }
+        jar.store("https://www.example.com/", "a=1")
+        assertEquals("a=1", jar.header("https://www.example.com/"))
+        assertNull(jar.header("https://example.com/"), "cookie без Domain принадлежит только www")
+        jar.store("https://example.com/", "b=2")
+        assertEquals("b=2", jar.header("https://example.com/"))
+        assertEquals("a=1", jar.header("https://www.example.com/"))
+        jar.store("https://www.example.com/", "c=3; Domain=example.com")
+        assertTrue("c=3" in jar.header("https://example.com/").orEmpty(), "с Domain cookie видна всему домену")
+        jar.clear("example.com")
+        assertFalse(jar.hasCookies("example.com") || jar.hasCookies("www.example.com"))
+    }
+
+    @Test
+    fun `cookies for public suffixes and shared hosting are refused`() {
+        val jar = CookieJar(MemoryStorage()) { 1_000_000_000_000L }
+        jar.store("https://alice.github.io/", "x=1; Domain=github.io")
+        jar.store("https://shop.co.uk/", "y=1; Domain=co.uk")
+        jar.store("https://blog.blogspot.com/", "z=1; Domain=blogspot.com")
+        jar.store("https://a.example.co.uk/", "ok=1; Domain=example.co.uk")
+        assertNull(jar.header("https://bob.github.io/"))
+        assertNull(jar.header("https://other.co.uk/"))
+        assertNull(jar.header("https://other.blogspot.com/"))
+        assertEquals("ok=1", jar.header("https://b.example.co.uk/"))
+        assertTrue(PublicSuffixes.isPublicSuffix("com") && PublicSuffixes.isPublicSuffix("com.br") && !PublicSuffixes.isPublicSuffix("example.org"))
+    }
+
+    @Test
     fun `expires dates are parsed and past dates delete cookies`() {
         assertEquals(1_000_000_000_000L, CookieJar.parseHttpDate("Sun, 09 Sep 2001 01:46:40 GMT"))
         assertNotNull(CookieJar.parseHttpDate("Wed, 21-Oct-26 07:28:00 GMT"))

@@ -191,9 +191,12 @@ class NovelDownloader(
         val loaded = HashMap<Int, Book?>()
         var consecutiveFailures = 0
         // Уже скачанное в прошлый раз берём с диска — это и есть докачка
-        for (i in chapters.indices) {
-            files.read(chapterFile(folder, i))?.let { bytes ->
-                runCatching { json.decodeFromString(Book.serializer(), bytes.decodeToString()) }.getOrNull()?.let { loaded[i] = it }
+        // Файл главы назван по адресу, а не по номеру: если оглавление изменилось (главу вставили, убрали,
+        // переставили), чужой текст в книгу не попадёт
+        for ((i, link) in chapters.withIndex()) {
+            files.read(chapterFile(folder, link.url))?.let { bytes ->
+                runCatching { json.decodeFromString(Book.serializer(), bytes.decodeToString()) }.getOrNull()
+                    ?.takeIf { it.source == link.url }?.let { loaded[i] = it }
             }
         }
         progress(DownloadProgress(DownloadPhase.CHAPTERS, loaded.size, chapters.size))
@@ -208,7 +211,7 @@ class NovelDownloader(
                     is ChapterOutcome.Ok -> {
                         consecutiveFailures = 0
                         loaded[i] = outcome.book
-                        files.write(chapterFile(folder, i), json.encodeToString(Book.serializer(), outcome.book).encodeToByteArray())
+                        files.write(chapterFile(folder, chapters[i].url), json.encodeToString(Book.serializer(), outcome.book).encodeToByteArray())
                     }
                     is ChapterOutcome.Missing -> {
                         loaded[i] = null
@@ -290,7 +293,7 @@ class NovelDownloader(
         return NovelResult(merged, chapters.size, missing, original = null)
     }
 
-    private fun chapterFile(folder: String, index: Int) = folder + index.toString().padStart(5, '0') + ".json"
+    private fun chapterFile(folder: String, url: String) = folder + folderId(url) + ".json"
 
     /** Удаляет папку со скачанными страницами произведения. */
     fun forget(tocOrStartUrl: String) = files.deleteAll("novels/" + folderId(tocOrStartUrl) + "/")

@@ -188,7 +188,9 @@ class WebSession(
         }
         auth().importBrowserSession(browserUrl, cookieHeader)
         // Сессия могла быть выдана другому адресу сайта, поэтому сохраняем её и за хостом страницы
-        if (CookieJar.hostOf(browserUrl) != request.host) auth().importBrowserSession(request.pageUrl, cookieHeader)
+        if (CookieJar.normalizeHost(CookieJar.hostOf(browserUrl)) != CookieJar.normalizeHost(request.host)) {
+            auth().importBrowserSession(request.pageUrl, cookieHeader)
+        }
         _loginRequest.value = null
         open(request.pageUrl, allowRelogin = false)
     }
