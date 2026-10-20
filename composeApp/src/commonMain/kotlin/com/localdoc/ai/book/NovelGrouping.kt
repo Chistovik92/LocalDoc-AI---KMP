@@ -20,11 +20,13 @@ private const val MIN_NOVEL_TITLE = 3
 
 /** «… 16. Глава 16: Название», «… - Chapter 12», «…, том 2, часть 3» — хвост, который отделяет название новеллы. */
 private val CHAPTER_SUFFIX = Regex(
-    "(?:^|[$SEPARATORS]+)(?:(?:том|volume|vol\\.?)\\s*\\d+[$SEPARATORS]*)?(?:\\d+[$SEPARATORS]+)?(?:глава|chapter|ch\\.?|часть|part)(?![\\p{L}\\d]).*",
+    "(?:^|[$SEPARATORS]+)(?:(?:том|volume|vol\\.?)\\s*\\d+[$SEPARATORS]*)?(?:глава|chapter|ch\\.?|часть|part)(?![\\p{L}\\d]).*",
     setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
 )
 
-private val FIRST_NUMBER = Regex("\\d+")
+private val CHAPTER_NUMBER = Regex("(?:глава|chapter|ch\\.?|часть|part)\\s*(\\d+)", RegexOption.IGNORE_CASE)
+private val VOLUME_NUMBER = Regex("(?:том|volume|vol\\.?)\\s*(\\d+)", RegexOption.IGNORE_CASE)
+private val TRAILING_NUMBER = Regex("(?:^|[$SEPARATORS]+)(\\d+)$")
 
 /** Название новеллы без номера и заголовка главы; null — запись не похожа на главу новеллы. */
 fun BookEntry.novelTitle(): String? {
@@ -32,7 +34,7 @@ fun BookEntry.novelTitle(): String? {
     val trimmed = title.trim()
     val match = CHAPTER_SUFFIX.find(trimmed) ?: return null
     val base = trimmed.substring(0, match.range.first).trim().trimEnd(',', '.', ':', ';', '–', '—', '-', ' ')
-    return base.takeIf { it.length >= MIN_NOVEL_TITLE }
+    return withoutDuplicatedChapterNumber(base, match.value).takeIf { it.length >= MIN_NOVEL_TITLE }
 }
 
 /** Заголовок главы без названия новеллы и дублирующего номера: «Глава 16: Название». */
@@ -44,12 +46,23 @@ fun BookEntry.chapterLabel(): String {
 
 private val LEADING_NUMBER = Regex("^\\d+[.:\\s]+(?=\\p{L})")
 
+/** «Новелла 16» + «Глава 16» → «Новелла»; «Level 99» + «Chapter 1» остаётся как есть: 99 — часть названия. */
+private fun withoutDuplicatedChapterNumber(base: String, tail: String): String {
+    val chapter = CHAPTER_NUMBER.find(tail)?.groupValues?.get(1)?.toIntOrNull() ?: return base
+    val trailing = TRAILING_NUMBER.find(base) ?: return base
+    if (trailing.groupValues[1].toIntOrNull() != chapter) return base
+    return base.substring(0, trailing.range.first).trimEnd(',', '.', ':', ';', '–', '—', '-', ' ')
+}
+
 private fun BookEntry.host(): String = source.substringAfter("://").substringBefore('/').removePrefix("www.").lowercase()
 
-private fun BookEntry.chapterNumber(): Int {
-    val tail = CHAPTER_SUFFIX.find(title.trim())?.value.orEmpty()
-    return FIRST_NUMBER.find(tail)?.value?.toIntOrNull() ?: Int.MAX_VALUE
-}
+private fun BookEntry.suffix(): String = CHAPTER_SUFFIX.find(title.trim())?.value.orEmpty()
+
+private fun BookEntry.volumeNumber(): Int =
+    VOLUME_NUMBER.find(suffix())?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+private fun BookEntry.chapterNumber(): Int =
+    CHAPTER_NUMBER.find(suffix())?.groupValues?.get(1)?.toIntOrNull() ?: Int.MAX_VALUE
 
 /**
  * Собирает главы одной веб-новеллы (тот же сайт и то же название) в одну группу.
@@ -71,7 +84,7 @@ fun groupLibrary(entries: List<BookEntry>): List<LibraryItem> {
                         LibraryItem.Novel(
                             title = checkNotNull(entry.novelTitle()),
                             host = entry.host(),
-                            chapters = chapters.sortedWith(compareBy<BookEntry> { it.chapterNumber() }.thenBy { it.title }),
+                            chapters = chapters.sortedWith(compareBy<BookEntry> { it.volumeNumber() }.thenBy { it.chapterNumber() }.thenBy { it.title }),
                             mostRecent = entry
                         )
                     )

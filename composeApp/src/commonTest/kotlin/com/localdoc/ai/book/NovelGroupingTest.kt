@@ -30,6 +30,35 @@ class NovelGroupingTest {
     }
 
     @Test
+    fun `number that belongs to the novel title is preserved`() {
+        assertEquals("Level 99", web("a", "Level 99 Chapter 1").novelTitle())
+    }
+
+    @Test
+    fun `novels differing only by a trailing number are not merged`() {
+        val shelf = groupLibrary(
+            listOf(
+                web("a1", "Level 99 Chapter 1"),
+                web("a2", "Level 99 Chapter 2"),
+                web("b1", "Level 100 Chapter 1"),
+                web("b2", "Level 100 Chapter 2")
+            )
+        )
+
+        assertEquals(listOf("Level 99", "Level 100"), shelf.map { (it as LibraryItem.Novel).title })
+    }
+
+    @Test
+    fun `chapters are sorted by part number inside a volume`() {
+        val shelf = groupLibrary(
+            listOf(web("p10", "Novel, том 2, часть 10"), web("p2", "Novel, том 2, часть 2"), web("v1", "Novel, том 1, часть 30"))
+        )
+
+        val novel = assertIs<LibraryItem.Novel>(shelf.single())
+        assertEquals(listOf("v1", "p2", "p10"), novel.chapters.map { it.id })
+    }
+
+    @Test
     fun `english chapter marker is recognised`() {
         assertEquals("Solo Leveling", web("a", "Solo Leveling - Chapter 12").novelTitle())
     }
