@@ -11,7 +11,16 @@ import com.localdoc.ai.model.ModelCatalog
 import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
+import com.localdoc.ai.images.ImageLoader
+import com.localdoc.ai.net.CookieJar
+import com.localdoc.ai.net.SiteAuth
+import com.localdoc.ai.net.SiteVault
+import com.localdoc.ai.net.WebHttp
+import com.localdoc.ai.net.asStorage
+import com.localdoc.ai.net.asTransport
 import com.localdoc.ai.parser.WebArticleParser
+import com.localdoc.ai.platform.RawHttp
+import com.localdoc.ai.platform.SecureStore
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
 import com.localdoc.ai.rag.HashingEmbedder
@@ -60,7 +69,14 @@ object AppGraph {
     val kv: KeyValueStore = KeyValueStore()
     val engine: LlamaEngine = LlamaEngine()
     val downloader: ModelDownloader = ModelDownloader()
-    val webParser: WebArticleParser = WebArticleParser()
+    /** Защищённое хранилище (Keystore / Keychain): пароли сайтов и cookie сессий. */
+    val secure: SecureStore by lazy { SecureStore() }
+    val cookieJar: CookieJar by lazy { CookieJar(secure.asStorage()) }
+    val webHttp: WebHttp by lazy { WebHttp(RawHttp().asTransport(), cookieJar) }
+    val siteVault: SiteVault by lazy { SiteVault(secure.asStorage(), cookieJar) }
+    val siteAuth: SiteAuth by lazy { SiteAuth(webHttp, siteVault) }
+    val images: ImageLoader by lazy { ImageLoader(files, kv, { webHttp }) }
+    val webParser: WebArticleParser = WebArticleParser { webHttp }
     val pdfExtractor: PdfExtractor = PdfExtractor()
     val files: FileAccess = FileAccess()
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
@@ -131,7 +147,10 @@ object AppGraph {
             pipeline = { pipeline },
             isModelLoaded = { loadedModelId.value != null },
             readAloud = { readAloud },
-            scope = appScope
+            scope = appScope,
+            auth = { siteAuth },
+            vault = { siteVault },
+            autoNext = { readerSettings.value.value.autoNext }
         )
     }
 

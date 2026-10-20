@@ -30,9 +30,16 @@ actual class FileAccess actual constructor() {
         }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')
     }
 
+    /** Имя внутри хранилища: без «..» и абсолютных путей, чтобы файл не вышел за пределы папки приложения. */
+    private fun resolve(name: String): File {
+        require(name.isNotBlank() && !name.startsWith("/") && ".." !in name.split('/')) { "Недопустимое имя файла: $name" }
+        return File(booksDir, name)
+    }
+
     actual fun writeAppFile(name: String, bytes: ByteArray) {
-        val target = File(booksDir, name)
-        val temp = File(booksDir, "$name.tmp")
+        val target = resolve(name)
+        target.parentFile?.mkdirs()
+        val temp = File(target.parentFile, target.name + ".tmp")
         temp.writeBytes(bytes)
         if (!temp.renameTo(target)) {
             target.delete()
@@ -41,9 +48,25 @@ actual class FileAccess actual constructor() {
     }
 
     actual fun readAppFile(name: String): ByteArray? =
-        File(booksDir, name).takeIf { it.exists() }?.readBytes()
+        resolve(name).takeIf { it.isFile }?.readBytes()
 
     actual fun deleteAppFile(name: String) {
-        File(booksDir, name).delete()
+        resolve(name).delete()
     }
+
+    actual fun listAppFiles(prefix: String): List<String> {
+        val root = booksDir
+        return root.walkTopDown().filter { it.isFile && !it.name.endsWith(".tmp") }
+            .map { it.relativeTo(root).path.replace(File.separatorChar, '/') }
+            .filter { it.startsWith(prefix) }.sorted().toList()
+    }
+
+    actual fun deleteAppFiles(prefix: String) {
+        val root = booksDir
+        // Сначала файлы, затем опустевшие папки по префиксу
+        root.walkBottomUp().filter { it != root && it.relativeTo(root).path.replace(File.separatorChar, '/').startsWith(prefix) }
+            .forEach { if (it.isFile || it.list().isNullOrEmpty()) it.delete() }
+    }
+
+    actual fun appFileSize(name: String): Long = resolve(name).takeIf { it.isFile }?.length() ?: 0L
 }

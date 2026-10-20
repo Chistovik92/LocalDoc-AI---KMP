@@ -16,4 +16,13 @@ expect class FileAccess() {
     fun readAppFile(name: String): ByteArray?
 
     fun deleteAppFile(name: String)
+
+    /** Имена файлов хранилища приложения, начинающиеся с [prefix] (вложенные папки — через «/»). */
+    fun listAppFiles(prefix: String): List<String>
+
+    /** Удаляет все файлы и папки хранилища, имя которых начинается с [prefix]. */
+    fun deleteAppFiles(prefix: String)
+
+    /** Размер файла хранилища в байтах (0 — файла нет). */
+    fun appFileSize(name: String): Long
 }

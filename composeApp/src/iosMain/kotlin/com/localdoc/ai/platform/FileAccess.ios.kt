@@ -9,7 +9,11 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileSize
+import platform.Foundation.NSFileType
+import platform.Foundation.NSFileTypeDirectory
 import platform.Foundation.NSHomeDirectory
+import platform.Foundation.NSNumber
 import platform.Foundation.create
 import platform.Foundation.dataWithContentsOfFile
 import platform.Foundation.writeToFile
@@ -49,14 +53,49 @@ actual class FileAccess actual constructor() {
 
     actual fun displayName(pathOrUri: String): String? = pathOrUri.substringAfterLast('/').takeIf { it.isNotBlank() }
 
+    /** Путь внутри хранилища: без «..» и абсолютных путей. */
+    private fun pathOf(name: String): String {
+        require(name.isNotBlank() && !name.startsWith("/") && ".." !in name.split('/')) { "Недопустимое имя файла: $name" }
+        return "$booksDir/$name"
+    }
+
     actual fun writeAppFile(name: String, bytes: ByteArray) {
-        bytes.toNSData().writeToFile("$booksDir/$name", atomically = true)
+        val path = pathOf(name)
+        if ('/' in name) {
+            NSFileManager.defaultManager.createDirectoryAtPath(
+                path.substringBeforeLast('/'), withIntermediateDirectories = true, attributes = null, error = null
+            )
+        }
+        bytes.toNSData().writeToFile(path, atomically = true)
     }
 
     actual fun readAppFile(name: String): ByteArray? =
-        NSData.dataWithContentsOfFile("$booksDir/$name")?.toByteArray()
+        NSData.dataWithContentsOfFile(pathOf(name))?.toByteArray()
 
     actual fun deleteAppFile(name: String) {
-        NSFileManager.defaultManager.removeItemAtPath("$booksDir/$name", error = null)
+        NSFileManager.defaultManager.removeItemAtPath(pathOf(name), error = null)
+    }
+
+    actual fun listAppFiles(prefix: String): List<String> {
+        val fm = NSFileManager.defaultManager
+        val all = fm.subpathsOfDirectoryAtPath(booksDir, error = null).orEmpty().filterIsInstance<String>()
+        return all.filter { it.startsWith(prefix) && !it.endsWith(".tmp") && !isDirectory("$booksDir/$it") }.sorted()
+    }
+
+    actual fun deleteAppFiles(prefix: String) {
+        val fm = NSFileManager.defaultManager
+        val all = fm.subpathsOfDirectoryAtPath(booksDir, error = null).orEmpty().filterIsInstance<String>()
+        // Глубокие пути первыми: папка удаляется вместе с содержимым, повторное удаление безвредно
+        all.filter { it.startsWith(prefix) }.sortedByDescending { it.length }.forEach { fm.removeItemAtPath("$booksDir/$it", error = null) }
+    }
+
+    actual fun appFileSize(name: String): Long {
+        val attrs = NSFileManager.defaultManager.attributesOfItemAtPath(pathOf(name), error = null) ?: return 0L
+        return (attrs[NSFileSize] as? NSNumber)?.longValue ?: 0L
+    }
+
+    private fun isDirectory(path: String): Boolean {
+        val attrs = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return false
+        return attrs[NSFileType] == NSFileTypeDirectory
     }
 }

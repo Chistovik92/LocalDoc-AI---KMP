@@ -193,8 +193,9 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
                 BookFormat.TEXT -> PlainTextParser.parse(TextDecoder.decode(bytes), title)
                 BookFormat.PDF -> error("PDF разбирается платформенным экстрактором")
             }
-            require(book.blocks.isNotEmpty()) { "В файле не найден текст" }
-            return book.copy(source = source)
+            val clean = book.withoutAds()
+            require(clean.blocks.isNotEmpty()) { "В файле не найден текст" }
+            return clean.copy(source = source)
         }
     }
 }

@@ -24,6 +24,13 @@ class LibraryRepository(private val kv: KeyValueStore, private val files: FileAc
         val existing = _entries.value.firstOrNull { it.source.isNotBlank() && it.source == book.source && it.format == book.format }
         val id = existing?.id ?: newId()
         files.writeAppFile(fileName(id), json.encodeToString(Book.serializer(), book).encodeToByteArray())
+        // Повторный импорт заменяет картинки книги целиком: старые файлы не накапливаются
+        if (existing != null) files.deleteAppFiles(imagePrefix(id))
+        var imageBytes = 0L
+        for ((imageId, data) in book.imageData) {
+            files.writeAppFile(imagePrefix(id) + imageId, data)
+            imageBytes += data.size
+        }
         val entry = BookEntry(
             id = id,
             title = book.title,
@@ -31,7 +38,9 @@ class LibraryRepository(private val kv: KeyValueStore, private val files: FileAc
             format = book.format,
             source = book.source,
             totalBlocks = book.blocks.size,
-            progressBlock = existing?.progressBlock?.coerceAtMost((book.blocks.size - 1).coerceAtLeast(0)) ?: 0
+            progressBlock = existing?.progressBlock?.coerceAtMost((book.blocks.size - 1).coerceAtLeast(0)) ?: 0,
+            cover = book.cover,
+            imageBytes = imageBytes
         )
         update(listOf(entry) + _entries.value.filterNot { it.id == id })
         entry
@@ -41,6 +50,14 @@ class LibraryRepository(private val kv: KeyValueStore, private val files: FileAc
         files.readAppFile(fileName(id))?.let { bytes ->
             runCatching { json.decodeFromString(Book.serializer(), bytes.decodeToString()) }.getOrNull()
         }
+    }
+
+    /** Книга вместе с байтами её картинок — для экспорта и конвертации. */
+    suspend fun loadWithImages(id: String): Book? = withContext(Dispatchers.Default) {
+        val book = load(id) ?: return@withContext null
+        val data = HashMap<String, ByteArray>()
+        for (imageId in book.images) files.readAppFile(imagePrefix(id) + imageId)?.let { data[imageId] = it }
+        book.copy(imageData = data)
     }
 
     fun entry(id: String): BookEntry? = _entries.value.firstOrNull { it.id == id }
@@ -59,6 +76,7 @@ class LibraryRepository(private val kv: KeyValueStore, private val files: FileAc
 
     fun remove(id: String) {
         files.deleteAppFile(fileName(id))
+        files.deleteAppFiles(imagePrefix(id))
         update(_entries.value.filterNot { it.id == id })
     }
 
@@ -71,6 +89,8 @@ class LibraryRepository(private val kv: KeyValueStore, private val files: FileAc
         kv.get(KEY_ENTRIES)?.let { runCatching { json.decodeFromString(ENTRIES_SERIALIZER, it) }.getOrNull() }.orEmpty()
 
     private fun fileName(id: String) = "$id.json"
+
+    private fun imagePrefix(id: String) = "$id.img."
 
     private fun newId(): String = Random.nextLong().toULong().toString(16)
 

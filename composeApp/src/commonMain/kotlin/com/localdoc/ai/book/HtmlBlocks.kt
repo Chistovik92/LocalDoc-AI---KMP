@@ -172,7 +172,7 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
     companion object {
         private val IMAGE_SOURCE_ATTRS = listOf("data-src", "data-original", "data-lazy-src", "src")
         private const val MIN_IMAGE_SIDE = 48
-        private val JUNK_IMAGE = Regex("(^|[\\s_\\-/.])(icon|logo|avatar|emoji|smiley|sprite|pixel|spacer|badge|tracking|blank|loader|spinner)([\\s_\\-/.\\d]|$)", RegexOption.IGNORE_CASE)
+        private val JUNK_IMAGE = Regex("(^|[\\s_\\-/.])(icon|logo|avatar|emoji|smiley|sprite|pixel|spacer|badge|tracking|blank|loader|spinner|banner|ads?|adv|advert|promo|sponsor|doubleclick|googlesyndication|adfox|adriver|teaser|counter)([\\s_\\-/.\\d]|$)", RegexOption.IGNORE_CASE)
         private val SKIP_TAGS = setOf(
             "script", "style", "noscript", "iframe", "svg", "canvas", "template", "button",
             "input", "select", "textarea", "form", "nav", "head", "img", "video", "audio", "object", "embed"
@@ -215,9 +215,24 @@ object AdFilter {
         RegexOption.IGNORE_CASE
     )
 
+    // Водяные знаки и призывы сайтов с книгами, фанфиками и веб-новеллами: короткие строки-вставки
+    private val PROMO_TEXT = Regex(
+        "^(скачано (с|на)|скачать (книгу|полную)|читайте (нас|продолжение|полную версию|книгу целиком|на нашем)|" +
+            "книга (взята|скачана|размещена) (с|на)|источник:|оригинал( статьи)?:|купить (книгу|полную версию)|" +
+            "продолжение (читайте |следует на )?на |все права защищены|копирование (запрещено|разрешено только)|" +
+            "поддержите (автора|проект|нас)|поддержать (автора|проект)|sponsored by|read (more|the full|the rest) |" +
+            "follow us|visit (our|my) (site|website)|buy me a coffee|support the author|" +
+            "перевод( выполнен)?:?\\s*(команд|групп|студи)\\w*)\\b.{0,160}$|" +
+            "^(присоединяйтесь|вступайте|подписывайтесь|подписаться|join|subscribe)\\b.{0,120}" +
+            "(групп|канал|telegram|телеграм|vk\\.com|вконтакте|boosty|patreon|сайт|сообществ|discord|channel|newsletter).{0,120}$|" +
+            "^(https?://\\S+|www\\.\\S+|[a-z0-9-]+\\.(ru|com|net|org|ua|by|kz|su|club|site|online))\\s*$|" +
+            "(patreon\\.com|boosty\\.to|t\\.me/|vk\\.com/|ko-fi\\.com)\\S*\\s*$",
+        RegexOption.IGNORE_CASE
+    )
+
     fun isAdText(text: String): Boolean {
         val t = text.trim()
-        return t.length <= 400 && AD_TEXT.containsMatchIn(t)
+        return (t.length <= 400 && AD_TEXT.containsMatchIn(t)) || (t.length <= 240 && PROMO_TEXT.containsMatchIn(t))
     }
 
     fun isAdElement(el: Element): Boolean {
@@ -321,4 +336,25 @@ object ArticleExtractor {
         val links = el.select("a").sumOf { it.text().length }
         return links.toDouble() / total
     }
+}
+
+/**
+ * Книга без рекламы: убирает блоки-вставки (реклама, водяные знаки сайтов, призывы подписаться) из любого
+ * источника — EPUB, FB2, DOCX, TXT, скачанных глав. Заголовки глав не удаляются; индексы глав пересчитываются.
+ */
+fun Book.withoutAds(): Book {
+    val keep = blocks.map { b -> b.type == BlockType.IMAGE || b.type == BlockType.HEADING || !AdFilter.isAdText(b.text) }
+    if (keep.all { it }) return this
+    val newIndex = IntArray(blocks.size + 1)
+    var next = 0
+    for (i in blocks.indices) {
+        newIndex[i] = next
+        if (keep[i]) next++
+    }
+    newIndex[blocks.size] = next
+    return copy(
+        blocks = blocks.filterIndexed { i, _ -> keep[i] },
+        chapters = chapters.map { it.copy(startBlock = newIndex[it.startBlock.coerceIn(0, blocks.size)]) }
+            .filter { it.startBlock < next }.distinctBy { it.startBlock }
+    )
 }
