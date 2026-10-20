@@ -75,6 +75,7 @@ import com.localdoc.ai.domain.ChatMessage
 import com.localdoc.ai.domain.ReaderFont
 import com.localdoc.ai.domain.ReaderTheme
 import com.localdoc.ai.platform.PlatformActions
+import com.localdoc.ai.tts.PiperSpeechEngine
 import com.localdoc.ai.tts.ReadAloudState
 import com.localdoc.ai.tts.TtsEngineInfo
 import com.localdoc.ai.tts.Voice
@@ -195,8 +196,6 @@ private data class OpenEngine(val name: String, val description: String, val url
 
 private val OPEN_ENGINES = listOf(
     OpenEngine("RHVoice", "Открытый движок с естественными русскими голосами (Анна, Елена, Ирина, Александр…). Работает офлайн.", "https://play.google.com/store/apps/details?id=com.github.olga_yakovleva.rhvoice.android"),
-    OpenEngine("sherpa-onnx TTS (Piper)", "Нейросетевые голоса Piper/VITS на устройстве: русские ru_RU — irina, denis, dmitri, ruslan.", "https://k2-fsa.github.io/sherpa/onnx/tts/apk-engine.html"),
-    OpenEngine("Голоса Piper", "Каталог открытых голосовых пакетов Piper для sherpa-onnx.", "https://huggingface.co/rhasspy/piper-voices/tree/main/ru/ru_RU"),
     OpenEngine("eSpeak NG", "Лёгкий открытый синтезатор на 100+ языков (F-Droid).", "https://f-droid.org/packages/com.reecedunn.espeak/")
 )
 
@@ -206,15 +205,17 @@ fun VoiceSettingsSheet(onDismiss: () -> Unit) {
     val voice by AppGraph.voiceSettings.value.collectAsState()
     var voices by remember { mutableStateOf<List<Voice>>(emptyList()) }
     var engines by remember { mutableStateOf<List<TtsEngineInfo>>(emptyList()) }
-    var onlyRussian by remember { mutableStateOf(true) }
     var refresh by remember { mutableStateOf(0) }
+
+    val builtinActive = voice.engineId == PiperSpeechEngine.ENGINE_ID
 
     LaunchedEffect(voice.engineId, refresh) {
         AppGraph.speaker.prepare {
-            AppGraph.appScope.launch {
-                voices = AppGraph.speaker.voices()
-                engines = AppGraph.speaker.engines()
-            }
+            AppGraph.appScope.launch { voices = AppGraph.speaker.voices() }
+        }
+        // Системные движки нужны и при встроенном голосе — чтобы к ним можно было вернуться
+        AppGraph.speaker.prepareSystem {
+            AppGraph.appScope.launch { engines = AppGraph.speaker.engines() }
         }
     }
 
@@ -227,41 +228,23 @@ fun VoiceSettingsSheet(onDismiss: () -> Unit) {
             LabeledSlider("Скорость речи", "×${(voice.rate * 10).toInt() / 10.0}", voice.rate, 0.5f..2.5f) { v -> AppGraph.updateVoice { it.copy(rate = v) } }
             LabeledSlider("Высота голоса", "×${(voice.pitch * 10).toInt() / 10.0}", voice.pitch, 0.5f..1.6f) { v -> AppGraph.updateVoice { it.copy(pitch = v) } }
 
+            BuiltinVoicesSection()
+
+            SectionLabel("Системный синтезатор")
+            // Выбор системного движка — и способ вернуться к нему со встроенного голоса (на iOS тоже)
+            EngineRow("Системный по умолчанию", voice.engineId == null) { AppGraph.updateVoice { it.copy(engineId = null, voiceId = null) } }
             if (PlatformActions.supportsTtsEngines) {
-                SectionLabel("Голосовой движок")
                 Text(
                     "Можно выбрать любой установленный движок — в том числе сторонние и открытые.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                EngineRow("Системный по умолчанию", voice.engineId == null) { AppGraph.updateVoice { it.copy(engineId = null, voiceId = null) } }
                 engines.forEach { engine ->
                     EngineRow(engine.label, voice.engineId == engine.id) { AppGraph.updateVoice { it.copy(engineId = engine.id, voiceId = null) } }
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionLabel("Голос", Modifier.weight(1f))
-                FilterChip(selected = onlyRussian, onClick = { onlyRussian = !onlyRussian }, label = { Text("Только русские") })
-            }
-            val shown = voices.filter { !onlyRussian || it.language.startsWith("ru") }
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                    item {
-                        VoiceRow("Автоматически (русский)", "по умолчанию движка", voice.voiceId == null) { AppGraph.updateVoice { it.copy(voiceId = null) } }
-                    }
-                    itemsIndexed(shown) { _, v ->
-                        VoiceRow(v.name, v.language + if (!v.offline) " · нужен интернет" else " · офлайн", voice.voiceId == v.id) {
-                            AppGraph.updateVoice { it.copy(voiceId = v.id) }
-                            // Пробная фраза не должна сбивать идущую озвучку книги
-                            if (!AppGraph.readAloud.state.value.playing) AppGraph.speaker.speak("Так звучит выбранный голос.") { }
-                        }
-                    }
-                }
-            }
-            if (voices.isEmpty()) {
-                Text("Голоса загружаются… Если список пуст — установите голосовые данные.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            if (!builtinActive) SystemVoiceList(voices, voice.voiceId)
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { PlatformActions.installTtsData(); refresh++ }) {
@@ -297,6 +280,34 @@ fun VoiceSettingsSheet(onDismiss: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** Голоса выбранного системного движка (при встроенном голосе не показываются). */
+@Composable
+private fun SystemVoiceList(voices: List<Voice>, selectedId: String?) {
+    var onlyRussian by remember { mutableStateOf(true) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        SectionLabel("Голос", Modifier.weight(1f))
+        FilterChip(selected = onlyRussian, onClick = { onlyRussian = !onlyRussian }, label = { Text("Только русские") })
+    }
+    val shown = voices.filter { !onlyRussian || it.language.startsWith("ru") }
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+            item {
+                VoiceRow("Автоматически (русский)", "по умолчанию движка", selectedId == null) { AppGraph.updateVoice { it.copy(voiceId = null) } }
+            }
+            itemsIndexed(shown) { _, v ->
+                VoiceRow(v.name, v.language + if (!v.offline) " · нужен интернет" else " · офлайн", selectedId == v.id) {
+                    AppGraph.updateVoice { it.copy(voiceId = v.id) }
+                    // Пробная фраза не должна сбивать идущую озвучку книги
+                    if (!AppGraph.readAloud.state.value.playing) AppGraph.speaker.speak("Так звучит выбранный голос.") { }
+                }
+            }
+        }
+    }
+    if (voices.isEmpty()) {
+        Text("Голоса загружаются… Если список пуст — установите голосовые данные.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -375,7 +386,7 @@ internal fun AiAnswerSheet(
 }
 
 @Composable
-private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+internal fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = modifier.padding(top = 4.dp))
 }
 

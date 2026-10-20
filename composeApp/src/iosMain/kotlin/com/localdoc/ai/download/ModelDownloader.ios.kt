@@ -2,7 +2,6 @@
 
 package com.localdoc.ai.download
 
-import com.localdoc.ai.model.ModelSpec
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -38,31 +37,34 @@ import platform.posix.fflush
 import platform.posix.fopen
 import platform.posix.fwrite
 
-/** iOS-загрузчик GGUF: папка Documents/models, докачка через HTTP Range, NSURLSession. */
-actual class ModelDownloader actual constructor() {
+/** iOS-загрузчик: папка Documents/<dirName>, докачка через HTTP Range, NSURLSession. */
+actual class ModelDownloader actual constructor(
+    private val dirName: String,
+    private val extension: String
+) {
 
     private val modelsDir: String by lazy {
         // Писать можно только внутри Documents/Library/tmp песочницы, а не в её корень
-        val dir = "${NSHomeDirectory()}/Documents/models"
+        val dir = "${NSHomeDirectory()}/Documents/$dirName"
         NSFileManager.defaultManager.createDirectoryAtPath(
             dir, withIntermediateDirectories = true, attributes = null, error = null
         )
         dir
     }
 
-    private fun pathFor(spec: ModelSpec, suffix: String = "") = "$modelsDir/${spec.id}$suffix"
+    private fun pathFor(spec: Downloadable, suffix: String = "") = "$modelsDir/${spec.id}$suffix"
 
     actual fun modelsDir(): String = modelsDir
 
-    actual fun localPathFor(spec: ModelSpec): String = pathFor(spec, ".gguf")
+    actual fun localPathFor(spec: Downloadable): String = pathFor(spec, extension)
 
-    actual fun isDownloaded(spec: ModelSpec): Boolean = fileSize(localPathFor(spec)) > 0
+    actual fun isDownloaded(spec: Downloadable): Boolean = fileSize(localPathFor(spec)) > 0
 
-    actual fun downloadedBytes(spec: ModelSpec): Long = fileSize(pathFor(spec, ".gguf.part"))
+    actual fun downloadedBytes(spec: Downloadable): Long = fileSize(pathFor(spec, "$extension.part"))
 
-    actual fun download(spec: ModelSpec): Flow<DownloadState> = callbackFlow {
+    actual fun download(spec: Downloadable): Flow<DownloadState> = callbackFlow {
         val targetPath = localPathFor(spec)
-        val tempPath = pathFor(spec, ".gguf.part")
+        val tempPath = pathFor(spec, "$extension.part")
         var completed = false
 
         val nsUrl = NSURL(string = spec.url) ?: run {
@@ -116,14 +118,14 @@ actual class ModelDownloader actual constructor() {
         }
     }
 
-    actual fun cancel(spec: ModelSpec) {
+    actual fun cancel(spec: Downloadable) {
         // Прерывание выполняется отменой собирающей корутины (см. awaitClose)
     }
 
-    actual suspend fun delete(spec: ModelSpec) = withContext(Dispatchers.IO) {
+    actual suspend fun delete(spec: Downloadable) = withContext(Dispatchers.IO) {
         val fm = NSFileManager.defaultManager
         fm.removeItemAtPath(localPathFor(spec), error = null)
-        fm.removeItemAtPath(pathFor(spec, ".gguf.part"), error = null)
+        fm.removeItemAtPath(pathFor(spec, "$extension.part"), error = null)
         Unit
     }
 

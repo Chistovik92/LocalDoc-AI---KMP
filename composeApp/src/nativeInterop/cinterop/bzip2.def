@@ -1,0 +1,6 @@
+headers = bzlib.h
+headerFilter = bzlib.h
+package = com.localdoc.ai.bzip2
+
+# Системная libbz2 из iOS SDK (распаковка голосовых пакетов .tar.bz2).
+# Xcode линкует её флагом -lbz2 (iosApp/project.yml).

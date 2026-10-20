@@ -90,6 +90,11 @@ jobs:
           chmod +x cpp_core/scripts/build_ios_xcframework.sh
           ./cpp_core/scripts/build_ios_xcframework.sh
 
+      - name: sherpa-onnx для iOS (офлайн-голоса Piper)
+        run: |
+          chmod +x cpp_core/scripts/fetch_sherpa_onnx_ios.sh
+          ./cpp_core/scripts/fetch_sherpa_onnx_ios.sh
+
       - name: Загрузка xcframework (артефакт)
         uses: actions/upload-artifact@v4
         with:

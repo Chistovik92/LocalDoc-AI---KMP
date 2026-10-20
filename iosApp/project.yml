@@ -7,13 +7,13 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: 1.5.0
-    CURRENT_PROJECT_VERSION: 4
+    MARKETING_VERSION: 1.6.0
+    CURRENT_PROJECT_VERSION: 5
     SWIFT_VERSION: "5.9"
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     # Статическое C++-ядро llama.cpp (Metal + Accelerate) линкуется в приложение напрямую
-    OTHER_LDFLAGS: "$(inherited) -lc++"
+    OTHER_LDFLAGS: "$(inherited) -lc++ -lbz2"
     # Kotlin-фреймворк и C-ядро собираются только под arm64 (симулятор Apple Silicon)
     EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
 
@@ -29,6 +29,9 @@ targets:
         embed: false
       - framework: ../cpp_core/build-ios/localdoc_core.xcframework
         embed: false
+      # Офлайн-синтез Piper (sherpa-onnx): динамический, встраивается в приложение
+      - framework: ../cpp_core/build-ios/SherpaOnnxC.xcframework
+        embed: true
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework
@@ -53,6 +56,9 @@ targets:
         embed: false
       - framework: ../cpp_core/build-ios/localdoc_core.xcframework
         embed: false
+      # Офлайн-синтез Piper (sherpa-onnx): динамический, встраивается в приложение
+      - framework: ../cpp_core/build-ios/SherpaOnnxC.xcframework
+        embed: true
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework

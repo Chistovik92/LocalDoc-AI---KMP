@@ -1,5 +1,7 @@
 package com.localdoc.ai.model
 
+import com.localdoc.ai.download.Downloadable
+
 /**
  * Шаблон диалога модели. BOS добавляет токенизатор C-моста (add_special = true),
  * поэтому здесь его нет.
@@ -37,10 +39,10 @@ enum class ModelFamily(val label: String, val vendor: String) {
 
 /** Описание GGUF-модели в каталоге. */
 data class ModelSpec(
-    val id: String,
+    override val id: String,
     val name: String,
     val description: String,
-    val url: String,
+    override val url: String,
     val sizeMb: Long,
     val family: ModelFamily,
     val parameters: String,
@@ -56,7 +58,9 @@ data class ModelSpec(
     val recommended: Boolean = false,
     val defaultContext: Int = 8192,
     val defaultGpuLayers: Int = 99
-)
+) : Downloadable {
+    override val sizeBytes: Long get() = sizeMb * 1024L * 1024L
+}
 
 /**
  * Каталог моделей: всё работает офлайн, модели скачиваются напрямую с Hugging Face

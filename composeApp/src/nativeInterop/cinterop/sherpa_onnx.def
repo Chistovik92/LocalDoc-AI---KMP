@@ -1,0 +1,6 @@
+headers = c-api.h
+headerFilter = c-api.h
+package = com.localdoc.ai.sherpa
+
+# Заголовок C API sherpa-onnx v1.13.8 лежит в cpp_core/third_party/sherpa-onnx (сверять с версией
+# xcframework). Линковку выполняет Xcode: SherpaOnnxC.xcframework добавлен в iosApp/project.yml.

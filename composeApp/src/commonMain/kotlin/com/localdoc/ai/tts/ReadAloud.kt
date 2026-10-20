@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 /** Голос синтезатора. */
 data class Voice(val id: String, val name: String, val language: String, val offline: Boolean = true)
 
-/** Голосовой движок (на Android — системные TTS-движки: Google, RHVoice, sherpa-onnx/Piper…). */
+/** Голосовой движок (системные TTS-движки Android: Google, RHVoice…; встроенный Piper). */
 data class TtsEngineInfo(val id: String, val label: String)
 
 /**
@@ -31,6 +31,8 @@ interface SpeechEngine {
     fun setVoice(id: String?)
     fun engines(): List<TtsEngineInfo>
     fun setEngine(id: String?)
+    /** Подсказка: эта реплика будет следующей — движок может синтезировать её заранее. */
+    fun prefetch(text: String) = Unit
 }
 
 /** Фрагмент озвучки: предложение (или часть длинного предложения) внутри блока. */
@@ -235,10 +237,16 @@ class ReadAloudController(
         val segment = segments.getOrNull(index) ?: return
         val mySession = session
         publish(playing = true)
+        // Следующее предложение той же главы движок может синтезировать, пока звучит текущее
+        val upcoming = segments.getOrNull(index + 1)?.takeIf { !crossesChapter(segment, it) }
         engine.speak(segment.text) { success ->
             scope.launch { if (mySession == session) onSegmentFinished(success) }
         }
+        if (upcoming != null && mySession == session) engine.prefetch(upcoming.text)
     }
+
+    private fun crossesChapter(from: SpeechSegment, to: SpeechSegment): Boolean =
+        chapterStarts.any { it in (from.block + 1)..to.block }
 
     private fun onSegmentFinished(success: Boolean) {
         if (success) consecutiveFailures = 0 else consecutiveFailures++
@@ -255,8 +263,7 @@ class ReadAloudController(
         }
         val next = segments[nextIndex]
         index = nextIndex
-        val crossesChapter = chapterStarts.any { it in (finished.block + 1)..next.block }
-        if (crossesChapter) {
+        if (crossesChapter(finished, next)) {
             finishWith(ReadAloudStop.CHAPTER_END, "Конец главы.")
             return
         }
