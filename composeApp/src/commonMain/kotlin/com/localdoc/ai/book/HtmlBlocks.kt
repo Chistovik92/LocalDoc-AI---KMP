@@ -222,7 +222,7 @@ object AdFilter {
             "продолжение (читайте |следует на )?на |все права защищены|копирование (запрещено|разрешено только)|" +
             "поддержите (автора|проект|нас)|поддержать (автора|проект)|sponsored by|read (more|the full|the rest) |" +
             "follow us|visit (our|my) (site|website)|buy me a coffee|support the author|" +
-            "перевод( выполнен)?:?\\s*(команд|групп|студи)\\w*)\\b.{0,160}$|" +
+            "перевод( выполнен)?:?\\s*(команд|групп|студи)[а-яё]*)\\b.{0,160}$|" +
             "^(присоединяйтесь|вступайте|подписывайтесь|подписаться|join|subscribe)\\b.{0,120}" +
             "(групп|канал|telegram|телеграм|vk\\.com|вконтакте|boosty|patreon|сайт|сообществ|discord|channel|newsletter).{0,120}$|" +
             "^(https?://\\S+|www\\.\\S+|[a-z0-9-]+\\.(ru|com|net|org|ua|by|kz|su|club|site|online))\\s*$|" +
