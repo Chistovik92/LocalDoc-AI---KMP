@@ -7,6 +7,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,6 +67,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.book.BookFormat
+import com.localdoc.ai.book.LibraryItem
+import com.localdoc.ai.book.chapterLabel
+import com.localdoc.ai.book.groupLibrary
+import com.localdoc.ai.book.novelTitle
+import com.localdoc.ai.book.shelfKey
 import com.localdoc.ai.domain.AppGraph
 
 /** Фильтры библиотеки по типу источника. */
@@ -94,6 +104,10 @@ fun LibraryScreen(
             (query.isBlank() || e.title.contains(query, ignoreCase = true) || e.author.contains(query, ignoreCase = true))
     }
     val continueEntry = entries.firstOrNull()
+    val shelf = remember(filtered) { groupLibrary(filtered) }
+    var openedNovel by remember { mutableStateOf<String?>(null) }
+    // Группа читается из актуального списка: после удаления главы шторка обновляется или закрывается
+    val novelOnSheet = shelf.filterIsInstance<LibraryItem.Novel>().firstOrNull { it.shelfKey == openedNovel }
 
     Box(Modifier.fillMaxSize()) {
         LazyVerticalGrid(
@@ -149,8 +163,15 @@ fun LibraryScreen(
                         }
                     }
                 }
-                items(filtered, key = { it.id }) { entry ->
-                    BookTile(entry, onClick = { onOpen(entry) }, onDelete = { AppGraph.library.remove(entry.id) })
+                items(shelf, key = { it.shelfKey }) { item ->
+                    when (item) {
+                        is LibraryItem.Single -> BookTile(item.entry, onClick = { onOpen(item.entry) }, onDelete = { AppGraph.library.remove(item.entry.id) })
+                        is LibraryItem.Novel -> NovelTile(
+                            novel = item,
+                            onClick = { openedNovel = item.shelfKey },
+                            onDelete = { item.chapters.forEach { AppGraph.library.remove(it.id) } }
+                        )
+                    }
                 }
                 if (filtered.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -165,6 +186,15 @@ fun LibraryScreen(
             icon = { Icon(Icons.Default.Add, contentDescription = null) },
             text = { Text("Добавить") },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+        )
+    }
+
+    novelOnSheet?.let { novel ->
+        NovelChaptersSheet(
+            novel = novel,
+            onDismiss = { openedNovel = null },
+            onOpen = { openedNovel = null; onOpen(it) },
+            onDelete = { AppGraph.library.remove(it.id) }
         )
     }
 
@@ -190,32 +220,108 @@ private fun AddOption(icon: ImageVector, title: String, subtitle: String, onClic
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: () -> Unit) {
+    // Глава новеллы показывается как «Новелла» + заголовок главы, а не длинное обрезанное имя
+    val novel = entry.novelTitle()
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(28.dp),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            BookCover(entry.title, entry.author, entry.format, Modifier.width(84.dp))
+            BookCover(novel ?: entry.title, entry.author, entry.format, Modifier.width(72.dp))
             Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
                 Text("Продолжить чтение", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Text(entry.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                if (entry.author.isNotBlank()) {
-                    Text(entry.author, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                Text(novel ?: entry.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                val subtitle = if (novel != null) entry.chapterLabel() else entry.author
+                if (subtitle.isNotBlank()) {
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 LinearProgressIndicator(progress = { entry.progress }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onOpen) { Text("Читать") }
+                // Узкий экран: кнопки переносятся целиком, текст внутри не ломается по буквам
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onOpen) { Text("Читать", maxLines = 1, softWrap = false) }
                     FilledTonalButton(onClick = onListen) {
                         Icon(Icons.Default.Headphones, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                        Text("Слушать")
+                        Text("Слушать", maxLines = 1, softWrap = false)
                     }
                 }
             }
         }
     }
+}
+
+/** Плитка группы глав одной веб-новеллы: обложка новеллы, число глав и прогресс последней открытой. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
+        Box {
+            BookCover(novel.title, novel.host, BookFormat.WEB, Modifier.fillMaxWidth())
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Удалить все главы") },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    onClick = { menu = false; onDelete() }
+                )
+            }
+        }
+        Text(novel.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(chaptersCount(novel.chapters.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NovelChaptersSheet(novel: LibraryItem.Novel, onDismiss: () -> Unit, onOpen: (BookEntry) -> Unit, onDelete: (BookEntry) -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(novel.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp))
+        Text(
+            "${novel.host} · ${chaptersCount(novel.chapters.size)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+        )
+        LazyColumn(modifier = Modifier.heightIn(max = 480.dp)) {
+            items(novel.chapters, key = { it.id }) { chapter ->
+                val last = chapter.id == novel.mostRecent.id
+                ListItem(
+                    headlineContent = {
+                        Text(chapter.chapterLabel(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    },
+                    supportingContent = {
+                        Text(
+                            when {
+                                last -> "Последняя открытая · ${(chapter.progress * 100).toInt()}%"
+                                chapter.progress > 0f -> "${(chapter.progress * 100).toInt()}%"
+                                else -> "Не начата"
+                            }
+                        )
+                    },
+                    trailingContent = {
+                        IconButton(onClick = { onDelete(chapter) }) { Icon(Icons.Default.Delete, contentDescription = "Удалить главу") }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.clickable { onOpen(chapter) }
+                )
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** «1 глава», «2 главы», «5 глав», «21 глава». */
+private fun chaptersCount(n: Int): String {
+    val word = when {
+        n % 100 in 11..14 -> "глав"
+        n % 10 == 1 -> "глава"
+        n % 10 in 2..4 -> "главы"
+        else -> "глав"
+    }
+    return "$n $word"
 }
 
 @OptIn(ExperimentalFoundationApi::class)
