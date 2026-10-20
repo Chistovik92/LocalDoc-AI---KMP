@@ -37,7 +37,7 @@ object FormatDetector {
     fun bySignature(bytes: ByteArray): BookFormat {
         if (isPdf(bytes)) return BookFormat.PDF
         if (Ole2File.isOle2(bytes)) return BookFormat.DOC
-        if (ZipArchive.isZip(bytes)) return zipFormat(openZip(bytes))
+        if (ZipArchive.isZip(bytes)) return zipKind(bytes)
         if (RtfParser.isRtf(bytes)) return BookFormat.RTF
         if (looksBinary(bytes)) throw UnsupportedFormatException(BINARY_MESSAGE)
         return textFormat(bytes) ?: BookFormat.TEXT
@@ -51,7 +51,7 @@ object FormatDetector {
         val byName = byName(name)
         if (isPdf(bytes)) return BookFormat.PDF
         if (Ole2File.isOle2(bytes)) return if (byName == BookFormat.WPS) BookFormat.WPS else BookFormat.DOC
-        if (ZipArchive.isZip(bytes)) return zipFormat(openZip(bytes))
+        if (ZipArchive.isZip(bytes)) return zipKind(bytes)
         if (RtfParser.isRtf(bytes)) return BookFormat.RTF
         return when (byName) {
             null -> bySignature(bytes)
@@ -84,9 +84,9 @@ object FormatDetector {
         }
     }
 
-    /** Повреждённый или обрезанный архив — понятное сообщение вместо технической ошибки. */
-    private fun openZip(bytes: ByteArray): ZipArchive = try {
-        ZipArchive(bytes)
+    /** Определение содержимого ZIP; повреждённый или обрезанный архив — понятное сообщение вместо технической ошибки. */
+    private fun zipKind(bytes: ByteArray): BookFormat = try {
+        zipFormat(ZipArchive(bytes))
     } catch (e: IllegalArgumentException) {
         throw UnsupportedFormatException("Архив повреждён или не дозагружен: файл нельзя открыть")
     }
