@@ -1,6 +1,7 @@
 package com.localdoc.ai.platform
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.IncomingDoc
@@ -27,9 +28,37 @@ object AndroidIntents {
         "application/pdf", "application/epub+zip", "application/x-fictionbook+xml", "application/x-fictionbook",
         "application/zip", "text/plain", "text/markdown", "text/x-markdown", "text/html", "application/xhtml+xml",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword",
-        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.text", "application/rtf", "text/rtf", "application/xml", "text/xml",
         "application/octet-stream", "*/*"
     )
+
+    private var saveLauncher: ActivityResultLauncher<SaveRequest>? = null
+    private var saveCallback: ((Uri?) -> Unit)? = null
+    private var folderLauncher: ActivityResultLauncher<Uri?>? = null
+    private var folderCallback: ((Uri?) -> Unit)? = null
+
+    fun registerSaver(launcher: ActivityResultLauncher<SaveRequest>) { saveLauncher = launcher }
+    fun registerFolderPicker(launcher: ActivityResultLauncher<Uri?>) { folderLauncher = launcher }
+
+    fun launchSave(request: SaveRequest, onResult: (Uri?) -> Unit) {
+        saveCallback = onResult
+        saveLauncher?.launch(request) ?: onResult(null)
+    }
+
+    fun onSaved(uri: Uri?) {
+        saveCallback?.invoke(uri)
+        saveCallback = null
+    }
+
+    fun launchFolderPicker(onResult: (Uri?) -> Unit) {
+        folderCallback = onResult
+        folderLauncher?.launch(null) ?: onResult(null)
+    }
+
+    fun onFolderPicked(uri: Uri?) {
+        folderCallback?.invoke(uri)
+        folderCallback = null
+    }
 
     fun launchPdfPicker(onResult: (String?) -> Unit) {
         pickCallback = onResult
