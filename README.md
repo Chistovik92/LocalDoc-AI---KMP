@@ -12,20 +12,22 @@
 
 - **Книги всех популярных форматов**: EPUB, FB2 / FB2.ZIP, PDF (текстовый слой + офлайн-OCR для сканов:
   PDFBox + ML Kit на Android, PDFKit + Vision на iOS), Markdown, TXT (UTF-8 / Windows-1251), HTML.
-- **Библиотека** в стиле Google Play Книг: обложки, «Продолжить чтение», поиск, фильтры, прогресс.
+- **Библиотека** в стиле Google Play Книг: обложки, «Продолжить чтение», поиск, фильтры, прогресс;
+  главы одной веб-новеллы собираются в одну книгу.
 - **Экран чтения**: темы бумаги, шрифты, интервалы, оглавление, скрываемые панели.
 - **Веб в режиме чтения**: страница без рекламы и меню, навигация по главам веб-новелл и их оглавлению;
   если на сайте нет маркеров «Далее» — ссылку находит локальная модель.
 - **Озвучка как в плеере**: плей / пауза / стоп, переходы по предложениям и абзацам, подсветка
   читаемого предложения, остановка с предупреждением в конце главы; плеер в шторке уведомлений
   (Android), «Пункт управления» и экран блокировки (iOS), виджеты рабочего стола.
-- **Любые голосовые движки**: системные и сторонние/открытые (RHVoice, sherpa-onnx + Piper, eSpeak NG),
-  выбор голоса, скорости и высоты.
+- **Озвучка на выбор**: встроенные офлайн-голоса Piper (русские и английские, скачиваются по одному)
+  и любые системные или сторонние движки (RHVoice, sherpa-onnx, eSpeak NG); выбор голоса, скорости и высоты.
 - **ИИ-суфлёр**: «Суммаризировать страницу», «Объяснить термин», «Найти главное», чат «Ассистент»
   по открытой книге (Smart Router: прямой контекст / Map-Reduce / локальный RAG).
 - **15 GGUF-моделей** для смартфонов (Qwen 2.5/3, Gemma 2/3, Llama 3.2, Phi 3.5, SmolLM2, DeepSeek R1
   Distill, Vikhr) с фильтром по ОЗУ и докачкой при обрыве.
-- **Обновления** из GitHub Releases прямо в приложении. История версий — в [CHANGELOG.md](CHANGELOG.md).
+- **Обновления** из GitHub Releases: на Android приложение само скачивает APK и открывает установку.
+  История версий — в [CHANGELOG.md](CHANGELOG.md), планы — в [ROADMAP.md](ROADMAP.md).
 
 ## Архитектура
 
@@ -50,15 +52,15 @@ LocalDoc-AI---KMP/
 │   │   ├── parser/                    # Web (Ksoup) + expect PdfExtractor
 │   │   ├── rag/                       # Chunking + эмбеддинги + векторный поиск
 │   │   ├── domain/                    # SmartPipeline (Smart Router), AppGraph
-│   │   ├── tts/                       # Speaker (expect, любые TTS-движки) + ReadAloudController (плеер)
-│   │   ├── update/                    # Проверка обновлений (GitHub Releases)
+│   │   ├── tts/                       # Speaker (expect, любые TTS-движки), встроенный Piper, ReadAloudController (плеер)
+│   │   ├── update/                    # Проверка и загрузка обновлений (GitHub Releases)
 │   │   └── ui/                        # Единый UI на Compose Multiplatform
 │   ├── src/androidMain/               # JNI, PDFBox+ML Kit, Share Intent, TTS, плеер в шторке, виджет
 │   │   └── cpp/ (CMakeLists.txt, android_jni.cpp)
 │   ├── src/iosMain/                   # cinterop, PDFKit+Vision, AVSpeech
 │   └── src/nativeInterop/cinterop/llama.def
 ├── iosApp/                            # Xcode-проект (XcodeGen: project.yml) + iosWidget (WidgetKit)
-├── signing/localdoc.keystore          # CI-ключ подписи APK (test signing)
+├── ROADMAP.md · CHANGELOG.md          # планы версий · история версий
 └── .github/workflows/                 # CI: Android APK + iOS framework
 ```
 
@@ -80,7 +82,7 @@ LocalDoc-AI---KMP/
 # Android Studio: открыть корень репозитория → Run.
 # Или из консоли:
 ./gradlew :composeApp:assembleDebug     # debug-APK
-./gradlew :composeApp:assembleRelease   # подписан CI-ключом из signing/
+./gradlew :composeApp:assembleRelease   # подписан постоянным ключом (см. «Подпись release-сборок»)
 ```
 
 По умолчанию llama.cpp собирается с CPU-бэкендом (dotprod/fp16 на Snapdragon).
@@ -123,11 +125,21 @@ open LocalDocAI.xcodeproj
 - `.github/workflows/ios.yml` — собирает `localdoc_core.xcframework` (Metal) и
   ComposeApp-фреймворк для симулятора, проверяет сборку Xcode-проекта без подписи.
 
-Релиз:
+### Выпуск версии
+
+1. Поднять номера: `versionName` и `versionCode` в `composeApp/build.gradle.kts`,
+   `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` в `iosApp/project.yml`.
+2. Добавить раздел версии **сверху** в [CHANGELOG.md](CHANGELOG.md) (и строку в «Сводку версий»),
+   скопировать его в `.github/release-notes.md` — текст попадает в GitHub Release и окно обновления.
+3. Удалить раздел версии из [ROADMAP.md](ROADMAP.md): выпущенное хранится только в CHANGELOG.
+4. PR в `main` → зелёный CI (Android и iOS) → merge → тег:
 
 ```bash
-git tag v1.5.0 && git push origin v1.5.0
+git tag -a vX.Y.Z -m "LocalDoc AI X.Y.Z" && git push origin vX.Y.Z
 ```
+
+После сборки тега проверить GitHub Release и подпись APK (`apksigner verify --print-certs`):
+отпечаток должен совпасть с указанным ниже.
 
 ## Подпись release-сборок
 
@@ -144,11 +156,12 @@ Release-APK подписывается постоянным ключом (PKCS12
 
 ## Ограничения и дорожная карта
 
+Планы по версиям и бэклог — в [ROADMAP.md](ROADMAP.md). Известные ограничения сейчас:
+
 - PDF отображается как текст (reflow), без постраничного рендера с картинками; изображения EPUB не показываются.
 - Эмбеддинги RAG — лексические (feature hashing); замена на ONNX e5 — точка расширения.
-- Встроенный нейросетевой синтез (Piper через sherpa-onnx внутри приложения) — следующий шаг;
-  сейчас Piper-голоса подключаются через движок sherpa-onnx TTS Engine.
-- iOS-виджет открывает приложение по ссылке; управление плеером прямо из виджета (App Intents) — запланировано.
+- Форматы Word (`.doc`, `.docx`) пока не поддерживаются — в плане 1.7.0.
+- iOS-виджет открывает приложение по ссылке; управление плеером прямо из виджета (App Intents) — в бэклоге.
 
 ## Лицензия
 

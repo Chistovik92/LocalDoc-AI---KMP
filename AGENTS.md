@@ -31,3 +31,9 @@
 - Android: `./gradlew :composeApp:assembleDebug` (нужны Android SDK + NDK).
 - iOS: `./cpp_core/scripts/build_ios_xcframework.sh` и
   `./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64` (macOS + Xcode).
+
+## Документация
+
+- Планы — только в `ROADMAP.md`; история выпущенного — в `CHANGELOG.md`; не дублировать одно и то же в двух местах.
+- Появился новый план, баг или пожелание — сразу записать в `ROADMAP.md` под нужной версией.
+- Порядок выпуска версии (номера, CHANGELOG, `.github/release-notes.md`, тег, проверка подписи) — в `README.md`, раздел «Выпуск версии».
