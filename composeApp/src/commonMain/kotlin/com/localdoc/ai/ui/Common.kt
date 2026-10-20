@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -36,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -104,15 +107,39 @@ private val COVER_PALETTE = listOf(
     Color(0xFFC2E7FF) to Color(0xFF001D35)
 )
 
-/** Сгенерированная обложка: цвет по названию, крупная буквица, автор и формат. */
+/**
+ * Обложка книги: настоящая (из файла, веб-страницы) либо сгенерированная — цвет по названию, крупная буквица,
+ * автор и формат. Настоящая обложка грузится лениво; пока её нет, виден сгенерированный вариант.
+ */
 @Composable
-fun BookCover(title: String, author: String, format: BookFormat, modifier: Modifier = Modifier) {
+fun BookCover(
+    title: String,
+    author: String,
+    format: BookFormat,
+    modifier: Modifier = Modifier,
+    cover: String? = null,
+    entryId: String? = null
+) {
+    val image = rememberCover(entryId, cover)
     val (bg, fg) = COVER_PALETTE[(title.hashCode() and 0x7FFFFFFF) % COVER_PALETTE.size]
     Surface(
         color = bg,
         shape = RoundedCornerShape(12.dp),
         modifier = modifier.aspectRatio(0.68f)
     ) {
+        if (image != null) {
+            Box {
+                Image(bitmap = image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                Surface(
+                    color = Color.Black.copy(alpha = 0.55f),
+                    shape = CircleShape,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+                ) {
+                    Text(format.label, color = Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                }
+            }
+            return@Surface
+        }
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 title.trim().firstOrNull()?.uppercase() ?: "•",

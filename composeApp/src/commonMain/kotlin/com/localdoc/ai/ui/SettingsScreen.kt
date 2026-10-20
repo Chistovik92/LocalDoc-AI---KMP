@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
@@ -55,6 +57,8 @@ enum class SettingsSection(val title: String, val description: String, val icon:
     TRANSLATION("Перевод", "Язык перевода и оригинала, автоперевод", Icons.Default.Translate),
     READER("Чтение и оформление", "Шрифт, фон, режим «по страницам», размер страницы", Icons.Default.FormatSize),
     BOOKMARKS("Закладки", "Сохранённые места в книгах и веб-страницах", Icons.Default.Bookmarks),
+    SITES("Сайты и вход", "Входы на сайты, «Забыть сайт»", Icons.Default.Lock),
+    STORAGE("Хранилище", "Кэш картинок, скачанные страницы новелл", Icons.Default.Storage),
     ABOUT("Обновления и о приложении", "Версия, проверка обновлений", Icons.Default.Info)
 }
 
@@ -83,6 +87,8 @@ fun SettingsScreen(section: SettingsSection?, onSection: (SettingsSection?) -> U
                         SettingsSection.VOICE -> VoiceSettingsContent()
                         SettingsSection.TRANSLATION -> TranslationSettingsContent()
                         SettingsSection.READER -> ReaderSettingsContent()
+                        SettingsSection.SITES -> SitesSection()
+                        SettingsSection.STORAGE -> StorageSection()
                         SettingsSection.ABOUT -> AboutSection()
                         else -> Unit
                     }

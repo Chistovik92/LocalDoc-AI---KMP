@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Language
@@ -81,7 +82,13 @@ private enum class LibraryFilter(val label: String, val formats: Set<BookFormat>
     ALL("Все", null),
     BOOKS("Книги", setOf(BookFormat.EPUB, BookFormat.FB2)),
     PDF("PDF", setOf(BookFormat.PDF)),
-    TEXT("Документы и текст", setOf(BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.TEXT, BookFormat.MARKDOWN)),
+    TEXT(
+        "Документы и текст",
+        setOf(
+            BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.RTF, BookFormat.WPS, BookFormat.PAGES,
+            BookFormat.XML, BookFormat.TEXT, BookFormat.MARKDOWN
+        )
+    ),
     WEB("Веб", setOf(BookFormat.WEB, BookFormat.HTML))
 }
 
@@ -100,6 +107,7 @@ fun LibraryScreen(
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(LibraryFilter.ALL) }
     var showAdd by remember { mutableStateOf(false) }
+    var saveAsFor by remember { mutableStateOf<BookEntry?>(null) }
 
     val filtered = entries.filter { e ->
         (filter.formats == null || e.format in filter.formats.orEmpty()) &&
@@ -144,7 +152,7 @@ fun LibraryScreen(
                     EmptyState(
                         icon = Icons.AutoMirrored.Filled.MenuBook,
                         title = "Ваша библиотека пуста",
-                        text = "Добавьте книгу EPUB, FB2, PDF, TXT, Markdown или HTML — или откройте веб-страницу. Всё читается и озвучивается прямо на устройстве."
+                        text = "Добавьте книгу или документ — EPUB, FB2, PDF, DOCX, RTF, TXT и другие — найдите их на устройстве или откройте веб-страницу. Всё читается и озвучивается прямо на устройстве."
                     ) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = onPickFile) { Text("Открыть файл", maxLines = 1, softWrap = false) }
@@ -167,11 +175,17 @@ fun LibraryScreen(
                 }
                 items(shelf, key = { it.shelfKey }) { item ->
                     when (item) {
-                        is LibraryItem.Single -> BookTile(item.entry, onClick = { onOpen(item.entry) }, onDelete = { removeBook(item.entry.id) })
+                        is LibraryItem.Single -> BookTile(
+                            item.entry,
+                            onClick = { onOpen(item.entry) },
+                            onDelete = { removeBook(item.entry.id) },
+                            onSaveAs = { saveAsFor = item.entry }
+                        )
                         is LibraryItem.Novel -> NovelTile(
                             novel = item,
                             onClick = { openedNovel = item.shelfKey },
-                            onDelete = { item.chapters.forEach { removeBook(it.id) } }
+                            onDelete = { item.chapters.forEach { removeBook(it.id) } },
+                            onDownload = { saveAsFor = item.mostRecent }
                         )
                     }
                 }
@@ -191,6 +205,8 @@ fun LibraryScreen(
         )
     }
 
+    saveAsFor?.let { SaveAsDialog(entry = it, onDismiss = { saveAsFor = null }) }
+
     novelOnSheet?.let { novel ->
         NovelChaptersSheet(
             novel = novel,
@@ -203,7 +219,7 @@ fun LibraryScreen(
     if (showAdd) {
         ModalBottomSheet(onDismissRequest = { showAdd = false }) {
             Text("Добавить в библиотеку", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-            AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, PDF, DOCX, DOC, ODT, TXT, Markdown, HTML") { showAdd = false; onPickFile() }
+            AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, PDF, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML, XML") { showAdd = false; onPickFile() }
             AddOption(Icons.Default.Language, "Веб-страница по ссылке", "Статьи и веб-новеллы в режиме чтения") { showAdd = false; onOpenWeb() }
             AddOption(Icons.Default.ContentPaste, "Вставить текст", "Скопированный фрагмент станет документом") { showAdd = false; onPasteText() }
             Spacer(Modifier.height(32.dp))
@@ -233,7 +249,7 @@ private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: 
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            BookCover(novel ?: entry.title, entry.author, entry.format, Modifier.width(72.dp))
+            BookCover(novel ?: entry.title, entry.author, entry.format, Modifier.width(72.dp), cover = entry.cover, entryId = entry.id)
             Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
                 Text("Продолжить чтение", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Text(novel ?: entry.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
@@ -258,12 +274,17 @@ private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: 
 /** Плитка группы глав одной веб-новеллы: обложка новеллы, число глав и прогресс последней открытой. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Column(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
         Box {
-            BookCover(novel.title, novel.host, BookFormat.WEB, Modifier.fillMaxWidth())
+            BookCover(novel.title, novel.host, BookFormat.WEB, Modifier.fillMaxWidth(), cover = novel.mostRecent.cover, entryId = novel.mostRecent.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Скачать книгу целиком…") },
+                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                    onClick = { menu = false; onDownload() }
+                )
                 DropdownMenuItem(
                     text = { Text("Удалить все главы") },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
@@ -328,12 +349,17 @@ private fun chaptersCount(n: Int): String {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit, onSaveAs: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Column(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
         Box {
-            BookCover(entry.title, entry.author, entry.format, Modifier.fillMaxWidth())
+            BookCover(entry.title, entry.author, entry.format, Modifier.fillMaxWidth(), cover = entry.cover, entryId = entry.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(if (entry.format == BookFormat.WEB) "Скачать книгу целиком…" else "Сохранить как…") },
+                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                    onClick = { menu = false; onSaveAs() }
+                )
                 DropdownMenuItem(
                     text = { Text("Удалить из библиотеки") },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },

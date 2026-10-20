@@ -37,7 +37,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.BookEntry
@@ -190,6 +193,7 @@ fun App() {
         if (reading != null) {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
+            Box(Modifier.fillMaxSize()) {
             ReaderView(
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
@@ -199,12 +203,16 @@ fun App() {
                 onOpenAssistant = { openBook = null; tab = Tab.Assistant },
                 onOpenModels = ::openModels
             )
+            DownloadBanner(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 72.dp))
+            }
             }
         } else {
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbar) },
                 bottomBar = {
                     Column {
+                        // Плашка загрузки книги: прогресс, отмена, итог
+                        DownloadBanner()
                         // Мини-плеер: озвучка продолжается, пока вы в другой вкладке
                         val webShowsPlayer = tab == Tab.Web && webDocument != null
                         if (player.active && !webShowsPlayer) {
@@ -275,6 +283,7 @@ fun App() {
             }
         )
         ProcessingDialog(processing)
+        WebLoginHost()
 
         update?.let { found ->
             val downloading = downloadState is UpdateDownload.Downloading

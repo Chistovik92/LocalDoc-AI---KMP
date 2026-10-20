@@ -12,6 +12,7 @@ import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
 import com.localdoc.ai.images.ImageLoader
+import com.localdoc.ai.platform.FileSaver
 import com.localdoc.ai.net.CookieJar
 import com.localdoc.ai.net.SiteAuth
 import com.localdoc.ai.net.SiteVault
@@ -137,6 +138,33 @@ object AppGraph {
 
     /** Плеер чтения вслух — общий для книг и веб-страниц. */
     val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope) }
+
+    /** Скачивание книг целиком и «Сохранить как…»: оглавление, главы и картинки собираются автоматически. */
+    val fileSaver: FileSaver by lazy { FileSaver() }
+
+    private val chapterSource = object : ChapterSource {
+        override suspend fun load(url: String) = webParser.load(url)
+        override suspend fun tableOfContents(tocUrl: String) = webParser.loadTableOfContents(tocUrl)
+    }
+
+    private val fileFetcher = FileFetcher { url ->
+        val result = webHttp.get(url, maxBytes = WebHttp.MAX_DOWNLOAD_BYTES)
+        // Страница входа или ошибка вместо файла — это не книга
+        if (!result.isOk || result.contentType.startsWith("text/html")) null
+        else DownloadedFile(fileNameOf(result.headers["content-disposition"], result.url), result.body)
+    }
+
+    val downloads: BookDownloadManager by lazy {
+        BookDownloadManager(
+            scope = appScope,
+            library = library,
+            downloader = NovelDownloader(chapterSource, fileFetcher, files.asNovelFiles()),
+            parser = webParser,
+            images = images,
+            saver = fileSaver,
+            resolveToc = { _, page -> webSession.resolveTableOfContents(WebDocument(page.book, "", page.links, 0)) }
+        )
+    }
 
     val updates: com.localdoc.ai.update.UpdateManager by lazy { com.localdoc.ai.update.UpdateManager(appScope) }
 
@@ -268,6 +296,14 @@ object AppGraph {
 
     fun clearChat() {
         messages.value = emptyList()
+    }
+
+    /** Имя файла из `Content-Disposition` (filename*=UTF-8''… или filename="…"), иначе — последний сегмент адреса. */
+    internal fun fileNameOf(disposition: String?, url: String): String {
+        val star = disposition?.let { Regex("filename\\*\\s*=\\s*[^']*''([^;]+)", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
+        val plain = disposition?.let { Regex("filename\\s*=\\s*\"?([^\";]+)", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
+        val raw = star ?: plain ?: url.substringBefore('?').substringAfterLast('/')
+        return raw.trim().ifBlank { "book" }
     }
 
     private const val KEY_LOADED_MODEL = "loaded_model_id"
