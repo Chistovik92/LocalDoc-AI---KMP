@@ -5,6 +5,9 @@ package com.localdoc.ai.platform
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.suspendCancellableCoroutine
+import platform.Foundation.HTTPBody
+import platform.Foundation.HTTPMethod
+import platform.Foundation.HTTPShouldHandleCookies
 import platform.Foundation.NSHTTPCookie
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSMutableURLRequest
@@ -36,7 +39,7 @@ actual class RawHttp actual constructor() {
             }
             val req = NSMutableURLRequest(uRL = nsUrl)
             req.HTTPMethod = request.method
-            req.timeoutInterval = request.timeoutMs / 1000.0
+            req.setTimeoutInterval(request.timeoutMs / 1000.0)
             req.HTTPShouldHandleCookies = false
             request.headers.forEach { (k, v) -> req.setValue(v, forHTTPHeaderField = k) }
             request.body?.let { req.HTTPBody = it.toNSData() }
