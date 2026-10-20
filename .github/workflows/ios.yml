@@ -7,6 +7,14 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Тег релиза, в который нужно загрузить iOS-файлы (например v1.1.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   compile:
@@ -30,16 +38,29 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Android NDK с повторами (Gradle конфигурирует Android-часть даже для iOS-задач)
+        run: |
+          NDK_VERSION=$(grep -o 'ndk;[0-9.]*' composeApp/build.gradle.kts | head -1)
+          [ -n "$NDK_VERSION" ] || NDK_VERSION="ndk;27.0.12077973"
+          SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          for i in 1 2 3 4; do
+            yes | "$SDKM" --install "$NDK_VERSION" && break
+            echo "Попытка $i не удалась, повтор…"; sleep 10
+          done
+
       - name: Компиляция common + iOS Kotlin (cinterop + компиляция)
         run: ./gradlew :composeApp:compileKotlinIosSimulatorArm64 --stacktrace
 
   build:
     name: Сборка iOS (xcframework + приложение)
     runs-on: macos-15
+    env:
+      RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '' }}
     steps:
       - name: Checkout (с сабмодулем llama.cpp)
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref }}
           submodules: recursive
 
       - name: Xcode 26 (SDK iOS 26 нужен Compose Multiplatform 1.11)
@@ -53,6 +74,16 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Android NDK с повторами (Gradle конфигурирует Android-часть даже для iOS-задач)
+        run: |
+          NDK_VERSION=$(grep -o 'ndk;[0-9.]*' composeApp/build.gradle.kts | head -1)
+          [ -n "$NDK_VERSION" ] || NDK_VERSION="ndk;27.0.12077973"
+          SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          for i in 1 2 3 4; do
+            yes | "$SDKM" --install "$NDK_VERSION" && break
+            echo "Попытка $i не удалась, повтор…"; sleep 10
+          done
 
       - name: Сборка C-ядра (llama.cpp + Metal) в XCFramework
         run: |
@@ -78,7 +109,53 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
+            -derivedDataPath build/sim \
             CODE_SIGNING_ALLOWED=NO build
+
+      - name: Сборка приложения для устройства (arm64, без подписи)
+        run: |
+          ./gradlew :composeApp:linkReleaseFrameworkIosArm64 --stacktrace
+          cd iosApp
+          xcodegen generate
+          xcodebuild -project LocalDocAI.xcodeproj \
+            -scheme LocalDocAIDevice \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath build/device \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: Упаковка iOS-файлов для релиза
+        run: |
+          VERSION="${RELEASE_TAG:-dev}"
+          mkdir -p dist
+          # Неподписанный .ipa: переподписывается своим Apple ID (AltStore, Sideloadly, Xcode)
+          APP=$(find iosApp/build/device/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          mkdir -p ipa/Payload && cp -R "$APP" ipa/Payload/
+          (cd ipa && zip -qry "../dist/LocalDocAI-${VERSION}-unsigned.ipa" Payload)
+          # Приложение для симулятора iOS (Apple Silicon)
+          SIM=$(find iosApp/build/sim/Build/Products/Debug-iphonesimulator -maxdepth 1 -name "*.app" | head -1)
+          (cd "$(dirname "$SIM")" && zip -qry "$GITHUB_WORKSPACE/dist/LocalDocAI-${VERSION}-simulator.app.zip" "$(basename "$SIM")")
+          # C-ядро llama.cpp + Metal
+          (cd cpp_core/build-ios && zip -qry "$GITHUB_WORKSPACE/dist/localdoc_core-${VERSION}.xcframework.zip" localdoc_core.xcframework)
+          ls -lh dist
+
+      - name: Загрузка iOS-файлов (артефакт)
+        uses: actions/upload-artifact@v4
+        with:
+          name: localdoc-ios-release-files
+          path: dist/*
+
+      - name: Публикация iOS-файлов в GitHub Release
+        if: env.RELEASE_TAG != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --title "LocalDoc AI $RELEASE_TAG" \
+              --notes-file .github/release-notes.md || true
+          fi
+          gh release upload "$RELEASE_TAG" dist/* --clobber
 
       - name: Загрузка Kotlin-фреймворка (артефакт)
         uses: actions/upload-artifact@v4
