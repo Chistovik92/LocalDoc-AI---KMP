@@ -26,12 +26,15 @@ object OdtParser {
             ?: throw IllegalArgumentException("Повреждённый .odt: в документе нет текста")
 
         val blocks = ArrayList<Block>()
-        walk(text, styles, 0, blocks)
+        val images = ImageCollector()
+        walk(text, styles, 0, blocks, images, zip)
 
         val meta = zip.readText("meta.xml")?.let { Ksoup.parse(it, Parser.xmlParser(), "") }
         val title = meta?.getElementsByTag("dc:title")?.firstOrNull()?.text()?.trim().orEmpty().ifBlank { fallbackTitle }
         val author = meta?.getElementsByTag("dc:creator")?.firstOrNull()?.text()?.trim().orEmpty()
+        val thumbnail = runCatching { zip.read("Thumbnails/thumbnail.png") }.getOrNull()?.let(images::add)
         return Book(title = title, author = author, format = BookFormat.ODT, blocks = blocks, chapters = chaptersFromHeadings(blocks))
+            .withImages(images, thumbnail)
     }
 
     /** Стиль текста: жирный / курсив из `style:text-properties`. */
@@ -48,13 +51,24 @@ object OdtParser {
         }
     }
 
-    private fun walk(parent: Element, styles: Map<String, TextStyle>, listLevel: Int, out: MutableList<Block>) {
+    private fun walk(
+        parent: Element,
+        styles: Map<String, TextStyle>,
+        listLevel: Int,
+        out: MutableList<Block>,
+        images: ImageCollector,
+        zip: ZipArchive
+    ) {
         for (child in parent.children()) {
             when (child.normalName()) {
-                "text:h" -> block(child, styles, out) { text, spans ->
-                    Block(BlockType.HEADING, text, (child.attr("text:outline-level").toIntOrNull() ?: 1).coerceIn(1, 6), spans)
+                "text:h" -> {
+                    block(child, styles, out) { text, spans ->
+                        Block(BlockType.HEADING, text, (child.attr("text:outline-level").toIntOrNull() ?: 1).coerceIn(1, 6), spans)
+                    }
+                    out.addAll(paragraphImages(child, images, zip))
                 }
-                "text:p" -> block(child, styles, out) { text, spans ->
+                "text:p" -> {
+                    block(child, styles, out) { text, spans ->
                     val style = child.attr("text:style-name").lowercase()
                     when {
                         listLevel > 0 -> Block(BlockType.LIST_ITEM, text, listLevel - 1, spans)
@@ -63,10 +77,12 @@ object OdtParser {
                         "title" == style -> Block(BlockType.HEADING, text, 1, spans)
                         else -> Block(BlockType.PARAGRAPH, text, 0, spans)
                     }
+                    }
+                    out.addAll(paragraphImages(child, images, zip))
                 }
-                "text:list" -> walk(child, styles, listLevel + 1, out)
-                "text:list-item", "text:list-header", "text:section", "office:text" -> walk(child, styles, listLevel, out)
-                "table:table" -> table(child, styles, out)
+                "text:list" -> walk(child, styles, listLevel + 1, out, images, zip)
+                "text:list-item", "text:list-header", "text:section", "office:text" -> walk(child, styles, listLevel, out, images, zip)
+                "table:table" -> table(child, styles, out, images, zip)
             }
         }
     }
@@ -83,12 +99,20 @@ object OdtParser {
         if (text.isNotBlank()) out.add(make(text, spans))
     }
 
-    private fun table(table: Element, styles: Map<String, TextStyle>, out: MutableList<Block>) {
+    /** `draw:image xlink:href="Pictures/…"` внутри абзаца или рамки. */
+    private fun paragraphImages(p: Element, images: ImageCollector, zip: ZipArchive): List<Block> =
+        p.getElementsByTag("draw:image").mapNotNull { img ->
+            val href = img.attr("xlink:href").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val ref = zipImage(zip, "", href, images) ?: return@mapNotNull null
+            Block(BlockType.IMAGE, "", image = ref)
+        }
+
+    private fun table(table: Element, styles: Map<String, TextStyle>, out: MutableList<Block>, images: ImageCollector, zip: ZipArchive) {
         for (row in table.getElementsByTag("table:table-row")) {
             val cells = row.children().filter { it.normalName() == "table:table-cell" }.mapNotNull { cell ->
                 val cellBlocks = ArrayList<Block>()
-                walk(cell, styles, 0, cellBlocks)
-                cellBlocks.joinToString(" ") { it.text }.trim().takeIf { it.isNotEmpty() }
+                walk(cell, styles, 0, cellBlocks, images, zip)
+                cellBlocks.filterNot { it.isImage }.joinToString(" ") { it.text }.trim().takeIf { it.isNotEmpty() }
             }
             if (cells.isNotEmpty()) out.add(Block(BlockType.PARAGRAPH, cells.joinToString(" | ")))
         }

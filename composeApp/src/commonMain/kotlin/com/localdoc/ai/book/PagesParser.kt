@@ -25,17 +25,22 @@ object PagesParser {
             zip.contains(OLD_INDEX) -> readOld(zip.readText(OLD_INDEX).orEmpty())
             else -> throw IllegalArgumentException("Это не документ Pages: нет Index/Document.iwa и index.xml")
         }
-        val blocks = paragraphs.map { Block(BlockType.PARAGRAPH, it) }
+        val text = paragraphs.map { Block(BlockType.PARAGRAPH, it) }
+        val blocks = text
         require(blocks.isNotEmpty()) {
             "В документе Pages не найден текст. Откройте его в Pages и экспортируйте в DOCX, PDF или TXT."
         }
         val images = ImageCollector()
         val cover = listOf("QuickLook/Thumbnail.jpg", "QuickLook/Thumbnail.png", "preview.jpg")
             .firstNotNullOfOrNull { name -> zip.read(name)?.let(images::add) }
+        // Место картинки в тексте в пакете Pages не хранится удобно — показываем их после текста
+        val pictures = zip.names.filter { it.startsWith("Data/") && ImageFormat.mimeOfExtension(it) != null }.sorted()
+            .mapNotNull { name -> runCatching { zip.read(name) }.getOrNull()?.let(images::add) }.distinct()
+            .filter { it != cover }
         return Book(
             title = fallbackTitle,
             format = BookFormat.PAGES,
-            blocks = blocks,
+            blocks = blocks + pictures.map { Block(BlockType.IMAGE, "", image = it) },
             chapters = PlainTextParser.detectChapters(blocks)
         ).withImages(images, cover)
     }

@@ -136,7 +136,15 @@ internal object TestFiles {
      * либо как UTF-16 (по умолчанию), либо как «сжатый» cp1252-фрагмент. [miniTable] кладёт таблицу
      * кусков текста в мини-поток, иначе обе части лежат в обычных секторах.
      */
-    fun doc(paragraphs: List<String>, compressed: Boolean = false, encrypted: Boolean = false, miniTable: Boolean = false): ByteArray {
+    fun docWithStreams(paragraphs: List<String>, extra: Map<String, ByteArray>): ByteArray = doc(paragraphs, extraStreams = extra)
+
+    fun doc(
+        paragraphs: List<String>,
+        compressed: Boolean = false,
+        encrypted: Boolean = false,
+        miniTable: Boolean = false,
+        extraStreams: Map<String, ByteArray> = emptyMap()
+    ): ByteArray {
         val text = paragraphs.joinToString("") { it + "\r" }
         val textBytes = if (compressed) {
             ByteArray(text.length) { text[it].code.toByte() }
@@ -164,7 +172,7 @@ internal object TestFiles {
         put32(word, lcbStart + 33 * 8, 0)         // fcClx
         put32(word, lcbStart + 33 * 8 + 4, clx.size)
         textBytes.copyInto(word, textOffset)
-        return ole2(mapOf("WordDocument" to word, "1Table" to if (miniTable) clx else clx.copyOf(4096)))
+        return ole2(mapOf("WordDocument" to word, "1Table" to if (miniTable) clx else clx.copyOf(4096)) + extraStreams)
     }
 
     private fun le16(v: Int) = listOf(v.toByte(), (v shr 8).toByte())

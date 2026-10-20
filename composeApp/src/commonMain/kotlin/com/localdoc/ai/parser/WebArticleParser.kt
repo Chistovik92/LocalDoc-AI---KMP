@@ -6,6 +6,10 @@ import com.fleeksoft.ksoup.nodes.Document
 import com.localdoc.ai.book.ArticleExtractor
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.BookFormat
+import com.localdoc.ai.book.HtmlImageResolver
+import com.localdoc.ai.book.ImageCollector
+import com.localdoc.ai.book.PageCover
+import com.localdoc.ai.book.withImages
 import com.localdoc.ai.book.PageLink
 import com.localdoc.ai.book.WebNavigation
 import com.localdoc.ai.book.WebNavigationDetector
@@ -53,7 +57,9 @@ class WebArticleParser {
         val navigation = WebNavigationDetector.detect(doc, url)
         val links = WebNavigationDetector.links(doc, url)
         val title = doc.select("h1").firstOrNull()?.text()?.trim().orEmpty().ifBlank { doc.title() }.ifBlank { url }
-        val blocks = ArticleExtractor.extract(doc)
+        val cover = PageCover.find(doc, url)
+        val images = ImageCollector()
+        val blocks = ArticleExtractor.extract(doc, HtmlImageResolver(url, images))
         val book = Book(
             title = title,
             author = hostOf(url),
@@ -62,7 +68,7 @@ class WebArticleParser {
             blocks = blocks,
             chapters = chaptersFromHeadings(blocks, maxLevel = 3),
             web = navigation.takeIf { it != WebNavigation() }
-        )
+        ).withImages(images, cover)
         return WebPage(book, links)
     }
 

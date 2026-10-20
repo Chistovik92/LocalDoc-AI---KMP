@@ -9,7 +9,7 @@ import com.fleeksoft.ksoup.nodes.TextNode
  * сбрасывается абзацем при встрече блочного элемента — это устойчиво к «грязной»
  * вёрстке, где текст лежит прямо в div вперемешку с тегами.
  */
-internal class HtmlBlockBuilder {
+internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
 
     private val blocks = ArrayList<Block>()
     private val inline = StringBuilder()
@@ -33,6 +33,7 @@ internal class HtmlBlockBuilder {
     private fun handleElement(el: Element, listDepth: Int) {
         val tag = el.normalName()
         when {
+            tag == "img" -> imageBlock(el)
             tag in SKIP_TAGS -> Unit
             tag == "br" -> inline.append('\n')
             tag.length == 2 && tag[0] == 'h' && tag[1] in '1'..'6' -> emit(BlockType.HEADING, el.text(), tag[1] - '0')
@@ -66,6 +67,19 @@ internal class HtmlBlockBuilder {
         }
     }
 
+    /** Картинка в тексте: ленивые атрибуты (`data-src`), без иконок, логотипов и «пикселей». */
+    private fun imageBlock(el: Element) {
+        val resolver = images ?: return
+        val src = IMAGE_SOURCE_ATTRS.map { el.attr(it).trim() }.firstOrNull { it.isNotEmpty() } ?: return
+        val width = el.attr("width").trim().removeSuffix("px").toIntOrNull()
+        val height = el.attr("height").trim().removeSuffix("px").toIntOrNull()
+        if ((width != null && width < MIN_IMAGE_SIDE) || (height != null && height < MIN_IMAGE_SIDE)) return
+        if (JUNK_IMAGE.containsMatchIn(el.className() + " " + el.id() + " " + src.take(300))) return
+        val ref = resolver.resolve(src) ?: return
+        flush()
+        blocks.add(Block(BlockType.IMAGE, normalizeSpaces(el.attr("alt")).take(300), image = ref))
+    }
+
     private fun emit(type: BlockType, text: String, level: Int = 0) {
         flush()
         val clean = if (type == BlockType.CODE) text.trimEnd() else normalizeSpaces(text)
@@ -87,6 +101,9 @@ internal class HtmlBlockBuilder {
         childNodes().joinToString("") { if (it is TextNode) it.text() else (it as? Element)?.text().orEmpty() }
 
     companion object {
+        private val IMAGE_SOURCE_ATTRS = listOf("data-src", "data-original", "data-lazy-src", "src")
+        private const val MIN_IMAGE_SIDE = 48
+        private val JUNK_IMAGE = Regex("(^|[\\s_\\-/.])(icon|logo|avatar|emoji|smiley|sprite|pixel|spacer|badge|tracking|blank|loader|spinner)([\\s_\\-/.\\d]|$)", RegexOption.IGNORE_CASE)
         private val SKIP_TAGS = setOf(
             "script", "style", "noscript", "iframe", "svg", "canvas", "template", "button",
             "input", "select", "textarea", "form", "nav", "head", "img", "video", "audio", "object", "embed"
@@ -158,16 +175,16 @@ object AdFilter {
  */
 object ArticleExtractor {
 
-    fun extract(doc: Element): List<Block> {
+    fun extract(doc: Element, images: ImageResolver? = null): List<Block> {
         doc.select("script, style, noscript, iframe, svg, form, nav, button, template, link, meta").remove()
         // Служебные элементы вики-движков: «[править]», сноски [1], инфобоксы, навигационные шаблоны
         doc.select(
             ".mw-editsection, sup.reference, .reference, .noprint, .navbox, .hatnote, .infobox, .metadata, " +
-                ".mw-jump-link, .mw-references-wrap, .reflist, .toc, #toc, .thumb, figure"
+                ".mw-jump-link, .mw-references-wrap, .reflist, .toc, #toc"
         ).remove()
         removeNoise(doc)
         val root = pickContentRoot(doc)
-        return HtmlBlockBuilder().build(root)
+        return HtmlBlockBuilder(images).build(root)
     }
 
     private fun removeNoise(doc: Element) {

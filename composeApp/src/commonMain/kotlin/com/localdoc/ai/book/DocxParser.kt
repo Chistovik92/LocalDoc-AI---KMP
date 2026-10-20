@@ -17,17 +17,42 @@ object DocxParser {
 
     fun parse(zip: ZipArchive, fallbackTitle: String): Book {
         val xml = zip.readText(DOCUMENT) ?: throw IllegalArgumentException("Это не документ Word (.docx): нет word/document.xml")
-        val styles = readStyles(zip)
+        val ctx = DocxContext(readStyles(zip), readRelationships(zip), zip, ImageCollector())
         val body = Ksoup.parse(xml, Parser.xmlParser(), "").getElementsByTag("w:body").firstOrNull()
             ?: throw IllegalArgumentException("Повреждённый .docx: в документе нет тела")
 
         val blocks = ArrayList<Block>()
-        walkBody(body, styles, blocks)
+        walkBody(body, ctx, blocks)
 
         val core = zip.readText("docProps/core.xml")?.let { Ksoup.parse(it, Parser.xmlParser(), "") }
         val title = core?.getElementsByTag("dc:title")?.firstOrNull()?.text()?.trim().orEmpty().ifBlank { fallbackTitle }
         val author = core?.getElementsByTag("dc:creator")?.firstOrNull()?.text()?.trim().orEmpty()
+        val thumbnail = listOf("docProps/thumbnail.jpeg", "docProps/thumbnail.png", "docProps/thumbnail.jpg")
+            .firstNotNullOfOrNull { name -> runCatching { zip.read(name) }.getOrNull()?.let(ctx.images::add) }
         return Book(title = title, author = author, format = BookFormat.DOCX, blocks = blocks, chapters = chaptersFromHeadings(blocks))
+            .withImages(ctx.images, thumbnail)
+    }
+
+    /** Состояние разбора документа: стили, связи (rId → путь в архиве) и собранные картинки. */
+    private class DocxContext(val styles: Map<String, String>, val rels: Map<String, String>, val zip: ZipArchive, val images: ImageCollector)
+
+    /** `word/_rels/document.xml.rels`: идентификатор связи → путь цели относительно `word/`. */
+    private fun readRelationships(zip: ZipArchive): Map<String, String> {
+        val xml = zip.readText("word/_rels/document.xml.rels") ?: return emptyMap()
+        return Ksoup.parse(xml, Parser.xmlParser(), "").getElementsByTag("Relationship")
+            .filter { it.attr("TargetMode") != "External" }
+            .associate { it.attr("Id") to it.attr("Target") }
+    }
+
+    /** Картинки абзаца (`a:blip r:embed`, `v:imagedata r:id`) в порядке появления. */
+    private fun paragraphImages(p: Element, ctx: DocxContext): List<Block> {
+        val ids = (p.getElementsByTag("a:blip").map { it.attr("r:embed") } + p.getElementsByTag("v:imagedata").map { it.attr("r:id") })
+            .filter { it.isNotEmpty() }
+        return ids.mapNotNull { rid ->
+            val target = ctx.rels[rid] ?: return@mapNotNull null
+            val ref = zipImage(ctx.zip, "word/", target, ctx.images) ?: return@mapNotNull null
+            Block(BlockType.IMAGE, "", image = ref)
+        }
     }
 
     /** styleId → человеческое имя стиля («heading 1», «List Bullet», «Quote»). */
@@ -38,22 +63,25 @@ object DocxParser {
         }
     }
 
-    private fun walkBody(parent: Element, styles: Map<String, String>, out: MutableList<Block>) {
+    private fun walkBody(parent: Element, ctx: DocxContext, out: MutableList<Block>) {
         for (child in parent.children()) {
             when (child.normalName()) {
-                "w:p" -> paragraph(child, styles)?.let(out::add)
-                "w:tbl" -> table(child, styles, out)
-                "w:sdt", "w:sdtcontent", "w:customxml", "w:smarttag" -> walkBody(child, styles, out)
+                "w:p" -> {
+                    paragraph(child, ctx.styles)?.let(out::add)
+                    out.addAll(paragraphImages(child, ctx))
+                }
+                "w:tbl" -> table(child, ctx, out)
+                "w:sdt", "w:sdtcontent", "w:customxml", "w:smarttag" -> walkBody(child, ctx, out)
             }
         }
     }
 
-    private fun table(table: Element, styles: Map<String, String>, out: MutableList<Block>) {
+    private fun table(table: Element, ctx: DocxContext, out: MutableList<Block>) {
         for (row in table.getElementsByTag("w:tr")) {
             val cells = row.children().filter { it.normalName() == "w:tc" }.mapNotNull { cell ->
                 val cellBlocks = ArrayList<Block>()
-                walkBody(cell, styles, cellBlocks)
-                cellBlocks.joinToString(" ") { it.text }.trim().takeIf { it.isNotEmpty() }
+                walkBody(cell, ctx, cellBlocks)
+                cellBlocks.filterNot { it.isImage }.joinToString(" ") { it.text }.trim().takeIf { it.isNotEmpty() }
             }
             if (cells.isNotEmpty()) out.add(Block(BlockType.PARAGRAPH, cells.joinToString(" | ")))
         }
