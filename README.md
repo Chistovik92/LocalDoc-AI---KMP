@@ -131,7 +131,7 @@ open LocalDocAI.xcodeproj
    `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` в `iosApp/project.yml`.
 2. Добавить раздел версии **сверху** в [CHANGELOG.md](CHANGELOG.md) (и строку в «Сводку версий»),
    скопировать его в `.github/release-notes.md` — текст попадает в GitHub Release и окно обновления.
-3. Отметить пункты версии `[x]` в [ROADMAP.md](ROADMAP.md).
+3. Удалить раздел версии из [ROADMAP.md](ROADMAP.md): выпущенное хранится только в CHANGELOG.
 4. PR в `main` → зелёный CI (Android и iOS) → merge → тег:
 
 ```bash
