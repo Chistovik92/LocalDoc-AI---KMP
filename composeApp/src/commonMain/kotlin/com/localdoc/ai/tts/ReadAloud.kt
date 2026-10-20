@@ -47,14 +47,15 @@ object SpeechSegmenter {
     private val SENTENCE_END = Regex("(?<=[.!?…])[\"»”)]*\\s+(?=[\"«„“(\\[A-ZА-ЯЁ0-9—–-])")
     private val URL = Regex("https?://\\S+|www\\.\\S+")
 
-    fun segments(blocks: List<Block>): List<SpeechSegment> {
+    /** [firstBlockIndex] — номер первого блока списка в книге: страница озвучивается отдельно от остальных. */
+    fun segments(blocks: List<Block>, firstBlockIndex: Int = 0): List<SpeechSegment> {
         val result = ArrayList<SpeechSegment>()
         blocks.forEachIndexed { index, block ->
             // Код не читается вслух, рекламные вставки пропускаются
             if (block.type == BlockType.CODE || AdFilter.isAdText(block.text)) return@forEachIndexed
             sentenceRanges(block.text).forEach { (s, e) ->
                 val speakable = speakableText(block.text.substring(s, e))
-                if (speakable.isNotBlank()) result.add(SpeechSegment(index, s, e, speakable))
+                if (speakable.isNotBlank()) result.add(SpeechSegment(firstBlockIndex + index, s, e, speakable))
             }
         }
         return result
@@ -111,186 +112,4 @@ object SpeechSegmenter {
             .replace(Regex("[*_#`|<>\\[\\]{}~^]+"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
-}
-
-/** Почему озвучка остановилась сама. */
-enum class ReadAloudStop { CHAPTER_END, BOOK_END }
-
-data class ReadAloudState(
-    /** Плеер открыт (идёт или стоит на паузе). */
-    val active: Boolean = false,
-    val playing: Boolean = false,
-    /** Название книги/страницы — для уведомления, виджета и экрана блокировки. */
-    val title: String = "",
-    val segment: SpeechSegment? = null,
-    val position: Int = 0,
-    val total: Int = 0,
-    val stoppedAt: ReadAloudStop? = null,
-    val error: String? = null
-)
-
-/**
- * Плеер чтения вслух: последовательно отдаёт движку предложения, подсвечивает текущее,
- * поддерживает паузу, стоп и переходы по предложениям/абзацам.
- *
- * Устойчивость: фрагмент, который движок не смог озвучить (реклама, эмодзи, редкие символы),
- * пропускается — чтение продолжается. Остановка только после нескольких сбоев подряд.
- * В конце главы озвучка не переходит дальше сама, а предупреждает и ждёт пользователя.
- */
-class ReadAloudController(
-    private val engine: SpeechEngine,
-    private val scope: CoroutineScope
-) {
-    private val _state = MutableStateFlow(ReadAloudState())
-    val state: StateFlow<ReadAloudState> = _state.asStateFlow()
-
-    private var segments: List<SpeechSegment> = emptyList()
-    private var chapterStarts: List<Int> = emptyList()
-    private var index = 0
-    private var session = 0
-    private var consecutiveFailures = 0
-    /** Ключ документа, который сейчас озвучивается (id книги или URL страницы). */
-    var documentKey: String? = null
-        private set
-
-    private var title = ""
-
-    fun start(key: String, blocks: List<Block>, chapters: List<Chapter>, fromBlock: Int, title: String = "") {
-        documentKey = key
-        this.title = title
-        segments = SpeechSegmenter.segments(blocks)
-        chapterStarts = chapters.map { it.startBlock }.filter { it > 0 }.sorted()
-        if (segments.isEmpty()) {
-            _state.value = ReadAloudState(error = "В тексте нет фрагментов для озвучки")
-            return
-        }
-        index = segments.indexOfFirst { it.block >= fromBlock }.takeIf { it >= 0 } ?: 0
-        play()
-    }
-
-    fun toggle() = if (_state.value.playing) pause() else play()
-
-    fun play() {
-        if (segments.isEmpty()) return
-        if (index !in segments.indices) index = 0
-        session++
-        // Прежняя реплика (другой документ, объявление «Конец главы») не должна звучать поверх
-        engine.stop()
-        consecutiveFailures = 0
-        speakCurrent()
-    }
-
-    fun pause() {
-        session++
-        engine.stop()
-        publish(playing = false)
-    }
-
-    fun stop() {
-        session++
-        engine.stop()
-        segments = emptyList()
-        documentKey = null
-        _state.value = ReadAloudState()
-    }
-
-    fun nextSentence() = seek(index + 1)
-    fun previousSentence() = seek(index - 1)
-
-    fun nextParagraph() {
-        val current = segments.getOrNull(index)?.block ?: return
-        seek(segments.indexOfFirst { it.block > current }.takeIf { it >= 0 } ?: segments.lastIndex)
-    }
-
-    fun previousParagraph() {
-        val current = segments.getOrNull(index) ?: return
-        // В середине абзаца — в его начало, иначе — в начало предыдущего
-        val paragraphStart = segments.indexOfFirst { it.block == current.block }
-        val target = if (index > paragraphStart) {
-            paragraphStart
-        } else {
-            val prevBlock = segments.getOrNull(paragraphStart - 1)?.block
-            if (prevBlock == null) 0 else segments.indexOfFirst { it.block == prevBlock }
-        }
-        seek(target)
-    }
-
-    /** Начать чтение с указанного абзаца (тап по тексту при активном плеере). */
-    fun jumpToBlock(block: Int) {
-        val target = segments.indexOfFirst { it.block >= block }
-        if (target >= 0) seek(target)
-    }
-
-    private fun seek(target: Int) {
-        if (segments.isEmpty()) return
-        index = target.coerceIn(0, segments.lastIndex)
-        if (_state.value.playing) {
-            session++
-            engine.stop()
-            speakCurrent()
-        } else {
-            publish(playing = false)
-        }
-    }
-
-    private fun speakCurrent() {
-        val segment = segments.getOrNull(index) ?: return
-        val mySession = session
-        publish(playing = true)
-        // Следующее предложение той же главы движок может синтезировать, пока звучит текущее
-        val upcoming = segments.getOrNull(index + 1)?.takeIf { !crossesChapter(segment, it) }
-        engine.speak(segment.text) { success ->
-            scope.launch { if (mySession == session) onSegmentFinished(success) }
-        }
-        if (upcoming != null && mySession == session) engine.prefetch(upcoming.text)
-    }
-
-    private fun crossesChapter(from: SpeechSegment, to: SpeechSegment): Boolean =
-        chapterStarts.any { it in (from.block + 1)..to.block }
-
-    private fun onSegmentFinished(success: Boolean) {
-        if (success) consecutiveFailures = 0 else consecutiveFailures++
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-            session++
-            publish(playing = false, error = "Голосовой движок не отвечает. Выберите другой голос в настройках озвучки.")
-            return
-        }
-        val finished = segments[index]
-        val nextIndex = index + 1
-        if (nextIndex > segments.lastIndex) {
-            finishWith(ReadAloudStop.BOOK_END, "Текст закончился.")
-            return
-        }
-        val next = segments[nextIndex]
-        index = nextIndex
-        if (crossesChapter(finished, next)) {
-            finishWith(ReadAloudStop.CHAPTER_END, "Конец главы.")
-            return
-        }
-        speakCurrent()
-    }
-
-    /** Предупреждение голосом и остановка: дальше пользователь решает сам. */
-    private fun finishWith(reason: ReadAloudStop, announcement: String) {
-        session++
-        publish(playing = false, stoppedAt = reason)
-        engine.speak(announcement) { }
-    }
-
-    private fun publish(playing: Boolean, stoppedAt: ReadAloudStop? = null, error: String? = null) {
-        _state.value = ReadAloudState(
-            active = segments.isNotEmpty(),
-            playing = playing,
-            title = title,
-            segment = segments.getOrNull(index),
-            position = index,
-            total = segments.size,
-            stoppedAt = stoppedAt,
-            error = error
-        )
-    }
-
-    companion object {
-        private const val MAX_CONSECUTIVE_FAILURES = 4
-    }
 }
