@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.localdoc.ai.ui
 
 import androidx.compose.foundation.background
@@ -59,6 +61,7 @@ import com.localdoc.ai.model.ModelCatalog
 import com.localdoc.ai.model.ModelFamily
 import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.platform.PlatformActions
+import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -298,7 +301,7 @@ private fun ModelCard(
                 else -> Unit
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 when {
                     state is DownloadState.Progress -> TextButton(onClick = onCancel) { Text("Отменить") }
                     downloaded && isLoaded -> OutlinedButton(onClick = onUnload, enabled = busy == null) { Text("Выгрузить") }
@@ -308,14 +311,14 @@ private fun ModelCard(
                                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                                 Spacer(Modifier.width(8.dp))
                             }
-                            Text(if (busy == spec.id) "Загрузка…" else "Использовать")
+                            Text(if (busy == spec.id) "Загрузка…" else "Использовать", maxLines = 1, softWrap = false)
                         }
                         TextButton(onClick = onDelete, enabled = busy == null) { Text("Удалить") }
                     }
                     else -> FilledTonalButton(onClick = onDownload, enabled = busy == null) {
                         Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Установить · ${formatSize(spec.sizeMb)}")
+                        Text("Установить · ${formatSize(spec.sizeMb)}", maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -344,6 +347,7 @@ private fun AboutSection() {
     val update by updates.update.collectAsState()
     val status by updates.status.collectAsState()
     val checking by updates.checking.collectAsState()
+    val download by updates.download.collectAsState()
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("О приложении", style = MaterialTheme.typography.titleMedium)
@@ -353,13 +357,21 @@ private fun AboutSection() {
                 if (found.notes.isNotBlank()) {
                     Text(found.notes.take(600), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Button(onClick = { updates.install(found) }) {
+                val busy = download is UpdateDownload.Downloading
+                Button(onClick = { updates.install(found) }, enabled = !busy) {
                     Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(if (found.downloadUrl != null) "Скачать и установить" else "Открыть страницу релиза")
+                    Text(
+                        when {
+                            busy -> "Загрузка…"
+                            found.downloadUrl != null -> "Скачать и установить"
+                            else -> "Открыть страницу релиза"
+                        }
+                    )
                 }
+                if (busy) OutlinedButton(onClick = updates::cancelDownload) { Text("Отменить загрузку") }
             }
-            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            UpdateProgressInfo(download, status)
             OutlinedButton(onClick = { updates.check(silent = false) }, enabled = !checking) {
                 if (checking) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)

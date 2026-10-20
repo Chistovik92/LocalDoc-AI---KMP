@@ -7,8 +7,10 @@ import android.os.Build
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -41,6 +43,20 @@ actual object PlatformActions {
 
     actual fun installTtsData() {
         start(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+    }
+
+    actual fun installApk(path: String): InstallResult {
+        if (!context.packageManager.canRequestPackageInstalls()) {
+            val opened = start(
+                Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
+            )
+            return if (opened) InstallResult.NeedsPermission else InstallResult.Unsupported
+        }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", File(path))
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return if (start(intent)) InstallResult.Started else InstallResult.Unsupported
     }
 
     actual suspend fun httpGet(url: String, headers: Map<String, String>): String = withContext(Dispatchers.IO) {

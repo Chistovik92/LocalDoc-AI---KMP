@@ -18,6 +18,9 @@ expect object PlatformActions {
     /** Установка голосовых данных текущего движка. */
     fun installTtsData()
 
+    /** Запускает системную установку скачанного APK (Android); на iOS — [InstallResult.Unsupported]. */
+    fun installApk(path: String): InstallResult
+
     /** HTTP GET с заголовками; бросает исключение при ошибке сети или статусе ≠ 2xx. */
     suspend fun httpGet(url: String, headers: Map<String, String> = emptyMap()): String
 }
@@ -25,3 +28,15 @@ expect object PlatformActions {
 /** Системная кнопка «Назад» (Android). На iOS — без действия: там есть кнопки в UI. */
 @Composable
 expect fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit)
+
+/** Итог попытки установить APK. */
+enum class InstallResult {
+    /** Системный установщик открыт. */
+    Started,
+
+    /** Нужно разрешить установку из этого приложения в настройках; экран настроек уже открыт. */
+    NeedsPermission,
+
+    /** Установка не поддерживается или установщик не найден. */
+    Unsupported
+}

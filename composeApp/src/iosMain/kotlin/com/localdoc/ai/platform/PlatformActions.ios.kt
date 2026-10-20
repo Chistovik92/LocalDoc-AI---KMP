@@ -36,6 +36,8 @@ actual object PlatformActions {
 
     actual fun installTtsData() = openTtsSettings()
 
+    actual fun installApk(path: String): InstallResult = InstallResult.Unsupported
+
     actual suspend fun httpGet(url: String, headers: Map<String, String>): String =
         suspendCancellableCoroutine { cont ->
             val nsUrl = NSURL.URLWithString(url)

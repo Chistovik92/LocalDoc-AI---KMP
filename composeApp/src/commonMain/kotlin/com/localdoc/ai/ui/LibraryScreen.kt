@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.localdoc.ai.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -144,9 +146,9 @@ fun LibraryScreen(
                         title = "Ваша библиотека пуста",
                         text = "Добавьте книгу EPUB, FB2, PDF, TXT, Markdown или HTML — или откройте веб-страницу. Всё читается и озвучивается прямо на устройстве."
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onPickFile) { Text("Открыть файл") }
-                            OutlinedButton(onClick = onOpenWeb) { Text("Веб-страница") }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = onPickFile) { Text("Открыть файл", maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = onOpenWeb) { Text("Веб-страница", maxLines = 1, softWrap = false) }
                         }
                     }
                 }
