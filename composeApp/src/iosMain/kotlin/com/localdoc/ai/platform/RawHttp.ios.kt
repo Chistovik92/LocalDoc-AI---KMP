@@ -1,0 +1,96 @@
+@file:OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+
+package com.localdoc.ai.platform
+
+import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.suspendCancellableCoroutine
+import platform.Foundation.NSHTTPCookie
+import platform.Foundation.NSHTTPCookieAcceptPolicyNever
+import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSMutableURLRequest
+import platform.Foundation.NSURL
+import platform.Foundation.NSURLRequest
+import platform.Foundation.NSURLSession
+import platform.Foundation.NSURLSessionConfiguration
+import platform.Foundation.NSURLSessionTask
+import platform.Foundation.NSURLSessionTaskDelegateProtocol
+import platform.Foundation.dataTaskWithRequest
+import platform.Foundation.setValue
+import platform.darwin.NSObject
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+/** iOS: NSURLSession без редиректов и без системных cookie; Set-Cookie собираются из разобранных системой cookie. */
+actual class RawHttp actual constructor() {
+
+    actual val userAgent: String =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+    actual suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse =
+        suspendCancellableCoroutine { cont ->
+            val nsUrl = NSURL.URLWithString(request.url)
+            if (nsUrl == null) {
+                cont.resumeWithException(IllegalArgumentException("Некорректный адрес: ${request.url}"))
+                return@suspendCancellableCoroutine
+            }
+            val req = NSMutableURLRequest.requestWithURL(nsUrl)
+            req.HTTPMethod = request.method
+            req.timeoutInterval = request.timeoutMs / 1000.0
+            req.HTTPShouldHandleCookies = false
+            request.headers.forEach { (k, v) -> req.setValue(v, forHTTPHeaderField = k) }
+            request.body?.let { req.HTTPBody = it.toNSData() }
+
+            val config = NSURLSessionConfiguration.ephemeralSessionConfiguration()
+            config.HTTPShouldSetCookies = false
+            config.HTTPCookieAcceptPolicy = NSHTTPCookieAcceptPolicyNever
+            val session = NSURLSession.sessionWithConfiguration(config, delegate = NoRedirectDelegate, delegateQueue = null)
+
+            val task = session.dataTaskWithRequest(req) { data, response, error ->
+                session.finishTasksAndInvalidate()
+                val http = response as? NSHTTPURLResponse
+                when {
+                    error != null -> cont.resumeWithException(IllegalStateException(error.localizedDescription))
+                    http == null -> cont.resumeWithException(IllegalStateException("Нет ответа от сервера"))
+                    data != null && data.length.toLong() > maxBytes -> cont.resumeWithException(ResponseTooLargeException(maxBytes))
+                    else -> {
+                        val fields = http.allHeaderFields
+                        val headers = HashMap<String, String>()
+                        for ((k, v) in fields) {
+                            val name = (k as? String)?.lowercase() ?: continue
+                            if (name != "set-cookie") headers[name] = v.toString()
+                        }
+                        val cookies = NSHTTPCookie.cookiesWithResponseHeaderFields(fields, forURL = nsUrl)
+                            .filterIsInstance<NSHTTPCookie>()
+                            .map(::setCookieLine)
+                        cont.resume(RawResponse(http.statusCode.toInt(), headers, cookies, data?.toByteArray() ?: ByteArray(0)))
+                    }
+                }
+            }
+            cont.invokeOnCancellation { task.cancel(); session.invalidateAndCancel() }
+            task.resume()
+        }
+
+    private fun setCookieLine(cookie: NSHTTPCookie): String {
+        val sb = StringBuilder("${cookie.name}=${cookie.value}")
+        // Домен с ведущей точкой — cookie для всего домена; без неё — только для этого хоста
+        if (cookie.domain.startsWith(".")) sb.append("; Domain=").append(cookie.domain.removePrefix("."))
+        sb.append("; Path=").append(cookie.path)
+        cookie.expiresDate?.let { sb.append("; Max-Age=").append(it.timeIntervalSinceNow.toLong().coerceAtLeast(0)) }
+        if (cookie.secure) sb.append("; Secure")
+        return sb.toString()
+    }
+}
+
+/** Редиректы не выполняются: ответ 30x возвращается вызывающему коду, который сам решает, куда идти. */
+private object NoRedirectDelegate : NSObject(), NSURLSessionTaskDelegateProtocol {
+    override fun URLSession(
+        session: NSURLSession,
+        task: NSURLSessionTask,
+        willPerformHTTPRedirection: NSHTTPURLResponse,
+        newRequest: NSURLRequest,
+        completionHandler: (NSURLRequest?) -> Unit
+    ) {
+        completionHandler(null)
+    }
+}

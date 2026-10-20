@@ -1,0 +1,145 @@
+package com.localdoc.ai.net
+
+import com.localdoc.ai.book.TextDecoder
+import com.localdoc.ai.book.WebNavigationDetector
+import com.localdoc.ai.platform.RawHttp
+import com.localdoc.ai.platform.RawRequest
+import com.localdoc.ai.platform.RawResponse
+import com.localdoc.ai.platform.SecureStore
+
+/** Транспорт запросов: платформенный [RawHttp] в приложении, подделка в тестах. */
+interface HttpTransport {
+    val userAgent: String
+    suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse
+}
+
+fun RawHttp.asTransport(): HttpTransport = object : HttpTransport {
+    override val userAgent: String get() = this@asTransport.userAgent
+    override suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse = this@asTransport.execute(request, maxBytes)
+}
+
+fun SecureStore.asStorage(): SecretStorage = object : SecretStorage {
+    override fun get(key: String) = this@asStorage.get(key)
+    override fun put(key: String, value: String) = this@asStorage.put(key, value)
+    override fun remove(key: String) = this@asStorage.remove(key)
+}
+
+/** Итог запроса после всех редиректов. [url] — адрес последнего ответа. */
+class HttpResult(val url: String, val status: Int, val headers: Map<String, String>, val body: ByteArray) {
+    val contentType: String get() = headers["content-type"].orEmpty().lowercase()
+    val isOk: Boolean get() = status in 200..299
+
+    /** Текст ответа в кодировке из заголовка / meta (UTF-8 и Windows-1251 определяются и без неё). */
+    fun text(): String {
+        val declared = CHARSET.find(contentType)?.groupValues?.get(1)
+            ?: CHARSET.find(body.copyOf(minOf(body.size, 2048)).decodeToString())?.groupValues?.get(1)
+        return TextDecoder.decode(body, declared)
+    }
+
+    private companion object {
+        val CHARSET = Regex("charset\\s*=\\s*[\"']?([A-Za-z0-9_\\-]+)", RegexOption.IGNORE_CASE)
+    }
+}
+
+class HttpStatusException(val status: Int, val url: String) : IllegalStateException(messageFor(status)) {
+    private companion object {
+        fun messageFor(status: Int) = when (status) {
+            404, 410 -> "Страница не найдена (HTTP $status)"
+            429 -> "Сайт просит подождать: слишком много запросов (HTTP 429)"
+            in 500..599 -> "Сайт временно недоступен (HTTP $status)"
+            else -> "Сервер ответил ошибкой HTTP $status"
+        }
+    }
+}
+
+/**
+ * Общий HTTP-клиент приложения: ведёт редиректы вручную (до [MAX_REDIRECTS]), подставляет cookie только
+ * тем хостам, которым они выданы, и сохраняет новые. Ни адреса с паролями, ни тела форм в журналы не пишутся.
+ */
+class WebHttp(private val transport: HttpTransport, val cookies: CookieJar) {
+
+    val userAgent: String get() = transport.userAgent
+
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), maxBytes: Long = MAX_PAGE_BYTES): HttpResult =
+        send("GET", url, null, headers, maxBytes)
+
+    suspend fun postForm(
+        url: String,
+        fields: List<Pair<String, String>>,
+        referer: String? = null,
+        maxBytes: Long = MAX_PAGE_BYTES
+    ): HttpResult {
+        val headers = HashMap<String, String>()
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        if (referer != null) headers["Referer"] = referer
+        return send("POST", url, formEncode(fields).encodeToByteArray(), headers, maxBytes)
+    }
+
+    private suspend fun send(method: String, startUrl: String, body: ByteArray?, extra: Map<String, String>, maxBytes: Long): HttpResult {
+        var url = requireHttp(startUrl)
+        var verb = method
+        var payload = body
+        var previous: String? = null
+        repeat(MAX_REDIRECTS + 1) {
+            val headers = LinkedHashMap<String, String>()
+            headers["User-Agent"] = transport.userAgent
+            headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+            headers["Accept-Language"] = "ru,en;q=0.8"
+            headers.putAll(extra)
+            if (previous != null && "Referer" !in headers) headers["Referer"] = previous!!
+            cookies.header(url)?.let { headers["Cookie"] = it }
+            if (payload == null) headers.remove("Content-Type")
+
+            val response = transport.execute(RawRequest(url, verb, headers, payload), maxBytes)
+            response.setCookies.forEach { cookies.store(url, it) }
+
+            val location = response.headers["location"]
+            if (response.status in REDIRECT_CODES && !location.isNullOrBlank()) {
+                val next = WebNavigationDetector.resolveUrl(url, location)?.let(::requireHttp)
+                    ?: throw IllegalStateException("Некорректное перенаправление")
+                // 301/302/303 после POST превращаются в GET; 307/308 повторяют запрос как есть
+                if (response.status in listOf(301, 302, 303) && verb != "GET") { verb = "GET"; payload = null }
+                previous = url
+                url = next
+                return@repeat
+            }
+            return HttpResult(url, response.status, response.headers, response.body)
+        }
+        throw IllegalStateException("Слишком много перенаправлений")
+    }
+
+    private fun requireHttp(url: String): String {
+        require(url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
+            "Поддерживаются только ссылки http(s)"
+        }
+        return url
+    }
+
+    companion object {
+        const val MAX_REDIRECTS = 10
+        const val MAX_PAGE_BYTES = 12L * 1024 * 1024
+        const val MAX_IMAGE_BYTES = 8L * 1024 * 1024
+        const val MAX_DOWNLOAD_BYTES = 150L * 1024 * 1024
+        private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
+
+        /** application/x-www-form-urlencoded: UTF-8, пробел → «+». */
+        fun formEncode(fields: List<Pair<String, String>>): String =
+            fields.joinToString("&") { (k, v) -> percentEncode(k) + "=" + percentEncode(v) }
+
+        private fun percentEncode(s: String): String {
+            val out = StringBuilder()
+            for (b in s.encodeToByteArray()) {
+                val c = b.toInt() and 0xFF
+                when {
+                    c in 'a'.code..'z'.code || c in 'A'.code..'Z'.code || c in '0'.code..'9'.code || c == '-'.code || c == '_'.code || c == '.'.code || c == '*'.code ->
+                        out.append(c.toChar())
+                    c == ' '.code -> out.append('+')
+                    else -> out.append('%').append(HEX[c shr 4]).append(HEX[c and 15])
+                }
+            }
+            return out.toString()
+        }
+
+        private const val HEX = "0123456789ABCDEF"
+    }
+}
