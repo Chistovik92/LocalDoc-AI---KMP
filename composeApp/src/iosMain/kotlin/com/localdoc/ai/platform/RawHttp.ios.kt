@@ -34,12 +34,12 @@ actual class RawHttp actual constructor() {
                 cont.resumeWithException(IllegalArgumentException("Некорректный адрес: ${request.url}"))
                 return@suspendCancellableCoroutine
             }
-            val req = NSMutableURLRequest.requestWithURL(nsUrl)
-            req.setHTTPMethod(request.method)
-            req.setTimeoutInterval(request.timeoutMs / 1000.0)
-            req.setHTTPShouldHandleCookies(false)
+            val req = NSMutableURLRequest(uRL = nsUrl)
+            req.HTTPMethod = request.method
+            req.timeoutInterval = request.timeoutMs / 1000.0
+            req.HTTPShouldHandleCookies = false
             request.headers.forEach { (k, v) -> req.setValue(v, forHTTPHeaderField = k) }
-            request.body?.let { req.setHTTPBody(it.toNSData()) }
+            request.body?.let { req.HTTPBody = it.toNSData() }
 
             val config = NSURLSessionConfiguration.ephemeralSessionConfiguration()
             config.HTTPShouldSetCookies = false
