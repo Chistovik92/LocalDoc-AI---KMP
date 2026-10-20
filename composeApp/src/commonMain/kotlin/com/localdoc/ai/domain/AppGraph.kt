@@ -118,7 +118,14 @@ object AppGraph {
         val before = voiceSettings.value.value
         voiceSettings.update(transform)
         val after = voiceSettings.value.value
-        if (after.engineId != before.engineId) speaker.setEngine(after.engineId)
+        if (after.engineId != before.engineId) {
+            // Новый движок поднимается асинхронно: текущая реплика теряется — переозвучиваем её
+            val wasPlaying = readAloud.state.value.playing
+            if (wasPlaying) readAloud.pause()
+            speaker.setEngine(after.engineId)
+            speaker.setVoice(after.voiceId)
+            if (wasPlaying) readAloud.play()
+        }
         speaker.setRate(after.rate)
         speaker.setPitch(after.pitch)
         if (after.voiceId != before.voiceId || after.engineId != before.engineId) speaker.setVoice(after.voiceId)

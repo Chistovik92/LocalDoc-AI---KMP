@@ -13,6 +13,8 @@ actual fun inflateRaw(data: ByteArray, expectedSize: Int): ByteArray {
             val n = inflater.inflate(buffer)
             if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
             out.write(buffer, 0, n)
+            // Не верим заявленному размеру: распаковка дальше него — zip-бомба
+            require(out.size() <= expectedSize) { "Повреждённый ZIP: данные больше заявленного размера" }
         }
         return out.toByteArray()
     } finally {

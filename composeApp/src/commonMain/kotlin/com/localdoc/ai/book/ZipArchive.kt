@@ -3,6 +3,7 @@ package com.localdoc.ai.book
 /**
  * Распаковка raw DEFLATE (RFC 1951, без zlib-заголовка):
  * Android — java.util.zip.Inflater, iOS — NSData (libcompression).
+ * Распаковка дальше expectedSize — ошибка (защита от zip-бомб).
  */
 expect fun inflateRaw(data: ByteArray, expectedSize: Int): ByteArray
 
@@ -15,6 +16,7 @@ class ZipArchive(private val bytes: ByteArray) {
     private class Entry(val name: String, val method: Int, val compressedSize: Int, val size: Int, val localOffset: Int)
 
     private val entries: Map<String, Entry> = readCentralDirectory()
+    private var inflatedTotal = 0L
 
     val names: Set<String> get() = entries.keys
 
@@ -26,10 +28,15 @@ class ZipArchive(private val bytes: ByteArray) {
         require(u32(off) == LOCAL_SIG) { "Повреждённый ZIP: нет локального заголовка «$name»" }
         val dataStart = off + 30 + u16(off + 26) + u16(off + 28)
         require(dataStart + entry.compressedSize <= bytes.size) { "Повреждённый ZIP: «$name» обрезан" }
+        require(entry.size in 0..MAX_ENTRY_BYTES) { "Слишком большой файл в архиве: «$name»" }
+        require(inflatedTotal + entry.size <= MAX_TOTAL_BYTES) { "Архив распаковывается в слишком большой объём" }
         val raw = bytes.copyOfRange(dataStart, dataStart + entry.compressedSize)
         return when (entry.method) {
             METHOD_STORED -> raw
-            METHOD_DEFLATE -> inflateRaw(raw, entry.size)
+            METHOD_DEFLATE -> inflateRaw(raw, entry.size).also {
+                require(it.size <= entry.size) { "Повреждённый ZIP: «$name» больше заявленного размера" }
+                inflatedTotal += it.size
+            }
             else -> throw IllegalArgumentException("Неподдерживаемое сжатие ZIP (метод ${entry.method})")
         }
     }
@@ -77,6 +84,9 @@ class ZipArchive(private val bytes: ByteArray) {
         private const val EOCD_SIG = 0x06054b50L
         private const val METHOD_STORED = 0
         private const val METHOD_DEFLATE = 8
+        // Глава EPUB или FB2 крупнее 64 МБ — почти наверняка подделка; на всю книгу — 512 МБ
+        private const val MAX_ENTRY_BYTES = 64 * 1024 * 1024
+        private const val MAX_TOTAL_BYTES = 512L * 1024 * 1024
 
         fun isZip(bytes: ByteArray): Boolean =
             bytes.size >= 4 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte() &&
