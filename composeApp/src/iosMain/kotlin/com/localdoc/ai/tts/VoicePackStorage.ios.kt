@@ -100,11 +100,13 @@ private class Bz2Source(private val file: CPointer<FILE>) {
     private var open = false
 
     init {
+        // nativeHeap — это malloc: память не обнулена, входной буфер пока пуст
+        memset(stream.ptr, 0, sizeOf<bz_stream>().convert())
         startStream()
     }
 
     private fun startStream() {
-        // Init обнуляет только служебные поля — позицию во входном буфере сохраняем сами
+        // Для склеенного потока сохраняем позицию во входном буфере (в первый раз — null/0)
         val nextIn = stream.next_in
         val availIn = stream.avail_in
         memset(stream.ptr, 0, sizeOf<bz_stream>().convert())

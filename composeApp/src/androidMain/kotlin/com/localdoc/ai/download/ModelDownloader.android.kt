@@ -22,11 +22,10 @@ actual class ModelDownloader actual constructor(
         File(base, dirName).apply { mkdirs() }
     }
 
-    @Volatile
-    private var activeConnection: HttpURLConnection? = null
-
-    @Volatile
-    private var cancelled = false
+    // Соединения и флаги отмены — по id: параллельные загрузки (несколько голосов)
+    // не должны обрывать друг друга
+    private val activeConnections = java.util.concurrent.ConcurrentHashMap<String, HttpURLConnection>()
+    private val cancelledIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     private fun fileFor(spec: Downloadable) = File(dir, "${spec.id}$extension")
     private fun tempFor(spec: Downloadable) = File(dir, "${spec.id}$extension.part")
@@ -44,7 +43,7 @@ actual class ModelDownloader actual constructor(
         val temp = tempFor(spec)
         var connection: HttpURLConnection? = null
         var offset = if (temp.exists()) temp.length() else 0L
-        cancelled = false
+        cancelledIds.remove(spec.id)
 
         try {
             val url = URL(spec.url)
@@ -57,7 +56,7 @@ actual class ModelDownloader actual constructor(
                 emit(DownloadState.Failed("Неподдерживаемый протокол: ${url.protocol}"))
                 return@flow
             }
-            activeConnection = connection
+            activeConnections[spec.id] = connection
 
             val code = connection.responseCode
             if (code == HTTP_RANGE_NOT_SATISFIABLE && offset > 0) {
@@ -112,10 +111,10 @@ actual class ModelDownloader actual constructor(
             if (e is kotlinx.coroutines.CancellationException) throw e
             // cancel() закрывает соединение — это приходит как IOException.
             // Частичный файл сохраняется в обоих случаях и позволит докачать модель позже.
-            val message = if (cancelled) "Загрузка отменена" else "Загрузка прервана: ${e.message ?: "ошибка сети"}"
+            val message = if (spec.id in cancelledIds) "Загрузка отменена" else "Загрузка прервана: ${e.message ?: "ошибка сети"}"
             emit(DownloadState.Failed(message))
         } finally {
-            activeConnection = null
+            connection?.let { activeConnections.remove(spec.id, it) }
             connection?.disconnect()
         }
     }.flowOn(Dispatchers.IO)
@@ -130,9 +129,8 @@ actual class ModelDownloader actual constructor(
     }
 
     actual fun cancel(spec: Downloadable) {
-        cancelled = true
-        activeConnection?.disconnect()
-        activeConnection = null
+        cancelledIds.add(spec.id)
+        activeConnections.remove(spec.id)?.disconnect()
     }
 
     actual suspend fun delete(spec: Downloadable) = withContext(Dispatchers.IO) {
