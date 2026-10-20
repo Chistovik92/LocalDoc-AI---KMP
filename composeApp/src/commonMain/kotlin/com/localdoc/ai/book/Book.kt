@@ -12,7 +12,10 @@ enum class BookFormat(val label: String) {
     MARKDOWN("Markdown"),
     TEXT("TXT"),
     HTML("HTML"),
-    WEB("Веб")
+    WEB("Веб"),
+    DOCX("DOCX"),
+    DOC("DOC"),
+    ODT("ODT")
 }
 
 /** Тип блока текста — единица вёрстки, озвучки и прогресса чтения. */

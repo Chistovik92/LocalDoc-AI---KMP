@@ -26,6 +26,8 @@ object AndroidIntents {
     private val BOOK_MIME_TYPES = arrayOf(
         "application/pdf", "application/epub+zip", "application/x-fictionbook+xml", "application/x-fictionbook",
         "application/zip", "text/plain", "text/markdown", "text/x-markdown", "text/html", "application/xhtml+xml",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword",
+        "application/vnd.oasis.opendocument.text",
         "application/octet-stream", "*/*"
     )
 
