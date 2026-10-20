@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -246,12 +249,12 @@ fun VoiceSettingsSheet(onDismiss: () -> Unit) {
 
             if (!builtinActive) SystemVoiceList(voices, voice.voiceId)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { PlatformActions.installTtsData(); refresh++ }) {
-                    Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Голосовые данные")
+                    Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Голосовые данные", maxLines = 1, softWrap = false)
                 }
                 OutlinedButton(onClick = { PlatformActions.openTtsSettings(); refresh++ }) {
-                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Настройки TTS")
+                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Настройки TTS", maxLines = 1, softWrap = false)
                 }
             }
 
@@ -375,11 +378,11 @@ internal fun AiAnswerSheet(
             } else {
                 Text("Выберите действие — модель ответит по открытому тексту.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (generating) {
-                    OutlinedButton(onClick = { stopGeneration() }) { Icon(Icons.Default.Stop, null); Spacer(Modifier.width(6.dp)); Text("Стоп") }
+                    OutlinedButton(onClick = { stopGeneration() }) { Icon(Icons.Default.Stop, null); Spacer(Modifier.width(6.dp)); Text("Стоп", maxLines = 1, softWrap = false) }
                 }
-                TextButton(onClick = onOpenAssistant) { Text("Продолжить в Ассистенте") }
+                TextButton(onClick = onOpenAssistant) { Text("Продолжить в Ассистенте", maxLines = 1, softWrap = false) }
             }
         }
     }

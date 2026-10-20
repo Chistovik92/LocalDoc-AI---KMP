@@ -47,6 +47,7 @@ import androidx.compose.ui.window.Dialog
 import com.localdoc.ai.book.BookFormat
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.ChatMessage
+import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.time.TimeSource
@@ -253,3 +254,31 @@ fun stopGeneration() {
 /** Размер модели/файла в человекочитаемом виде. */
 fun formatSize(sizeMb: Long): String =
     if (sizeMb >= 1024) "${(sizeMb * 10 / 1024) / 10.0} ГБ" else "$sizeMb МБ"
+
+/** Прогресс загрузки обновления и сообщения менеджера обновлений (окно обновления и «О приложении»). */
+@Composable
+fun UpdateProgressInfo(download: UpdateDownload, status: String?) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 12.dp)) {
+        when (download) {
+            is UpdateDownload.Downloading -> {
+                val fraction = download.fraction
+                if (fraction != null) {
+                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                val done = formatSize(download.downloadedBytes / BYTES_IN_MB)
+                Text(
+                    if (download.totalBytes > 0) "Скачано $done из ${formatSize(download.totalBytes / BYTES_IN_MB)}" else "Скачано $done",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            is UpdateDownload.Failed -> Text(download.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            UpdateDownload.Idle -> Unit
+        }
+        status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+private const val BYTES_IN_MB = 1_048_576L

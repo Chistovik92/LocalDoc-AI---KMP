@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- ModelDownloader("updates", ".apk") кладёт файлы в getExternalFilesDir()/updates -->
+    <external-files-path name="updates" path="updates/" />
+    <!-- Запасной каталог, если внешнее хранилище недоступно (ModelDownloader уходит в filesDir) -->
+    <files-path name="updates_internal" path="updates/" />
+</paths>

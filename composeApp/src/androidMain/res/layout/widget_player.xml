@@ -77,7 +77,8 @@
             android:src="@drawable/ic_player_stop"
             android:tint="@color/widget_text" />
 
-        <View
+        <!-- Распорка: в RemoteViews нельзя использовать View/Space — виджет не загружается -->
+        <FrameLayout
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />

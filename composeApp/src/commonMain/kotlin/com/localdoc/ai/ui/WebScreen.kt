@@ -44,6 +44,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -199,14 +201,14 @@ private fun WebHome(onOpen: (String) -> Unit, onOpenSaved: (String) -> Unit, err
             Spacer(Modifier.height(16.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), modifier = Modifier.widthIn(max = 640.dp)) {
                 listOf("Без рекламы и меню", "Главы веб-новелл", "Озвучка с подсветкой", "ИИ-пересказ").forEach { hint ->
-                    Text(
-                        hint,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier
-                            .padding(vertical = 4.dp)
-                            .then(Modifier)
-                    )
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer) {
+                        Text(
+                            hint,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

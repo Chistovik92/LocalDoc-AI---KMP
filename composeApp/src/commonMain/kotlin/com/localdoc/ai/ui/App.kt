@@ -2,6 +2,8 @@ package com.localdoc.ai.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -47,6 +49,7 @@ import com.localdoc.ai.platform.PlatformBackHandler
 import com.localdoc.ai.platform.SystemPlayer
 import com.localdoc.ai.ui.reader.PlayerBar
 import com.localdoc.ai.ui.reader.ReaderView
+import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -76,6 +79,8 @@ fun App() {
         val incoming by AppGraph.incoming.collectAsState()
         val action by AppGraph.pendingAction.collectAsState()
         val update by AppGraph.updates.update.collectAsState()
+        val downloadState by AppGraph.updates.download.collectAsState()
+        val updateStatus by AppGraph.updates.status.collectAsState()
         val player by AppGraph.readAloud.state.collectAsState()
         val webDocument by AppGraph.webSession.document.collectAsState()
 
@@ -243,17 +248,28 @@ fun App() {
         ProcessingDialog(processing)
 
         update?.let { found ->
+            val downloading = downloadState is UpdateDownload.Downloading
             AlertDialog(
-                onDismissRequest = { AppGraph.updates.dismiss() },
+                onDismissRequest = { if (!downloading) AppGraph.updates.dismiss() },
                 title = { Text("Доступна версия ${found.version}") },
-                text = { Text(found.notes.ifBlank { found.title }.take(900)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        AppGraph.updates.install(found)
-                        AppGraph.updates.dismiss()
-                    }) { Text(if (found.downloadUrl != null) "Обновить" else "Подробнее") }
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(found.notes.ifBlank { found.title }.take(1200))
+                        UpdateProgressInfo(downloadState, updateStatus)
+                    }
                 },
-                dismissButton = { TextButton(onClick = { AppGraph.updates.dismiss() }) { Text("Позже") } }
+                confirmButton = {
+                    TextButton(enabled = !downloading, onClick = { AppGraph.updates.install(found) }) {
+                        Text(
+                            when {
+                                downloading -> "Загрузка…"
+                                found.downloadUrl != null -> "Скачать и установить"
+                                else -> "Подробнее"
+                            }
+                        )
+                    }
+                },
+                dismissButton = { TextButton(onClick = { AppGraph.updates.dismiss() }) { Text(if (downloading) "Отмена" else "Позже") } }
             )
         }
     }

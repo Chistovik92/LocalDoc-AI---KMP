@@ -3,6 +3,7 @@
     android:description="@string/widget_description"
     android:initialLayout="@layout/widget_player"
     android:minHeight="110dp"
+    android:previewLayout="@layout/widget_player"
     android:minWidth="250dp"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="2"
