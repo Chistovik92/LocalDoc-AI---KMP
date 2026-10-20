@@ -99,32 +99,32 @@ class NovelDownloader(
     suspend fun run(startUrl: String, tocUrl: String?, knownToc: List<PageLink>, progress: (DownloadProgress) -> Unit): NovelResult {
         progress(DownloadProgress(DownloadPhase.LOOKING))
         val start = source.load(startUrl)
+        // Страница оглавления / описания: на ней название книги, обложка и ссылки «скачать»
+        val tocPage = if (tocUrl != null && tocUrl != start.book.source) runCatching { source.load(tocUrl) }.getOrNull() else null
 
-        directBook(start, tocUrl, progress)?.let { return it }
+        directBook(start, tocPage, progress)?.let { return it }
 
         progress(DownloadProgress(DownloadPhase.TOC))
         val toc = knownToc.ifEmpty { tocUrl?.let { source.tableOfContents(it) }.orEmpty() }.distinctBy { it.url }
         val chapters = if (toc.size >= MIN_TOC) orderChapters(toc) else walkNextLinks(start, progress)
         if (chapters.isEmpty()) throw NovelDownloadException("Не удалось найти главы: у страницы нет оглавления и ссылки «Далее»")
 
-        val title = NovelTitles.guess(start.book.title, start.book.source)
+        val title = tocPage?.book?.title?.trim()?.takeIf { it.isNotEmpty() } ?: NovelTitles.guess(start.book.title, start.book.source)
         val folder = "novels/" + folderId(tocUrl ?: startUrl) + "/"
         val meta = NovelMeta(title, tocUrl.orEmpty(), chapters.map { ChapterRef(it.text, it.url) })
         files.write(folder + "meta.json", json.encodeToString(NovelMeta.serializer(), meta).encodeToByteArray())
 
         val loaded = fetchChapters(folder, chapters, start, progress)
         progress(DownloadProgress(DownloadPhase.BUILDING, chapters.size, chapters.size))
-        return assemble(title, tocUrl ?: startUrl, start, chapters, loaded)
+        return assemble(title, tocUrl ?: startUrl, tocPage ?: start, chapters, loaded)
     }
 
     // ---------- 1. готовый файл ----------
 
-    private suspend fun directBook(start: WebPage, tocUrl: String?, progress: (DownloadProgress) -> Unit): NovelResult? {
+    private suspend fun directBook(start: WebPage, tocPage: WebPage?, progress: (DownloadProgress) -> Unit): NovelResult? {
         val links = ArrayList(start.downloads + start.links)
         // Ссылка «скачать» часто лежит на странице описания / оглавления, а не на странице главы
-        if (tocUrl != null && tocUrl != start.book.source) {
-            runCatching { source.load(tocUrl) }.getOrNull()?.let { links.addAll(it.downloads + it.links) }
-        }
+        tocPage?.let { links.addAll(it.downloads + it.links) }
         for (candidate in DownloadLinkFinder.find(links).take(MAX_CANDIDATES)) {
             coroutineContext.ensureActive()
             progress(DownloadProgress(DownloadPhase.FILE, message = candidate.label.ifBlank { candidate.url }))

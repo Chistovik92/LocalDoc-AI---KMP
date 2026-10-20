@@ -43,7 +43,7 @@ class FakeSite(val chapters: Int, private val links: Map<String, List<PageLink>>
         val n = url.substringAfterLast('/').toIntOrNull() ?: 0
         val next = if (withNextLinks && n < chapters) chapterUrl(n + 1) else null
         val book = Book(
-            title = if (n > 0) "Моя новелла - Глава $n" else "Описание",
+            title = if (n > 0) "Моя новелла - Глава $n" else "Моя новелла",
             format = BookFormat.WEB, source = url,
             blocks = listOf(
                 Block(BlockType.HEADING, "Глава $n", 1),
