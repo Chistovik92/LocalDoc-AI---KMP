@@ -68,6 +68,9 @@
 				<string>net.daringfireball.markdown</string>
 				<string>public.plain-text</string>
 				<string>public.html</string>
+				<string>org.openxmlformats.wordprocessingml.document</string>
+				<string>com.microsoft.word.doc</string>
+				<string>org.oasis-open.opendocument.text</string>
 			</array>
 		</dict>
 	</array>

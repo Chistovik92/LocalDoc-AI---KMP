@@ -203,7 +203,7 @@ fun LibraryScreen(
     if (showAdd) {
         ModalBottomSheet(onDismissRequest = { showAdd = false }) {
             Text("Добавить в библиотеку", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-            AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, FB2.ZIP, PDF, TXT, Markdown, HTML") { showAdd = false; onPickFile() }
+            AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, PDF, DOCX, DOC, ODT, TXT, Markdown, HTML") { showAdd = false; onPickFile() }
             AddOption(Icons.Default.Language, "Веб-страница по ссылке", "Статьи и веб-новеллы в режиме чтения") { showAdd = false; onOpenWeb() }
             AddOption(Icons.Default.ContentPaste, "Вставить текст", "Скопированный фрагмент станет документом") { showAdd = false; onPasteText() }
             Spacer(Modifier.height(32.dp))

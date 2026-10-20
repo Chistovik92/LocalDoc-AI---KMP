@@ -97,7 +97,7 @@ internal fun TranslationSettingsContent() {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ListItem(
             headlineContent = { Text("Язык перевода") },
-            supportingContent = { Text(target?.let { "${it.name} · ${it.native}" } ?: "Не выбран", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            supportingContent = { Text(target?.let { if (it.native == it.name) it.name else "${it.name} · ${it.native}" } ?: "Не выбран", maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clickable { pickTarget = true }
         )
