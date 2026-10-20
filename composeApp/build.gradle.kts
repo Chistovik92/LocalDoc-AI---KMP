@@ -63,6 +63,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
 
         androidMain.dependencies {
@@ -122,8 +123,8 @@ android {
         applicationId = "com.localdoc.ai"
         minSdk = 29
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.6.5"
+        versionCode = 7
+        versionName = "1.7.0"
 
         ndk {
             // Современные флагманские устройства (Snapdragon 8 серии / Dimensity)

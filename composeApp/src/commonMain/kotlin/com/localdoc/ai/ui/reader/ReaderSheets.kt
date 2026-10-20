@@ -76,7 +76,10 @@ import com.localdoc.ai.book.Chapter
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.ChatMessage
 import com.localdoc.ai.domain.ReaderFont
+import com.localdoc.ai.domain.LanguageVoice
 import com.localdoc.ai.domain.ReaderTheme
+import com.localdoc.ai.book.PageSize
+import com.localdoc.ai.lang.Languages
 import com.localdoc.ai.platform.PlatformActions
 import com.localdoc.ai.tts.PiperSpeechEngine
 import com.localdoc.ai.tts.ReadAloudState
@@ -148,48 +151,74 @@ fun PlayerBar(state: ReadAloudState, title: String, onVoiceSettings: () -> Unit)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderSettingsSheet(onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Оформление", style = MaterialTheme.typography.titleLarge)
+            ReaderSettingsContent()
+        }
+    }
+}
+
+/** Оформление и режим чтения — для шторки читалки и вкладки «Настройки». */
+@Composable
+internal fun ReaderSettingsContent() {
     val settings by AppGraph.readerSettings.value.collectAsState()
     val update = AppGraph.readerSettings::update
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Оформление", style = MaterialTheme.typography.titleLarge)
-
-            SectionLabel("Цвет страницы")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                ReaderTheme.entries.forEach { theme ->
-                    val paper = paperColors(theme)
-                    val selected = settings.theme == theme
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { update { it.copy(theme = theme) } }) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.size(52.dp)
-                                .background(paper.background, CircleShape)
-                                .border(BorderStroke(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant), CircleShape)
-                        ) {
-                            Text("Аа", color = paper.text, fontFamily = FontFamily.Serif)
-                        }
-                        Text(theme.label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionLabel("Цвет страницы")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            ReaderTheme.entries.forEach { theme ->
+                val paper = paperColors(theme)
+                val selected = settings.theme == theme
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { update { it.copy(theme = theme) } }) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(52.dp)
+                            .background(paper.background, CircleShape)
+                            .border(BorderStroke(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant), CircleShape)
+                    ) {
+                        Text("Аа", color = paper.text, fontFamily = FontFamily.Serif)
                     }
+                    Text(theme.label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
                 }
             }
+        }
 
-            SectionLabel("Шрифт")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReaderFont.entries.forEach { font ->
-                    FilterChip(
-                        selected = settings.font == font,
-                        onClick = { update { it.copy(font = font) } },
-                        label = { Text(font.label, fontFamily = if (font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif) },
-                        leadingIcon = if (settings.font == font) ({ Icon(Icons.Default.Check, null) }) else null
-                    )
-                }
+        SectionLabel("Шрифт")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReaderFont.entries.forEach { font ->
+                FilterChip(
+                    selected = settings.font == font,
+                    onClick = { update { it.copy(font = font) } },
+                    label = { Text(font.label, fontFamily = if (font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif) },
+                    leadingIcon = if (settings.font == font) ({ Icon(Icons.Default.Check, null) }) else null
+                )
             }
+        }
 
-            LabeledSlider("Размер текста", "${settings.fontSize.toInt()} sp", settings.fontSize, 13f..32f) { v -> update { it.copy(fontSize = v) } }
-            LabeledSlider("Межстрочный интервал", "×${(settings.lineHeight * 10).toInt() / 10.0}", settings.lineHeight, 1.2f..2.2f) { v -> update { it.copy(lineHeight = v) } }
+        LabeledSlider("Размер текста", "${settings.fontSize.toInt()} sp", settings.fontSize, 13f..32f) { v -> update { it.copy(fontSize = v) } }
+        LabeledSlider("Межстрочный интервал", "×${(settings.lineHeight * 10).toInt() / 10.0}", settings.lineHeight, 1.2f..2.2f) { v -> update { it.copy(lineHeight = v) } }
 
-            SwitchRow("Выравнивание по ширине", settings.justify) { v -> update { it.copy(justify = v) } }
-            SwitchRow("Следовать за озвучкой", settings.followSpeech) { v -> update { it.copy(followSpeech = v) } }
+        SwitchRow("Выравнивание по ширине", settings.justify) { v -> update { it.copy(justify = v) } }
+        SwitchRow("Следовать за озвучкой", settings.followSpeech) { v -> update { it.copy(followSpeech = v) } }
+        SectionLabel("Режим чтения")
+        SwitchRow("Постранично (вместо прокрутки)", settings.paged) { v -> update { it.copy(paged = v) } }
+        Text(
+            "Озвучка, перевод и ИИ работают по страницам в любом режиме — большая книга не зависает.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PageSize.entries.forEach { size ->
+                FilterChip(
+                    selected = settings.pageSize == size,
+                    onClick = { update { it.copy(pageSize = size) } },
+                    label = { Text("${size.label} · ${size.chars / 1000.0} тыс. зн.", maxLines = 1, softWrap = false) }
+                )
+            }
         }
     }
 }
@@ -205,6 +234,20 @@ private val OPEN_ENGINES = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceSettingsSheet(onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Озвучка", style = MaterialTheme.typography.titleLarge)
+            VoiceSettingsContent()
+        }
+    }
+}
+
+/** Скорость, высота, голоса Piper, системные движки — для шторки читалки и вкладки «Настройки». */
+@Composable
+internal fun VoiceSettingsContent() {
     val voice by AppGraph.voiceSettings.value.collectAsState()
     var voices by remember { mutableStateOf<List<Voice>>(emptyList()) }
     var engines by remember { mutableStateOf<List<TtsEngineInfo>>(emptyList()) }
@@ -222,66 +265,65 @@ fun VoiceSettingsSheet(onDismiss: () -> Unit) {
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(
-            modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Озвучка", style = MaterialTheme.typography.titleLarge)
-            LabeledSlider("Скорость речи", "×${(voice.rate * 10).toInt() / 10.0}", voice.rate, 0.5f..2.5f) { v -> AppGraph.updateVoice { it.copy(rate = v) } }
-            LabeledSlider("Высота голоса", "×${(voice.pitch * 10).toInt() / 10.0}", voice.pitch, 0.5f..1.6f) { v -> AppGraph.updateVoice { it.copy(pitch = v) } }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SwitchLine(
+            "Голос под язык текста",
+            "Сам выбирать голос, который говорит на языке книги или перевода (установленный Piper, затем системный)",
+            voice.autoLanguageVoice
+        ) { v -> AppGraph.updateVoice { it.copy(autoLanguageVoice = v) } }
+        LabeledSlider("Скорость речи", "×${(voice.rate * 10).toInt() / 10.0}", voice.rate, 0.5f..2.5f) { v -> AppGraph.updateVoice { it.copy(rate = v) } }
+        LabeledSlider("Высота голоса", "×${(voice.pitch * 10).toInt() / 10.0}", voice.pitch, 0.5f..1.6f) { v -> AppGraph.updateVoice { it.copy(pitch = v) } }
 
-            BuiltinVoicesSection()
+        BuiltinVoicesSection()
 
-            SectionLabel("Системный синтезатор")
-            // Выбор системного движка — и способ вернуться к нему со встроенного голоса (на iOS тоже)
-            EngineRow("Системный по умолчанию", voice.engineId == null) { AppGraph.updateVoice { it.copy(engineId = null, voiceId = null) } }
-            if (PlatformActions.supportsTtsEngines) {
-                Text(
-                    "Можно выбрать любой установленный движок — в том числе сторонние и открытые.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                engines.forEach { engine ->
-                    EngineRow(engine.label, voice.engineId == engine.id) { AppGraph.updateVoice { it.copy(engineId = engine.id, voiceId = null) } }
-                }
+        SectionLabel("Системный синтезатор")
+        // Выбор системного движка — и способ вернуться к нему со встроенного голоса (на iOS тоже)
+        EngineRow("Системный по умолчанию", voice.engineId == null) { AppGraph.updateVoice { it.copy(engineId = null, voiceId = null) } }
+        if (PlatformActions.supportsTtsEngines) {
+            Text(
+                "Можно выбрать любой установленный движок — в том числе сторонние и открытые.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            engines.forEach { engine ->
+                EngineRow(engine.label, voice.engineId == engine.id) { AppGraph.updateVoice { it.copy(engineId = engine.id, voiceId = null) } }
             }
+        }
 
-            if (!builtinActive) SystemVoiceList(voices, voice.voiceId)
+        if (!builtinActive) SystemVoiceList(voices, voice.voiceId)
 
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { PlatformActions.installTtsData(); refresh++ }) {
-                    Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Голосовые данные", maxLines = 1, softWrap = false)
-                }
-                OutlinedButton(onClick = { PlatformActions.openTtsSettings(); refresh++ }) {
-                    Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Настройки TTS", maxLines = 1, softWrap = false)
-                }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { PlatformActions.installTtsData(); refresh++ }) {
+                Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Голосовые данные", maxLines = 1, softWrap = false)
             }
+            OutlinedButton(onClick = { PlatformActions.openTtsSettings(); refresh++ }) {
+                Icon(Icons.Default.Settings, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Настройки TTS", maxLines = 1, softWrap = false)
+            }
+        }
 
-            if (PlatformActions.supportsTtsEngines) {
-                HorizontalDivider()
-                SectionLabel("Открытые движки и голоса")
-                OPEN_ENGINES.forEach { engine ->
-                    ListItem(
-                        headlineContent = { Text(engine.name) },
-                        supportingContent = { Text(engine.description) },
-                        trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Открыть") },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        modifier = Modifier.clickable { PlatformActions.openUrl(engine.url) }
-                    )
-                }
-                Text(
-                    "После установки движок появится в списке выше — выберите его и нужный голос.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                Text(
-                    "Дополнительные голоса (в т.ч. улучшенные «Enhanced» и «Premium») загружаются в Настройках iOS → Универсальный доступ → Устный контент → Голоса.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        if (PlatformActions.supportsTtsEngines) {
+            HorizontalDivider()
+            SectionLabel("Открытые движки и голоса")
+            OPEN_ENGINES.forEach { engine ->
+                ListItem(
+                    headlineContent = { Text(engine.name) },
+                    supportingContent = { Text(engine.description) },
+                    trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Открыть") },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.clickable { PlatformActions.openUrl(engine.url) }
                 )
             }
+            Text(
+                "После установки движок появится в списке выше — выберите его и нужный голос.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text(
+                "Дополнительные голоса (в т.ч. улучшенные «Enhanced» и «Premium») загружаются в Настройках iOS → Универсальный доступ → Устный контент → Голоса.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -289,10 +331,10 @@ fun VoiceSettingsSheet(onDismiss: () -> Unit) {
 /** Голоса выбранного системного движка (при встроенном голосе не показываются). */
 @Composable
 private fun SystemVoiceList(voices: List<Voice>, selectedId: String?) {
-    var onlyRussian by remember { mutableStateOf(true) }
+    var onlyRussian by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         SectionLabel("Голос", Modifier.weight(1f))
-        FilterChip(selected = onlyRussian, onClick = { onlyRussian = !onlyRussian }, label = { Text("Только русские") })
+        FilterChip(selected = onlyRussian, onClick = { onlyRussian = !onlyRussian }, label = { Text("Только русские", maxLines = 1, softWrap = false) })
     }
     val shown = voices.filter { !onlyRussian || it.language.startsWith("ru") }
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
@@ -302,7 +344,13 @@ private fun SystemVoiceList(voices: List<Voice>, selectedId: String?) {
             }
             itemsIndexed(shown) { _, v ->
                 VoiceRow(v.name, v.language + if (!v.offline) " · нужен интернет" else " · офлайн", selectedId == v.id) {
-                    AppGraph.updateVoice { it.copy(voiceId = v.id) }
+                    AppGraph.updateVoice { settings ->
+                        val code = Languages.baseCode(v.language)
+                        settings.copy(
+                            voiceId = v.id,
+                            perLanguage = if (code != null) settings.perLanguage + (code to LanguageVoice(settings.engineId, v.id)) else settings.perLanguage
+                        )
+                    }
                     // Пробная фраза не должна сбивать идущую озвучку книги
                     if (!AppGraph.readAloud.state.value.playing) AppGraph.speaker.speak("Так звучит выбранный голос.") { }
                 }

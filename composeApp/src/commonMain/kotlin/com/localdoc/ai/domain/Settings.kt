@@ -1,5 +1,6 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.book.PageSize
 import com.localdoc.ai.platform.KeyValueStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,15 +24,35 @@ data class ReaderSettings(
     val theme: ReaderTheme = ReaderTheme.SYSTEM,
     val justify: Boolean = false,
     /** Автопрокрутка к читаемому предложению. */
-    val followSpeech: Boolean = true
+    val followSpeech: Boolean = true,
+    /** false — сплошная прокрутка текста, true — по одной странице. Озвучка, перевод и ИИ работают по страницам в обоих режимах. */
+    val paged: Boolean = false,
+    val pageSize: PageSize = PageSize.MEDIUM
 )
+
+/** Голос, закреплённый за языком: движок (null — системный по умолчанию) и id голоса. */
+@Serializable
+data class LanguageVoice(val engineId: String? = null, val voiceId: String? = null)
 
 @Serializable
 data class VoiceSettings(
     val rate: Float = 1f,
     val pitch: Float = 1f,
     val voiceId: String? = null,
-    val engineId: String? = null
+    val engineId: String? = null,
+    /** Голос под язык текста (или перевода): установленный Piper, затем системный голос этого языка. */
+    val autoLanguageVoice: Boolean = true,
+    /** Явный выбор пользователя по языкам: код языка → голос. */
+    val perLanguage: Map<String, LanguageVoice> = emptyMap()
+)
+
+/** Перевод «на лету»: язык перевода, язык оригинала (null — определять автоматически) и автозапуск. */
+@Serializable
+data class TranslationSettings(
+    val targetLanguage: String = "ru",
+    val sourceLanguage: String? = null,
+    /** Переводить открытые книги автоматически, если язык текста отличается от языка перевода. */
+    val autoTranslate: Boolean = false
 )
 
 /** Настройка, сохраняемая в KV-хранилище в виде JSON. */

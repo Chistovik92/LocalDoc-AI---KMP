@@ -14,10 +14,10 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +41,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.BookEntry
+import com.localdoc.ai.book.BookFormat
+import com.localdoc.ai.book.Bookmark
+import com.localdoc.ai.domain.startReading
 import com.localdoc.ai.domain.AppAction
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.IncomingDoc
@@ -57,7 +60,7 @@ private enum class Tab(val label: String, val icon: ImageVector, val selectedIco
     Books("Книги", Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
     Web("Веб", Icons.Outlined.Language, Icons.Filled.Language),
     Assistant("Ассистент", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome),
-    Models("Модели", Icons.Outlined.Memory, Icons.Filled.Memory)
+    Settings("Настройки", Icons.Outlined.Settings, Icons.Filled.Settings)
 }
 
 /** Открытая книга в читалке. */
@@ -73,6 +76,7 @@ fun App() {
         var processing by remember { mutableStateOf<String?>(null) }
         var pasteText by remember { mutableStateOf(false) }
         var askUrl by remember { mutableStateOf(false) }
+        var settingsSection by remember { mutableStateOf<SettingsSection?>(null) }
         val snackbar = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val filePicker = remember { FilePicker() }
@@ -84,17 +88,42 @@ fun App() {
         val player by AppGraph.readAloud.state.collectAsState()
         val webDocument by AppGraph.webSession.document.collectAsState()
 
+        fun openModels() {
+            openBook = null
+            settingsSection = SettingsSection.MODELS
+            tab = Tab.Settings
+        }
+
         fun open(entry: BookEntry, listen: Boolean = false) {
             scope.launch {
-                val book = AppGraph.library.load(entry.id)
-                if (book == null) {
-                    snackbar.showSnackbar("Книга не найдена — добавьте её снова")
-                    return@launch
+                try {
+                    val book = AppGraph.library.load(entry.id)
+                    if (book == null) {
+                        snackbar.showSnackbar("Книга не найдена — добавьте её снова")
+                        return@launch
+                    }
+                    AppGraph.library.touch(entry.id)
+                    openBook = OpenBook(entry.id, book, entry.progressBlock)
+                    if (listen) AppGraph.startReading(bookKey(entry.id), book, entry.progressBlock)
+                } catch (t: Throwable) {
+                    if (t is kotlinx.coroutines.CancellationException) throw t
+                    snackbar.showSnackbar("Не удалось открыть: ${t.message ?: "файл повреждён"}")
                 }
-                AppGraph.library.touch(entry.id)
-                AppGraph.currentDoc.value = book.toParsedDoc()
-                openBook = OpenBook(entry.id, book, entry.progressBlock)
-                if (listen) AppGraph.readAloud.start(bookKey(entry.id), book.blocks, book.chapters, entry.progressBlock, book.title)
+            }
+        }
+
+        // Закладка открывает книгу (или сохранённую веб-страницу) на нужном месте
+        fun openBookmark(mark: Bookmark) {
+            AppGraph.library.saveProgress(mark.entryId, mark.block)
+            val entry = AppGraph.library.entry(mark.entryId)
+            when {
+                entry == null -> scope.launch { snackbar.showSnackbar("Книга удалена — закладка больше не работает") }
+                entry.format == BookFormat.WEB -> {
+                    openBook = null
+                    tab = Tab.Web
+                    AppGraph.webSession.openSaved(entry.id)
+                }
+                else -> open(entry)
             }
         }
 
@@ -168,7 +197,7 @@ fun App() {
                 onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
                 onBack = { openBook = null },
                 onOpenAssistant = { openBook = null; tab = Tab.Assistant },
-                onOpenModels = { openBook = null; tab = Tab.Models }
+                onOpenModels = ::openModels
             )
             }
         } else {
@@ -212,11 +241,11 @@ fun App() {
                             onPickFile = ::pickFile,
                             onPasteText = { pasteText = true },
                             onOpenWeb = { tab = Tab.Web },
-                            onOpenModels = { tab = Tab.Models }
+                            onOpenModels = ::openModels
                         )
-                        Tab.Web -> WebScreen(onOpenAssistant = { tab = Tab.Assistant }, onOpenModels = { tab = Tab.Models })
-                        Tab.Assistant -> ChatScreen(onOpenModels = { tab = Tab.Models })
-                        Tab.Models -> ModelsScreen()
+                        Tab.Web -> WebScreen(onOpenAssistant = { tab = Tab.Assistant }, onOpenModels = ::openModels)
+                        Tab.Assistant -> ChatScreen(onOpenModels = ::openModels)
+                        Tab.Settings -> SettingsScreen(settingsSection, { settingsSection = it }, ::openBookmark)
                     }
                 }
             }

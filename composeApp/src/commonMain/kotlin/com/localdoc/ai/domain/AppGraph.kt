@@ -1,6 +1,8 @@
 package com.localdoc.ai.domain
 
 import com.localdoc.ai.book.BookImporter
+import com.localdoc.ai.book.BookmarkRepository
+import com.localdoc.ai.lang.PageTranslator
 import com.localdoc.ai.book.LibraryRepository
 import com.localdoc.ai.download.DownloadState
 import com.localdoc.ai.download.ModelDownloader
@@ -29,6 +31,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 
 /** Сообщение чата. */
@@ -64,6 +68,13 @@ object AppGraph {
 
     val readerSettings = PersistedSetting(kv, "reader_settings", ReaderSettings.serializer(), ReaderSettings())
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
+    val translationSettings = PersistedSetting(kv, "translation_settings", TranslationSettings.serializer(), TranslationSettings())
+
+    /** Закладки в книгах и на веб-страницах. */
+    val bookmarks: BookmarkRepository = BookmarkRepository({ kv.get(KEY_BOOKMARKS) }, { kv.put(KEY_BOOKMARKS, it) })
+
+    /** Документы (ключи вида «book:id» / «web:id»), у которых сейчас включён перевод. */
+    val translating = MutableStateFlow<Set<String>>(emptySet())
 
     private val ragRepository: RagRepository by lazy {
         RagRepository(VectorStore(kv), HashingEmbedder())
@@ -96,6 +107,16 @@ object AppGraph {
             setPitch(v.pitch)
             setVoice(v.voiceId)
         }
+    }
+
+    /** Постраничный перевод моделью; кэш и предзагрузка соседней страницы. */
+    val translator: PageTranslator by lazy {
+        PageTranslator({ text, target, source ->
+            flow {
+                check(engine.isLoaded()) { "Модель не загружена: выберите её в Настройки → Модели" }
+                emitAll(pipeline.translate(text, target, source))
+            }
+        }, appScope)
     }
 
     /** Плеер чтения вслух — общий для книг и веб-страниц. */
@@ -231,4 +252,5 @@ object AppGraph {
     }
 
     private const val KEY_LOADED_MODEL = "loaded_model_id"
+    private const val KEY_BOOKMARKS = "bookmarks_v1"
 }

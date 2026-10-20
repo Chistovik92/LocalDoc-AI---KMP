@@ -21,6 +21,7 @@ actual class Speaker actual constructor() : SpeechEngine {
     private var current: AVSpeechUtterance? = null
     private var currentCallback: ((Boolean) -> Unit)? = null
     private var voiceId: String? = null
+    private var languageTag: String? = null
     private var rate = 1f
     private var pitch = 1f
 
@@ -46,7 +47,7 @@ actual class Speaker actual constructor() : SpeechEngine {
         }
         val utterance = AVSpeechUtterance(string = text)
         utterance.voice = voiceId?.let { AVSpeechSynthesisVoice.voiceWithIdentifier(it) }
-            ?: AVSpeechSynthesisVoice.voiceWithLanguage("ru-RU")
+            ?: AVSpeechSynthesisVoice.voiceWithLanguage(languageTag ?: "ru-RU")
             ?: AVSpeechSynthesisVoice.voiceWithLanguage(AVSpeechSynthesisVoice.currentLanguageCode())
         // Базовая скорость системы × множитель пользователя
         utterance.rate = (AVSpeechUtteranceDefaultSpeechRate * rate).coerceIn(0.1f, 1f)
@@ -73,6 +74,10 @@ actual class Speaker actual constructor() : SpeechEngine {
     }
 
     override fun prepare(onReady: () -> Unit) = onReady()
+
+    override fun setLanguage(tag: String?) {
+        languageTag = tag
+    }
 
     override fun voices(): List<Voice> =
         AVSpeechSynthesisVoice.speechVoices()

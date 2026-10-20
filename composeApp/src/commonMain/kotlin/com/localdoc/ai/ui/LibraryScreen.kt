@@ -81,7 +81,7 @@ private enum class LibraryFilter(val label: String, val formats: Set<BookFormat>
     ALL("Все", null),
     BOOKS("Книги", setOf(BookFormat.EPUB, BookFormat.FB2)),
     PDF("PDF", setOf(BookFormat.PDF)),
-    TEXT("Текст и Markdown", setOf(BookFormat.TEXT, BookFormat.MARKDOWN)),
+    TEXT("Документы и текст", setOf(BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.TEXT, BookFormat.MARKDOWN)),
     WEB("Веб", setOf(BookFormat.WEB, BookFormat.HTML))
 }
 
@@ -167,11 +167,11 @@ fun LibraryScreen(
                 }
                 items(shelf, key = { it.shelfKey }) { item ->
                     when (item) {
-                        is LibraryItem.Single -> BookTile(item.entry, onClick = { onOpen(item.entry) }, onDelete = { AppGraph.library.remove(item.entry.id) })
+                        is LibraryItem.Single -> BookTile(item.entry, onClick = { onOpen(item.entry) }, onDelete = { removeBook(item.entry.id) })
                         is LibraryItem.Novel -> NovelTile(
                             novel = item,
                             onClick = { openedNovel = item.shelfKey },
-                            onDelete = { item.chapters.forEach { AppGraph.library.remove(it.id) } }
+                            onDelete = { item.chapters.forEach { removeBook(it.id) } }
                         )
                     }
                 }
@@ -196,14 +196,14 @@ fun LibraryScreen(
             novel = novel,
             onDismiss = { openedNovel = null },
             onOpen = { openedNovel = null; onOpen(it) },
-            onDelete = { AppGraph.library.remove(it.id) }
+            onDelete = { removeBook(it.id) }
         )
     }
 
     if (showAdd) {
         ModalBottomSheet(onDismissRequest = { showAdd = false }) {
             Text("Добавить в библиотеку", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-            AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, FB2.ZIP, PDF, TXT, Markdown, HTML") { showAdd = false; onPickFile() }
+            AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, PDF, DOCX, DOC, ODT, TXT, Markdown, HTML") { showAdd = false; onPickFile() }
             AddOption(Icons.Default.Language, "Веб-страница по ссылке", "Статьи и веб-новеллы в режиме чтения") { showAdd = false; onOpenWeb() }
             AddOption(Icons.Default.ContentPaste, "Вставить текст", "Скопированный фрагмент станет документом") { showAdd = false; onPasteText() }
             Spacer(Modifier.height(32.dp))
@@ -348,4 +348,10 @@ private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+/** Удаление книги вместе с её закладками. */
+private fun removeBook(id: String) {
+    AppGraph.library.remove(id)
+    AppGraph.bookmarks.removeForEntry(id)
 }

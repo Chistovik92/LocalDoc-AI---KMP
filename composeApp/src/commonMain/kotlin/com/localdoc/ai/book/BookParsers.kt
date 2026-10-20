@@ -16,10 +16,15 @@ object PlainTextParser {
         val byBlank = normalized.split(Regex("\n[ \\t]*\n+"))
         // Если пустых строк нет, абзацем считается каждая строка (типично для книг в TXT)
         val parts = if (byBlank.size <= 1 && normalized.count { it == '\n' } > 3) normalized.split('\n') else byBlank
-        return parts.map { HtmlBlockBuilder.normalizeSpaces(it) }.filter { it.isNotEmpty() }
+        return parts.map { HtmlBlockBuilder.normalizeSpaces(it.replace(CONTROL_CHARS, "")) }.filter { it.isNotEmpty() }
     }
 
+    // Управляющие символы (NUL и др.) — признак бинарного мусора; в тексте книги им не место
+    private val CONTROL_CHARS = Regex("[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]")
+
     private val CHAPTER_LINE = Regex("^(глава|часть|chapter|part|пролог|эпилог|prologue|epilogue)\\b.{0,80}$", RegexOption.IGNORE_CASE)
+
+    internal fun detectChapters(blocks: List<Block>): List<Chapter> = detectTextChapters(blocks)
 
     private fun detectTextChapters(blocks: List<Block>): List<Chapter> =
         blocks.mapIndexedNotNull { i, b -> if (b.text.length <= 90 && CHAPTER_LINE.matches(b.text)) Chapter(b.text, i) else null }
