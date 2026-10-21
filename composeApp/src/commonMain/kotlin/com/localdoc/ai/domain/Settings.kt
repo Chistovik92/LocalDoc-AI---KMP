@@ -27,7 +27,9 @@ data class ReaderSettings(
     val followSpeech: Boolean = true,
     /** false — сплошная прокрутка текста, true — по одной странице. Озвучка, перевод и ИИ работают по страницам в обоих режимах. */
     val paged: Boolean = false,
-    val pageSize: PageSize = PageSize.MEDIUM
+    val pageSize: PageSize = PageSize.MEDIUM,
+    /** Веб-новеллы: после озвучки или прокрутки до конца главы сама открывается следующая и чтение продолжается. */
+    val autoNext: Boolean = false
 )
 
 /** Голос, закреплённый за языком: движок (null — системный по умолчанию) и id голоса. */

@@ -5,12 +5,14 @@ internal object TestFiles {
 
     // ---------- ZIP ----------
 
-    fun zip(entries: Map<String, String>): ByteArray {
+    fun zip(entries: Map<String, String>): ByteArray = zipBytes(entries.mapValues { it.value.encodeToByteArray() })
+
+    fun zipBytes(entries: Map<String, ByteArray>): ByteArray {
         val out = ArrayList<Byte>()
         val central = ArrayList<Byte>()
         for ((name, content) in entries) {
             val nameBytes = name.encodeToByteArray()
-            val data = content.encodeToByteArray()
+            val data = content
             val offset = out.size
             out.addAll(le32(0x04034b50)); out.addAll(le16(20)); out.addAll(le16(0)); out.addAll(le16(0))
             out.addAll(le16(0)); out.addAll(le16(0)); out.addAll(le32(0)); out.addAll(le32(data.size)); out.addAll(le32(data.size))
@@ -134,7 +136,15 @@ internal object TestFiles {
      * либо как UTF-16 (по умолчанию), либо как «сжатый» cp1252-фрагмент. [miniTable] кладёт таблицу
      * кусков текста в мини-поток, иначе обе части лежат в обычных секторах.
      */
-    fun doc(paragraphs: List<String>, compressed: Boolean = false, encrypted: Boolean = false, miniTable: Boolean = false): ByteArray {
+    fun docWithStreams(paragraphs: List<String>, extra: Map<String, ByteArray>): ByteArray = doc(paragraphs, extraStreams = extra)
+
+    fun doc(
+        paragraphs: List<String>,
+        compressed: Boolean = false,
+        encrypted: Boolean = false,
+        miniTable: Boolean = false,
+        extraStreams: Map<String, ByteArray> = emptyMap()
+    ): ByteArray {
         val text = paragraphs.joinToString("") { it + "\r" }
         val textBytes = if (compressed) {
             ByteArray(text.length) { text[it].code.toByte() }
@@ -162,7 +172,7 @@ internal object TestFiles {
         put32(word, lcbStart + 33 * 8, 0)         // fcClx
         put32(word, lcbStart + 33 * 8 + 4, clx.size)
         textBytes.copyInto(word, textOffset)
-        return ole2(mapOf("WordDocument" to word, "1Table" to if (miniTable) clx else clx.copyOf(4096)))
+        return ole2(mapOf("WordDocument" to word, "1Table" to if (miniTable) clx else clx.copyOf(4096)) + extraStreams)
     }
 
     private fun le16(v: Int) = listOf(v.toByte(), (v shr 8).toByte())

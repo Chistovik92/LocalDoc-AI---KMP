@@ -21,7 +21,12 @@ object DocParser {
         val blocks = text.lines().map { HtmlBlockBuilder.normalizeSpaces(it) }.filter { it.isNotEmpty() }
             .map { Block(BlockType.PARAGRAPH, it) }
         require(blocks.isNotEmpty()) { "В документе .doc не найден текст" }
-        return Book(title = fallbackTitle, format = BookFormat.DOC, blocks = blocks, chapters = PlainTextParser.detectChapters(blocks))
+        val images = ImageCollector()
+        val pictures = runCatching { Ole2File(bytes).stream("Data") }.getOrNull()
+            ?.let { EmbeddedImageScanner.scan(it, images) }.orEmpty()
+        val all = blocks + pictures.map { Block(BlockType.IMAGE, "", image = it) }
+        return Book(title = fallbackTitle, format = BookFormat.DOC, blocks = all, chapters = PlainTextParser.detectChapters(blocks))
+            .withImages(images)
     }
 
     /** Основной текст документа с символом `\n` на месте каждого абзаца и ячейки таблицы. */
@@ -121,7 +126,7 @@ object DocParser {
         return out.toString()
     }
 
-    private fun cp1252(b: Int): Char = if (b in 0x80..0x9F) CP1252_HIGH[b - 0x80] else b.toChar()
+    internal fun cp1252(b: Int): Char = if (b in 0x80..0x9F) CP1252_HIGH[b - 0x80] else b.toChar()
 
     // Символы 0x80..0x9F кодовой страницы Windows-1252 (не определённые — пробел)
     private val CP1252_HIGH: CharArray = "€ ‚ƒ„…†‡ˆ‰Š‹Œ Ž  ‘’“”•–—˜™š›œ žŸ".toCharArray()

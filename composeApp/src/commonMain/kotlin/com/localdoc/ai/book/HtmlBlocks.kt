@@ -9,10 +9,15 @@ import com.fleeksoft.ksoup.nodes.TextNode
  * сбрасывается абзацем при встрече блочного элемента — это устойчиво к «грязной»
  * вёрстке, где текст лежит прямо в div вперемешку с тегами.
  */
-internal class HtmlBlockBuilder {
+internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
 
     private val blocks = ArrayList<Block>()
-    private val inline = StringBuilder()
+    private var inline = DocxParser.RunTextBuilder()
+    private var inlineEmpty = true
+    private var pendingBr = false
+    private var bold = 0
+    private var italic = 0
+    private var code = 0
 
     fun build(root: Element): List<Block> {
         walk(root, listDepth = 0)
@@ -23,19 +28,30 @@ internal class HtmlBlockBuilder {
     private fun walk(element: Element, listDepth: Int) {
         for (node in element.childNodes()) {
             when (node) {
-                is TextNode -> inline.append(node.text())
+                is TextNode -> appendInline(node.text())
                 is Element -> handleElement(node, listDepth)
                 else -> Unit
             }
         }
     }
 
+    private fun appendInline(text: String) {
+        if (text.isEmpty()) return
+        inline.append(text, bold > 0, italic > 0, code > 0)
+        inlineEmpty = false
+        pendingBr = false
+    }
+
     private fun handleElement(el: Element, listDepth: Int) {
         val tag = el.normalName()
         when {
+            tag == "img" -> imageBlock(el)
             tag in SKIP_TAGS -> Unit
-            tag == "br" -> inline.append('\n')
-            tag.length == 2 && tag[0] == 'h' && tag[1] in '1'..'6' -> emit(BlockType.HEADING, el.text(), tag[1] - '0')
+            tag == "br" -> {
+                // Два <br> подряд — разрыв абзаца, одиночный — просто пробел
+                if (pendingBr) { flush(); pendingBr = false } else { appendInline(" "); pendingBr = true }
+            }
+            tag.length == 2 && tag[0] == 'h' && tag[1] in '1'..'6' -> emit(BlockType.HEADING, el, tag[1] - '0')
             tag == "p" || tag == "dd" || tag == "dt" || tag == "figcaption" -> {
                 flush()
                 walk(el, listDepth)
@@ -46,7 +62,7 @@ internal class HtmlBlockBuilder {
                 // Вложенные списки обрабатываем отдельно, чтобы не склеивать их с пунктом
                 val nested = el.children().filter { it.normalName() == "ul" || it.normalName() == "ol" }
                 nested.forEach { it.remove() }
-                emit(BlockType.LIST_ITEM, el.text(), listDepth)
+                emit(BlockType.LIST_ITEM, el, (listDepth - 1).coerceAtLeast(0))
                 nested.forEach { walk(it, listDepth + 1) }
             }
             tag == "ul" || tag == "ol" -> {
@@ -54,39 +70,109 @@ internal class HtmlBlockBuilder {
                 walk(el, listDepth + 1)
                 flush()
             }
-            tag == "blockquote" -> emit(BlockType.QUOTE, el.text())
-            tag == "pre" -> emit(BlockType.CODE, el.wholeTextSafe())
-            tag == "tr" -> emit(BlockType.PARAGRAPH, el.children().joinToString(" · ") { it.text() })
+            tag == "blockquote" -> emit(BlockType.QUOTE, el)
+            tag == "pre" -> emitCode(el)
+            tag == "tr" -> {
+                val cells = el.children().joinToString(" · ") { it.text() }
+                flush()
+                val clean = normalizeSpaces(cells)
+                if (clean.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, clean))
+            }
             tag in BLOCK_CONTAINERS -> {
                 flush()
                 walk(el, listDepth)
                 flush()
             }
-            else -> walk(el, listDepth) // инлайн: span, a, b, i, em, strong, sup…
+            else -> {
+                // инлайн: span, a, b, i, em, strong, code, sup…
+                val b = tag == "b" || tag == "strong"
+                val i = tag == "i" || tag == "em" || tag == "cite" || tag == "dfn" || tag == "var"
+                val c = tag == "code" || tag == "tt" || tag == "kbd" || tag == "samp"
+                if (b) bold++
+                if (i) italic++
+                if (c) code++
+                walk(el, listDepth)
+                if (b) bold--
+                if (i) italic--
+                if (c) code--
+            }
         }
     }
 
-    private fun emit(type: BlockType, text: String, level: Int = 0) {
+    /** Картинка в тексте: ленивые атрибуты (`data-src`), без иконок, логотипов и «пикселей». */
+    private fun imageBlock(el: Element) {
+        val resolver = images ?: return
+        val src = IMAGE_SOURCE_ATTRS.map { el.attr(it).trim() }.firstOrNull { it.isNotEmpty() } ?: return
+        val width = el.attr("width").trim().removeSuffix("px").toIntOrNull()
+        val height = el.attr("height").trim().removeSuffix("px").toIntOrNull()
+        if ((width != null && width < MIN_IMAGE_SIDE) || (height != null && height < MIN_IMAGE_SIDE)) return
+        if (JUNK_IMAGE.containsMatchIn(el.className() + " " + el.id() + " " + src.take(300))) return
+        val ref = resolver.resolve(src) ?: return
         flush()
-        val clean = if (type == BlockType.CODE) text.trimEnd() else normalizeSpaces(text)
-        if (clean.isNotBlank()) blocks.add(Block(type, clean, level))
+        blocks.add(Block(BlockType.IMAGE, normalizeSpaces(el.attr("alt")).take(300), image = ref))
+    }
+
+    /** Блок целиком из содержимого элемента, с сохранением жирного / курсива / кода. */
+    private fun emit(type: BlockType, el: Element, level: Int = 0) {
+        flush()
+        val saved = Triple(bold, italic, code)
+        val outer = inline
+        inline = DocxParser.RunTextBuilder()
+        bold = 0; italic = 0; code = 0
+        walkInlineOnly(el)
+        val (text, spans) = inline.build()
+        inline = outer
+        bold = saved.first; italic = saved.second; code = saved.third
+        if (text.isNotBlank()) blocks.add(Block(type, text, level, spans))
+    }
+
+    /** Обход содержимого блока без создания вложенных блоков (внутри заголовка, пункта, цитаты). */
+    private fun walkInlineOnly(el: Element) {
+        for (node in el.childNodes()) {
+            when (node) {
+                is TextNode -> inline.append(node.text(), bold > 0, italic > 0, code > 0)
+                is Element -> {
+                    val tag = node.normalName()
+                    if (tag in SKIP_TAGS) continue
+                    if (tag == "br") { inline.append(" ", false, false, false); continue }
+                    val b = tag == "b" || tag == "strong"
+                    val i = tag == "i" || tag == "em" || tag == "cite" || tag == "dfn" || tag == "var"
+                    val c = tag == "code" || tag == "tt" || tag == "kbd" || tag == "samp"
+                    if (b) bold++
+                    if (i) italic++
+                    if (c) code++
+                    walkInlineOnly(node)
+                    if (b) bold--
+                    if (i) italic--
+                    if (c) code--
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    private fun emitCode(el: Element) {
+        flush()
+        val text = el.wholeTextSafe().trimEnd()
+        if (text.isNotBlank()) blocks.add(Block(BlockType.CODE, text))
     }
 
     private fun flush() {
-        if (inline.isEmpty()) return
-        val text = inline.toString()
-        inline.clear()
-        // <br><br> внутри одного контейнера — это разрыв абзаца
-        text.split(Regex("\n\\s*\n")).forEach { part ->
-            val clean = normalizeSpaces(part)
-            if (clean.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, clean))
-        }
+        if (inlineEmpty) return
+        val (text, spans) = inline.build()
+        inline = DocxParser.RunTextBuilder()
+        inlineEmpty = true
+        pendingBr = false
+        if (text.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, text, 0, spans))
     }
 
     private fun Element.wholeTextSafe(): String =
         childNodes().joinToString("") { if (it is TextNode) it.text() else (it as? Element)?.text().orEmpty() }
 
     companion object {
+        private val IMAGE_SOURCE_ATTRS = listOf("data-src", "data-original", "data-lazy-src", "src")
+        private const val MIN_IMAGE_SIDE = 48
+        private val JUNK_IMAGE = Regex("(^|[\\s_\\-/.])(icon|logo|avatar|emoji|smiley|sprite|pixel|spacer|badge|tracking|blank|loader|spinner|banner|ads?|adv|advert|promo|sponsor|doubleclick|googlesyndication|adfox|adriver|teaser|counter)([\\s_\\-/.\\d]|$)", RegexOption.IGNORE_CASE)
         private val SKIP_TAGS = setOf(
             "script", "style", "noscript", "iframe", "svg", "canvas", "template", "button",
             "input", "select", "textarea", "form", "nav", "head", "img", "video", "audio", "object", "embed"
@@ -129,9 +215,24 @@ object AdFilter {
         RegexOption.IGNORE_CASE
     )
 
+    // Водяные знаки и призывы сайтов с книгами, фанфиками и веб-новеллами: короткие строки-вставки
+    private val PROMO_TEXT = Regex(
+        "^(скачано (с|на)|скачать (книгу|полную)|читайте (нас|продолжение|полную версию|книгу целиком|на нашем)|" +
+            "книга (взята|скачана|размещена) (с|на)|источник:|оригинал( статьи)?:|купить (книгу|полную версию)|" +
+            "продолжение (читайте |следует на )?на |все права защищены|копирование (запрещено|разрешено только)|" +
+            "поддержите (автора|проект|нас)|поддержать (автора|проект)|sponsored by|read (more|the full|the rest) |" +
+            "follow us|visit (our|my) (site|website)|buy me a coffee|support the author|" +
+            "перевод( выполнен)?:?\\s*(команд|групп|студи)[а-яё]*)\\b.{0,160}$|" +
+            "^(присоединяйтесь|вступайте|подписывайтесь|подписаться|join|subscribe)\\b.{0,120}" +
+            "(групп|канал|telegram|телеграм|vk\\.com|вконтакте|boosty|patreon|сайт|сообществ|discord|channel|newsletter).{0,120}$|" +
+            "^(https?://\\S+|www\\.\\S+|[a-z0-9-]+\\.(ru|com|net|org|ua|by|kz|su|club|site|online))\\s*$|" +
+            "(patreon\\.com|boosty\\.to|t\\.me/|vk\\.com/|ko-fi\\.com)\\S*\\s*$",
+        RegexOption.IGNORE_CASE
+    )
+
     fun isAdText(text: String): Boolean {
         val t = text.trim()
-        return t.length <= 400 && AD_TEXT.containsMatchIn(t)
+        return (t.length <= 400 && AD_TEXT.containsMatchIn(t)) || (t.length <= 240 && PROMO_TEXT.containsMatchIn(t))
     }
 
     fun isAdElement(el: Element): Boolean {
@@ -158,16 +259,16 @@ object AdFilter {
  */
 object ArticleExtractor {
 
-    fun extract(doc: Element): List<Block> {
+    fun extract(doc: Element, images: ImageResolver? = null): List<Block> {
         doc.select("script, style, noscript, iframe, svg, form, nav, button, template, link, meta").remove()
         // Служебные элементы вики-движков: «[править]», сноски [1], инфобоксы, навигационные шаблоны
         doc.select(
             ".mw-editsection, sup.reference, .reference, .noprint, .navbox, .hatnote, .infobox, .metadata, " +
-                ".mw-jump-link, .mw-references-wrap, .reflist, .toc, #toc, .thumb, figure"
+                ".mw-jump-link, .mw-references-wrap, .reflist, .toc, #toc"
         ).remove()
         removeNoise(doc)
         val root = pickContentRoot(doc)
-        return HtmlBlockBuilder().build(root)
+        return HtmlBlockBuilder(images).build(root)
     }
 
     private fun removeNoise(doc: Element) {
@@ -235,4 +336,25 @@ object ArticleExtractor {
         val links = el.select("a").sumOf { it.text().length }
         return links.toDouble() / total
     }
+}
+
+/**
+ * Книга без рекламы: убирает блоки-вставки (реклама, водяные знаки сайтов, призывы подписаться) из любого
+ * источника — EPUB, FB2, DOCX, TXT, скачанных глав. Заголовки глав не удаляются; индексы глав пересчитываются.
+ */
+fun Book.withoutAds(): Book {
+    val keep = blocks.map { b -> b.type == BlockType.IMAGE || b.type == BlockType.HEADING || !AdFilter.isAdText(b.text) }
+    if (keep.all { it }) return this
+    val newIndex = IntArray(blocks.size + 1)
+    var next = 0
+    for (i in blocks.indices) {
+        newIndex[i] = next
+        if (keep[i]) next++
+    }
+    newIndex[blocks.size] = next
+    return copy(
+        blocks = blocks.filterIndexed { i, _ -> keep[i] },
+        chapters = chapters.map { it.copy(startBlock = newIndex[it.startBlock.coerceIn(0, blocks.size)]) }
+            .filter { it.startBlock < next }.distinctBy { it.startBlock }
+    )
 }

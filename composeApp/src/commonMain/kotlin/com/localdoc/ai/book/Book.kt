@@ -2,6 +2,7 @@ package com.localdoc.ai.book
 
 import com.localdoc.ai.parser.ParsedDoc
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /** Поддерживаемые форматы книг и документов. */
 @Serializable
@@ -15,12 +16,16 @@ enum class BookFormat(val label: String) {
     WEB("Веб"),
     DOCX("DOCX"),
     DOC("DOC"),
-    ODT("ODT")
+    ODT("ODT"),
+    RTF("RTF"),
+    XML("XML"),
+    WPS("WPS"),
+    PAGES("Pages")
 }
 
 /** Тип блока текста — единица вёрстки, озвучки и прогресса чтения. */
 @Serializable
-enum class BlockType { HEADING, PARAGRAPH, QUOTE, CODE, LIST_ITEM }
+enum class BlockType { HEADING, PARAGRAPH, QUOTE, CODE, LIST_ITEM, IMAGE }
 
 /** Инлайн-выделение внутри блока (диапазон [start, end) в символах). */
 @Serializable
@@ -35,8 +40,15 @@ data class Block(
     val text: String,
     /** Уровень заголовка (1..6) или вложенность списка. */
     val level: Int = 0,
-    val spans: List<Span> = emptyList()
-)
+    val spans: List<Span> = emptyList(),
+    /**
+     * Для [BlockType.IMAGE] — ссылка на картинку: идентификатор ресурса книги (`im3`) либо http(s)-адрес
+     * (грузится лениво и кэшируется на диске). [text] у картинки — подпись / alt-текст.
+     */
+    val image: String? = null
+) {
+    val isImage: Boolean get() = type == BlockType.IMAGE
+}
 
 /** Пункт оглавления: заголовок и индекс первого блока главы. */
 @Serializable
@@ -52,7 +64,16 @@ data class Book(
     val blocks: List<Block>,
     val chapters: List<Chapter> = emptyList(),
     /** Для веб-страниц: соседние главы и оглавление новеллы. */
-    val web: WebNavigation? = null
+    val web: WebNavigation? = null,
+    /** Обложка: идентификатор ресурса книги либо http(s)-адрес; null — у книги нет обложки. */
+    val cover: String? = null,
+    /** Идентификаторы картинок, лежащих в хранилище книги (нужны, чтобы удалить их вместе с книгой). */
+    val images: List<String> = emptyList(),
+    /**
+     * Байты картинок в памяти (id → данные): заполняются разбором и при загрузке для экспорта;
+     * в JSON библиотеки не попадают — картинки лежат отдельными файлами.
+     */
+    @Transient val imageData: Map<String, ByteArray> = emptyMap()
 ) {
     val plainText: String get() = blocks.joinToString("\n\n") { it.text }
 
@@ -77,7 +98,11 @@ data class BookEntry(
     val format: BookFormat,
     val source: String = "",
     val totalBlocks: Int,
-    val progressBlock: Int = 0
+    val progressBlock: Int = 0,
+    /** Обложка для плитки библиотеки (ресурс книги или http-адрес). */
+    val cover: String? = null,
+    /** Сколько байт занимают картинки книги в хранилище приложения. */
+    val imageBytes: Long = 0
 ) {
     val progress: Float
         get() = if (totalBlocks <= 1) 0f else (progressBlock.toFloat() / (totalBlocks - 1)).coerceIn(0f, 1f)

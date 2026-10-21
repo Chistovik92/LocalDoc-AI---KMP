@@ -107,6 +107,8 @@ import com.localdoc.ai.domain.ReaderTheme
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.tts.ReadAloudStop
 import com.localdoc.ai.tts.SpeechSegment
+import com.localdoc.ai.ui.BookImage
+import com.localdoc.ai.ui.SaveAsDialog
 import com.localdoc.ai.ui.TextInputDialog
 import com.localdoc.ai.ui.launchGeneration
 import kotlinx.coroutines.FlowPreview
@@ -208,6 +210,7 @@ fun ReaderView(
     var showTranslate by remember { mutableStateOf(false) }
     var showBookmarks by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showSaveAs by remember { mutableStateOf(false) }
     var askTerm by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
 
@@ -274,6 +277,23 @@ fun ReaderView(
                 if (pos < last - 1200) uiVisible = true
                 last = pos
             }
+    }
+
+    // Автопереход: дочитали главу прокруткой до кнопок «Далее» — через пару секунд открывается следующая
+    val hasFooter = chapterNavigation != null && (!pagedDisplay || page >= pager.size - 1)
+    val footerVisible by remember(itemCount, hasFooter) {
+        derivedStateOf { hasFooter && listState.layoutInfo.visibleItemsInfo.any { it.index == itemCount } }
+    }
+    var scrolledByUser by remember(docKey) { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset }
+            .collect { if (it > 0) scrolledByUser = true }
+    }
+    LaunchedEffect(footerVisible, settings.autoNext, scrolledByUser, isMine) {
+        if (footerVisible && settings.autoNext && scrolledByUser && !isMine && chapterNavigation?.hasNext == true) {
+            kotlinx.coroutines.delay(AUTO_NEXT_DELAY_MS)
+            chapterNavigation.onNext()
+        }
     }
 
     // Озвучка перешла на другую страницу — в постраничном режиме листаем за ней
@@ -391,6 +411,8 @@ fun ReaderView(
                 Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.fillMaxWidth()) {
                     BlockText(
                         block = displayBlock(index),
+                        entryId = entryId,
+                        referer = book.source.takeIf { it.startsWith("http") },
                         settings = settings,
                         paper = paper,
                         highlight = speaking?.takeIf { it.block == index },
@@ -464,6 +486,18 @@ fun ReaderView(
                                     onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
                                 )
                                 DropdownMenuItem(text = { Text("Шрифт и фон") }, onClick = { showMenu = false; showSettings = true })
+                                if (entry != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (book.format == com.localdoc.ai.book.BookFormat.WEB) "Скачать книгу целиком…" else "Сохранить как…") },
+                                        onClick = { showMenu = false; showSaveAs = true }
+                                    )
+                                }
+                                if (chapterNavigation != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (settings.autoNext) "Автопереход: включён" else "Автопереход к следующей главе") },
+                                        onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(autoNext = !it.autoNext) } }
+                                    )
+                                }
                             }
                         }
                     }
@@ -533,6 +567,7 @@ fun ReaderView(
     }
 
     if (showSettings) ReaderSettingsSheet(onDismiss = { showSettings = false })
+    if (showSaveAs && entry != null) SaveAsDialog(entry = entry, onDismiss = { showSaveAs = false })
     if (showVoice) VoiceSettingsSheet(onDismiss = { showVoice = false })
     if (showToc) {
         TocSheet(
@@ -586,6 +621,7 @@ fun ReaderView(
 }
 
 private const val AI_WAIT_FOR_TRANSLATION_MS = 60_000L
+private const val AUTO_NEXT_DELAY_MS = 2_500L
 
 /** Полоса состояния перевода под верхней панелью: прогресс страницы или ошибка с повтором. */
 @Composable
@@ -660,12 +696,18 @@ private fun ChapterFooter(nav: ChapterNavigation, paper: PaperColors) {
 @Composable
 private fun BlockText(
     block: Block,
+    entryId: String?,
+    referer: String?,
     settings: ReaderSettings,
     paper: PaperColors,
     highlight: SpeechSegment?,
     onTap: (() -> Unit)?,
     modifier: Modifier
 ) {
+    if (block.type == BlockType.IMAGE) {
+        block.image?.let { BookImage(entryId, it, block.text, referer, modifier.padding(vertical = 8.dp)) }
+        return
+    }
     val family = if (settings.font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif
     val base = settings.fontSize
     val highlightColor = if (paper.background.luminance() < 0.3f) paper.highlight.copy(alpha = 0.8f) else paper.highlight
@@ -678,7 +720,7 @@ private fun BlockText(
         )
         BlockType.QUOTE -> TextStyle(fontFamily = family, fontSize = base.sp, fontStyle = FontStyle.Italic, lineHeight = (base * settings.lineHeight).sp)
         BlockType.CODE -> TextStyle(fontFamily = FontFamily.Monospace, fontSize = (base * 0.82f).sp, lineHeight = (base * 1.35f).sp)
-        BlockType.LIST_ITEM, BlockType.PARAGRAPH -> TextStyle(fontFamily = family, fontSize = base.sp, lineHeight = (base * settings.lineHeight).sp)
+        BlockType.LIST_ITEM, BlockType.PARAGRAPH, BlockType.IMAGE -> TextStyle(fontFamily = family, fontSize = base.sp, lineHeight = (base * settings.lineHeight).sp)
     }
     val topPadding = when (block.type) {
         BlockType.HEADING -> if (block.level <= 1) 28.dp else 18.dp

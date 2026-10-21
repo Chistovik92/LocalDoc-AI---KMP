@@ -11,7 +11,24 @@ import com.localdoc.ai.model.ModelCatalog
 import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
+import com.localdoc.ai.catalog.CatalogImportResult
+import com.localdoc.ai.catalog.CatalogItem
+import com.localdoc.ai.catalog.CatalogRepository
+import com.localdoc.ai.catalog.ContentReader
+import com.localdoc.ai.catalog.ScanSource
+import com.localdoc.ai.images.ImageLoader
+import com.localdoc.ai.platform.DeviceScanner
+import com.localdoc.ai.platform.ScannedFile
+import com.localdoc.ai.platform.FileSaver
+import com.localdoc.ai.net.CookieJar
+import com.localdoc.ai.net.SiteAuth
+import com.localdoc.ai.net.SiteVault
+import com.localdoc.ai.net.WebHttp
+import com.localdoc.ai.net.asStorage
+import com.localdoc.ai.net.asTransport
 import com.localdoc.ai.parser.WebArticleParser
+import com.localdoc.ai.platform.RawHttp
+import com.localdoc.ai.platform.SecureStore
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
 import com.localdoc.ai.rag.HashingEmbedder
@@ -60,7 +77,14 @@ object AppGraph {
     val kv: KeyValueStore = KeyValueStore()
     val engine: LlamaEngine = LlamaEngine()
     val downloader: ModelDownloader = ModelDownloader()
-    val webParser: WebArticleParser = WebArticleParser()
+    /** Защищённое хранилище (Keystore / Keychain): пароли сайтов и cookie сессий. */
+    val secure: SecureStore by lazy { SecureStore() }
+    val cookieJar: CookieJar by lazy { CookieJar(secure.asStorage()) }
+    val webHttp: WebHttp by lazy { WebHttp(RawHttp().asTransport(), cookieJar) }
+    val siteVault: SiteVault by lazy { SiteVault(secure.asStorage(), cookieJar) }
+    val siteAuth: SiteAuth by lazy { SiteAuth(webHttp, siteVault) }
+    val images: ImageLoader by lazy { ImageLoader(files, kv, { webHttp }) }
+    val webParser: WebArticleParser = WebArticleParser { webHttp }
     val pdfExtractor: PdfExtractor = PdfExtractor()
     val files: FileAccess = FileAccess()
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
@@ -122,6 +146,67 @@ object AppGraph {
     /** Плеер чтения вслух — общий для книг и веб-страниц. */
     val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope) }
 
+    /** Скачивание книг целиком и «Сохранить как…»: оглавление, главы и картинки собираются автоматически. */
+    val fileSaver: FileSaver by lazy { FileSaver() }
+
+    private val chapterSource = object : ChapterSource {
+        override suspend fun load(url: String) = webParser.load(url)
+        override suspend fun tableOfContents(tocUrl: String) = webParser.loadTableOfContents(tocUrl)
+    }
+
+    private val fileFetcher = FileFetcher { url ->
+        val result = webHttp.get(url, maxBytes = WebHttp.MAX_DOWNLOAD_BYTES)
+        // Страница входа или ошибка вместо файла — это не книга
+        if (!result.isOk || result.contentType.startsWith("text/html")) null
+        else DownloadedFile(fileNameOf(result.headers["content-disposition"], result.url), result.body)
+    }
+
+    val downloads: BookDownloadManager by lazy {
+        BookDownloadManager(
+            scope = appScope,
+            library = library,
+            downloader = NovelDownloader(chapterSource, fileFetcher, files.asNovelFiles()),
+            parser = webParser,
+            images = images,
+            saver = fileSaver,
+            resolveToc = { _, page -> webSession.resolveTableOfContents(WebDocument(page.book, "", page.links, 0)) }
+        )
+    }
+
+    /** Каталог книг на устройстве: сканирование, полки, подборки. */
+    val deviceScanner: DeviceScanner by lazy { DeviceScanner() }
+
+    val catalog: CatalogRepository by lazy {
+        CatalogRepository(
+            source = object : ScanSource {
+                override suspend fun scan(rootId: String, extensions: Set<String>, onFound: (ScannedFile) -> Unit) =
+                    deviceScanner.scan(rootId, extensions, onFound)
+            },
+            reader = ContentReader { uri, maxBytes -> runCatching { files.readBytes(uri) }.getOrNull()?.takeIf { it.size <= maxBytes } },
+            store = files.asNovelFiles(),
+            scope = appScope
+        )
+    }
+
+    /** Добавляет найденные файлы в библиотеку; ошибки по отдельным файлам не прерывают остальные. */
+    suspend fun addFromCatalog(items: List<CatalogItem>, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): CatalogImportResult {
+        var added = 0
+        val failed = ArrayList<String>()
+        items.forEachIndexed { index, item ->
+            try {
+                val entry = library.add(importer.import(item.uri))
+                catalog.markAdded(item.uri, entry.id)
+                added++
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failed.add("${item.name}: ${e.message ?: "не удалось открыть"}")
+            }
+            onProgress(index + 1, items.size)
+        }
+        return CatalogImportResult(added, failed)
+    }
+
     val updates: com.localdoc.ai.update.UpdateManager by lazy { com.localdoc.ai.update.UpdateManager(appScope) }
 
     val webSession: WebSession by lazy {
@@ -131,7 +216,10 @@ object AppGraph {
             pipeline = { pipeline },
             isModelLoaded = { loadedModelId.value != null },
             readAloud = { readAloud },
-            scope = appScope
+            scope = appScope,
+            auth = { siteAuth },
+            vault = { siteVault },
+            autoNext = { readerSettings.value.value.autoNext }
         )
     }
 
@@ -249,6 +337,14 @@ object AppGraph {
 
     fun clearChat() {
         messages.value = emptyList()
+    }
+
+    /** Имя файла из `Content-Disposition` (filename*=UTF-8''… или filename="…"), иначе — последний сегмент адреса. */
+    internal fun fileNameOf(disposition: String?, url: String): String {
+        val star = disposition?.let { Regex("filename\\*\\s*=\\s*[^']*''([^;]+)", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
+        val plain = disposition?.let { Regex("filename\\s*=\\s*\"?([^\";]+)", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
+        val raw = star ?: plain ?: url.substringBefore('?').substringAfterLast('/')
+        return raw.trim().ifBlank { "book" }
     }
 
     private const val KEY_LOADED_MODEL = "loaded_model_id"

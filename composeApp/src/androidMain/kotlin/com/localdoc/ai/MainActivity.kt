@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import com.localdoc.ai.platform.AndroidIntents
 import com.localdoc.ai.platform.AppContextHolder
+import com.localdoc.ai.platform.CreateDocumentContract
 import com.localdoc.ai.ui.App
 
 class MainActivity : ComponentActivity() {
@@ -22,6 +23,12 @@ class MainActivity : ComponentActivity() {
             AndroidIntents.onPdfPicked(uri?.toString())
         }
 
+    private val saveLauncher =
+        registerForActivityResult(CreateDocumentContract()) { uri: Uri? -> AndroidIntents.onSaved(uri) }
+
+    private val folderLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? -> AndroidIntents.onFolderPicked(uri) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // targetSdk 35 и так рисует под системными панелями — делаем это явно на всех версиях,
         // отступы обрабатывает Scaffold
@@ -29,6 +36,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AppContextHolder.init(applicationContext)
         AndroidIntents.registerPdfPicker(pdfPickerLauncher)
+        AndroidIntents.registerSaver(saveLauncher)
+        AndroidIntents.registerFolderPicker(folderLauncher)
 
         handleIntent(intent)
         if (android.os.Build.VERSION.SDK_INT >= 33 &&

@@ -217,10 +217,9 @@ class DocFormatsTest {
     }
 
     @Test
-    fun `rtf is rejected with an explanation and fake epub is not parsed`() {
+    fun `rtf is recognised and fake epub is not parsed`() {
         val rtf = "{\\rtf1\\ansi Hello}".encodeToByteArray()
-        val rtfError = assertFailsWith<UnsupportedFormatException> { FormatDetector.bySignature(rtf) }
-        assertTrue("RTF" in rtfError.message.orEmpty())
+        assertEquals(BookFormat.RTF, FormatDetector.bySignature(rtf))
 
         val fakeEpub = "это не архив".encodeToByteArray()
         assertFailsWith<UnsupportedFormatException> { FormatDetector.resolve("книга.epub", fakeEpub) }

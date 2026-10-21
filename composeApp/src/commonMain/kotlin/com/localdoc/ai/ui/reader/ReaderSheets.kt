@@ -204,6 +204,7 @@ internal fun ReaderSettingsContent() {
 
         SwitchRow("Выравнивание по ширине", settings.justify) { v -> update { it.copy(justify = v) } }
         SwitchRow("Следовать за озвучкой", settings.followSpeech) { v -> update { it.copy(followSpeech = v) } }
+        SwitchRow("Автопереход к следующей главе (веб-новеллы)", settings.autoNext) { v -> update { it.copy(autoNext = v) } }
         SectionLabel("Режим чтения")
         SwitchRow("Постранично (вместо прокрутки)", settings.paged) { v -> update { it.copy(paged = v) } }
         Text(

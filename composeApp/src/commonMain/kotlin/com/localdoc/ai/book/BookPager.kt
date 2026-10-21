@@ -48,6 +48,9 @@ class BookPager private constructor(val pages: List<BookPage>, val blockCount: I
     companion object {
         const val DEFAULT_CHARS = 3_000
 
+        /** Картинка занимает на странице место примерно трёх абзацев. */
+        const val IMAGE_WEIGHT = 600
+
         fun build(blocks: List<Block>, chapters: List<Chapter> = emptyList(), targetChars: Int = DEFAULT_CHARS): BookPager {
             if (blocks.isEmpty()) return BookPager(emptyList(), 0)
             val chapterStarts = chapters.map { it.startBlock }.filter { it > 0 }.toHashSet()
@@ -56,7 +59,7 @@ class BookPager private constructor(val pages: List<BookPage>, val blockCount: I
             starts.add(0)
             var chars = 0
             for (i in blocks.indices) {
-                val length = blocks[i].text.length
+                val length = if (blocks[i].isImage) IMAGE_WEIGHT else blocks[i].text.length
                 val chapterBreak = i > 0 && i in chapterStarts
                 if (i > starts.last() && (chapterBreak || chars + length > limit)) {
                     starts.add(i)

@@ -3,6 +3,7 @@ package com.localdoc.ai.book
 import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Element
 import com.fleeksoft.ksoup.parser.Parser
+import kotlin.io.encoding.Base64
 
 /** TXT: абзацы по пустым строкам, мягкие переносы строк склеиваются. */
 object PlainTextParser {
@@ -84,9 +85,13 @@ object PdfTextAdapter {
 object MarkdownParser {
     private val HEADING = Regex("^(#{1,6})\\s+(.*?)\\s*#*$")
     private val LIST = Regex("^(\\s*)([-*+]|\\d+[.)])\\s+(.*)$")
+    const val COVER_ALT = "cover"
+    private val IMAGE_LINE = Regex("^!\\[([^\\]]*)]\\(([^)\\s]+)[^)]*\\)$")
 
     fun parse(text: String, title: String): Book {
         val blocks = ArrayList<Block>()
+        val images = ImageCollector()
+        var cover: String? = null
         val paragraph = StringBuilder()
         var inCode = false
         val code = StringBuilder()
@@ -107,6 +112,21 @@ object MarkdownParser {
             }
             if (inCode) { code.appendLine(raw); continue }
             val line = raw.trimEnd()
+            val imageLine = IMAGE_LINE.matchEntire(line.trim())
+            if (imageLine != null) {
+                flushParagraph()
+                val alt = imageLine.groupValues[1].trim()
+                val url = imageLine.groupValues[2]
+                val ref = when {
+                    url.startsWith("http://", true) || url.startsWith("https://", true) -> url
+                    url.startsWith("data:image/", true) -> HtmlImageResolver.decodeDataUri(url)?.let(images::add)
+                    else -> null
+                }
+                // Первая строка-картинка с подписью «cover» — обложка (так её пишет экспорт)
+                if (ref != null && alt == COVER_ALT && cover == null && blocks.isEmpty()) cover = ref
+                else if (ref != null) blocks.add(Block(BlockType.IMAGE, alt, image = ref))
+                continue
+            }
             val heading = HEADING.find(line)
             val list = LIST.find(line)
             when {
@@ -132,6 +152,7 @@ object MarkdownParser {
 
         val docTitle = blocks.firstOrNull { it.type == BlockType.HEADING && it.level == 1 }?.text ?: title
         return Book(title = docTitle, format = BookFormat.MARKDOWN, blocks = blocks, chapters = chaptersFromHeadings(blocks))
+            .withImages(images, cover)
     }
 
     /** Снимает разметку `**`, `*`, `_`, `` ` ``, ссылки `[текст](url)` и запоминает выделения. */
@@ -173,8 +194,11 @@ object HtmlFileParser {
     fun parse(html: String, title: String, source: String): Book {
         val doc = Ksoup.parse(html, source)
         val docTitle = doc.title().ifBlank { title }
-        val blocks = ArticleExtractor.extract(doc)
+        val images = ImageCollector()
+        val cover = PageCover.find(doc, source, images)
+        val blocks = ArticleExtractor.extract(doc, HtmlImageResolver(source, images))
         return Book(title = docTitle, format = BookFormat.HTML, source = source, blocks = blocks, chapters = chaptersFromHeadings(blocks))
+            .withImages(images, cover)
     }
 }
 
@@ -193,15 +217,34 @@ object Fb2Parser {
                 .ifBlank { a.getElementsByTag("nickname").firstOrNull()?.text().orEmpty() }
         }.orEmpty()
 
+        val images = ImageCollector()
+        val binaries = doc.getElementsByTag("binary").associateBy { it.attr("id") }
+        val imageFor: (String) -> String? = { href ->
+            binaries[href.removePrefix("#")]?.let { bin ->
+                runCatching { Base64.Mime.decode(bin.text()) }.getOrNull()?.let(images::add)
+            }
+        }
+        val cover = titleInfo?.getElementsByTag("coverpage")?.firstOrNull()?.getElementsByTag("image")?.firstOrNull()
+            ?.let(::hrefOf)?.let(imageFor)
+
         val blocks = ArrayList<Block>()
         val chapters = ArrayList<Chapter>()
         // Первый body — текст книги; body name="notes" — сноски, их не читаем подряд
         val body = doc.getElementsByTag("body").firstOrNull { it.attr("name") != "notes" }
-        body?.let { walkSection(it, depth = 0, blocks, chapters) }
+        body?.let { walkSection(it, depth = 0, blocks, chapters, imageFor) }
         return Book(title = title, author = author, format = BookFormat.FB2, blocks = blocks, chapters = chapters)
+            .withImages(images, cover)
     }
 
-    private fun walkSection(el: Element, depth: Int, blocks: MutableList<Block>, chapters: MutableList<Chapter>) {
+    private fun hrefOf(el: Element): String? = el.attributes().firstOrNull { it.key.endsWith("href") }?.value
+
+    private fun walkSection(
+        el: Element,
+        depth: Int,
+        blocks: MutableList<Block>,
+        chapters: MutableList<Chapter>,
+        imageFor: (String) -> String?
+    ) {
         for (child in el.children()) {
             when (child.normalName()) {
                 "title" -> {
@@ -211,18 +254,41 @@ object Fb2Parser {
                         blocks.add(Block(BlockType.HEADING, text, (depth + 1).coerceIn(1, 6)))
                     }
                 }
-                "section" -> walkSection(child, depth + 1, blocks, chapters)
-                "p" -> addText(blocks, BlockType.PARAGRAPH, child.text())
+                "section" -> walkSection(child, depth + 1, blocks, chapters, imageFor)
+                "p" -> addInline(blocks, child)
                 "subtitle" -> addText(blocks, BlockType.HEADING, child.text(), level = (depth + 2).coerceIn(2, 6))
                 "epigraph", "cite", "annotation" -> child.children().forEach { addText(blocks, BlockType.QUOTE, it.text()) }
                 "poem" -> child.getElementsByTag("stanza").forEach { stanza ->
                     addText(blocks, BlockType.QUOTE, stanza.getElementsByTag("v").joinToString("\n") { it.text().trim() })
                 }
                 "text-author" -> addText(blocks, BlockType.QUOTE, child.text())
-                "empty-line", "image" -> Unit
-                else -> walkSection(child, depth, blocks, chapters)
+                "empty-line" -> Unit
+                "image" -> hrefOf(child)?.let(imageFor)?.let { blocks.add(Block(BlockType.IMAGE, child.attr("alt").trim(), image = it)) }
+                else -> walkSection(child, depth, blocks, chapters, imageFor)
             }
         }
+    }
+
+    /** Абзац с выделениями: `strong` → жирный, `emphasis` → курсив, `code` → моноширинный. */
+    private fun addInline(blocks: MutableList<Block>, el: Element) {
+        val builder = DocxParser.RunTextBuilder()
+        fun walk(e: Element, bold: Boolean, italic: Boolean, code: Boolean) {
+            for (node in e.childNodes()) {
+                when (node) {
+                    is com.fleeksoft.ksoup.nodes.TextNode -> builder.append(node.getWholeText(), bold, italic, code)
+                    is Element -> walk(
+                        node,
+                        bold || node.normalName() == "strong",
+                        italic || node.normalName() == "emphasis",
+                        code || node.normalName() == "code"
+                    )
+                    else -> Unit
+                }
+            }
+        }
+        walk(el, bold = false, italic = false, code = false)
+        val (text, spans) = builder.build()
+        if (text.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, text, 0, spans))
     }
 
     private fun addText(blocks: MutableList<Block>, type: BlockType, text: String, level: Int = 0) {
@@ -252,14 +318,21 @@ object EpubParser {
         val spine = opf.getElementsByTag("itemref").mapNotNull { manifest[it.attr("idref")] }
             .filter { it.mediaType.contains("html") }
 
+        val images = ImageCollector()
         val blocks = ArrayList<Block>()
         val startByPath = HashMap<String, Int>()
         for (item in spine) {
             val html = zip.read(item.href)?.let { TextDecoder.decode(it, TextDecoder.xmlDeclaredEncoding(it)) } ?: continue
             startByPath[item.href] = blocks.size
             val body = Ksoup.parse(html, "").body() ?: continue
-            blocks.addAll(HtmlBlockBuilder().build(body))
+            val dir = item.href.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
+            blocks.addAll(HtmlBlockBuilder(ImageResolver { src -> zipImage(zip, dir, src, images) }).build(body))
         }
+
+        val coverId = opf.getElementsByTag("meta").firstOrNull { it.attr("name") == "cover" }?.attr("content")
+        val coverItem = coverId?.let { manifest[it] } ?: manifest.values.firstOrNull { "cover-image" in it.properties.split(' ') }
+        val cover = coverItem?.takeIf { it.mediaType.startsWith("image") }
+            ?.let { runCatching { zip.read(it.href) }.getOrNull() }?.let(images::add)
 
         val tocItems = readNav(zip, manifest.values.firstOrNull { "nav" in it.properties.split(' ') }?.href)
             ?: readNcx(zip, manifest.values.firstOrNull { it.mediaType == "application/x-dtbncx+xml" }?.href)
@@ -268,6 +341,7 @@ object EpubParser {
             .distinctBy { it.startBlock }
             .ifEmpty { chaptersFromHeadings(blocks) }
         return Book(title = title, author = author, format = BookFormat.EPUB, blocks = blocks, chapters = chapters)
+            .withImages(images, cover)
     }
 
     private fun readNcx(zip: ZipArchive, path: String?): List<Pair<String, String>>? {

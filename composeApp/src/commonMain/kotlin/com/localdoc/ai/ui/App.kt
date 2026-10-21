@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -37,7 +39,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.BookEntry
@@ -77,6 +82,7 @@ fun App() {
         var pasteText by remember { mutableStateOf(false) }
         var askUrl by remember { mutableStateOf(false) }
         var settingsSection by remember { mutableStateOf<SettingsSection?>(null) }
+        var showCatalog by remember { mutableStateOf(false) }
         val snackbar = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val filePicker = remember { FilePicker() }
@@ -187,9 +193,16 @@ fun App() {
         }
 
         val reading = openBook
-        if (reading != null) {
+        if (showCatalog && reading == null) {
+            Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+                    CatalogScreen(onBack = { showCatalog = false }, onOpenEntry = { showCatalog = false; open(it) })
+                }
+            }
+        } else if (reading != null) {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
+            Box(Modifier.fillMaxSize()) {
             ReaderView(
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
@@ -199,12 +212,16 @@ fun App() {
                 onOpenAssistant = { openBook = null; tab = Tab.Assistant },
                 onOpenModels = ::openModels
             )
+            DownloadBanner(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 72.dp))
+            }
             }
         } else {
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbar) },
                 bottomBar = {
                     Column {
+                        // Плашка загрузки книги: прогресс, отмена, итог
+                        DownloadBanner()
                         // Мини-плеер: озвучка продолжается, пока вы в другой вкладке
                         val webShowsPlayer = tab == Tab.Web && webDocument != null
                         if (player.active && !webShowsPlayer) {
@@ -241,6 +258,7 @@ fun App() {
                             onPickFile = ::pickFile,
                             onPasteText = { pasteText = true },
                             onOpenWeb = { tab = Tab.Web },
+                            onOpenCatalog = { showCatalog = true },
                             onOpenModels = ::openModels
                         )
                         Tab.Web -> WebScreen(onOpenAssistant = { tab = Tab.Assistant }, onOpenModels = ::openModels)
@@ -275,6 +293,7 @@ fun App() {
             }
         )
         ProcessingDialog(processing)
+        WebLoginHost()
 
         update?.let { found ->
             val downloading = downloadState is UpdateDownload.Downloading

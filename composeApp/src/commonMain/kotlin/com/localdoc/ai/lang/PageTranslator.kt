@@ -129,7 +129,7 @@ class PageTranslator(
         return done
     }
 
-    private fun needsTranslation(block: Block) = block.type != BlockType.CODE && block.text.any { it.isLetter() }
+    private fun needsTranslation(block: Block) = block.type != BlockType.CODE && block.type != BlockType.IMAGE && block.text.any { it.isLetter() }
 
     private suspend fun translateBlock(block: Block, target: Language, source: Language?): Block {
         val parts = splitForTranslation(block.text, MAX_CHUNK_CHARS).map { chunk ->

@@ -54,7 +54,7 @@ object SpeechSegmenter {
         val result = ArrayList<SpeechSegment>()
         blocks.forEachIndexed { index, block ->
             // Код не читается вслух, рекламные вставки пропускаются
-            if (block.type == BlockType.CODE || AdFilter.isAdText(block.text)) return@forEachIndexed
+            if (block.type == BlockType.CODE || block.type == BlockType.IMAGE || AdFilter.isAdText(block.text)) return@forEachIndexed
             sentenceRanges(block.text).forEach { (s, e) ->
                 val speakable = speakableText(block.text.substring(s, e))
                 if (speakable.isNotBlank()) result.add(SpeechSegment(firstBlockIndex + index, s, e, speakable))
