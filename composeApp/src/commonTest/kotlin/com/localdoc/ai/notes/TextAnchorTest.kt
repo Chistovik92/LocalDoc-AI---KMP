@@ -144,6 +144,14 @@ class TextAnchorTest {
         assertEquals(1, multi.endBlock)
         assertEquals("про море.\nВторой абзац про горы", multi.quote)
 
+        // Абзацы пришли склеенными, без переводов строки
+        val glued = assertNotNull(TextAnchor.locate(blocks, emptyList(), "про море.Второй абзац про горы и реки.Третий абзац", 0..2))
+        assertEquals(0, glued.block)
+        assertEquals(blocks[0].text.indexOf("про море."), glued.start)
+        assertEquals(2, glued.endBlock)
+        assertEquals("Третий абзац".length, glued.end)
+        assertEquals("про море.\nВторой абзац про горы и реки.\nТретий абзац", glued.quote)
+
         assertNull(TextAnchor.locate(blocks, emptyList(), "нет такого", 0..2))
         assertNull(TextAnchor.locate(blocks, emptyList(), "   ", 0..2))
     }

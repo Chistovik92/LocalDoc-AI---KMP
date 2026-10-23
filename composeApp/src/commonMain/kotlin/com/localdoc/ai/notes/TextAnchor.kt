@@ -93,8 +93,44 @@ data class TextAnchor(
                 val endAt = blocks[endIndex].text.indexOf(tail).let { if (it < 0) 0 else it + tail.length }
                 return create(blocks, chapters, i, at, endIndex, endAt)
             }
+            return locateAcrossBlocks(blocks, chapters, selected, candidates)
+        }
+
+        /**
+         * Выделение через несколько абзацев, текст которого пришёл без переводов строки (абзацы склеены):
+         * ищем блок, чей хвост совпадает с началом выделения, и дальше идём по блокам, пока выделение не кончится.
+         * Пробелы при сравнении не учитываются.
+         */
+        private fun locateAcrossBlocks(blocks: List<Block>, chapters: List<Chapter>, selected: String, candidates: IntRange): TextAnchor? {
+            val flat = selected.filterNot { it.isWhitespace() }
+            if (flat.length < MIN_ACROSS_CHARS) return null
+            for (i in candidates) {
+                val text = blocks.getOrNull(i)?.text ?: continue
+                val kept = text.indices.filterNot { text[it].isWhitespace() }
+                val squeezed = kept.map { text[it] }.joinToString("")
+                val tailAt = (0 until squeezed.length).firstOrNull { flat.startsWith(squeezed.substring(it)) && squeezed.length - it < flat.length } ?: continue
+                var rest = flat.substring(squeezed.length - tailAt)
+                var j = i + 1
+                while (rest.isNotEmpty() && j < blocks.size) {
+                    val next = blocks[j].text.filterNot { it.isWhitespace() }
+                    if (rest.startsWith(next)) {
+                        rest = rest.substring(next.length)
+                        j++
+                        continue
+                    }
+                    if (!next.startsWith(rest)) return null
+                    // Конец выделения внутри блока j: переводим позицию в «сжатом» тексте обратно в обычную
+                    val keptNext = blocks[j].text.indices.filterNot { blocks[j].text[it].isWhitespace() }
+                    return create(blocks, chapters, i, kept[tailAt], j, keptNext[rest.length - 1] + 1)
+                }
+                if (rest.isNotEmpty()) return null
+                // Выделение кончилось ровно на конце последнего блока
+                return create(blocks, chapters, i, kept[tailAt], j - 1, blocks[j - 1].text.length)
+            }
             return null
         }
+
+        private const val MIN_ACROSS_CHARS = 8
     }
 }
 
