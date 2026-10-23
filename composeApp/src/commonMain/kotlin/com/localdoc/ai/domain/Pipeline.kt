@@ -85,6 +85,19 @@ class SmartPipeline(
         return engine.generateStream(buildPrompt(system, user), maxTokens)
     }
 
+    /**
+     * Словарная статья для слова или выражения [word] в предложении [sentence]: перевод на язык [target]
+     * и короткое определение. Предложение даёт контекст — от него зависит выбор значения.
+     */
+    fun lookup(word: String, sentence: String, target: Language, source: Language? = null): Flow<String> {
+        val from = source?.let { " The text is in ${it.english}." }.orEmpty()
+        val system = "You are a concise bilingual dictionary. Answer with one line in the format " +
+            "\"<translation> — <short definition>\", both in ${target.english}. No quotes, no extra comments."
+        val user = "Word or phrase: \"$word\".$from\nIt is used in this sentence: \"$sentence\"\n" +
+            "Give its meaning in this context, translated into ${target.english}."
+        return engine.generateStream(buildPrompt(system, user), maxTokens = 160)
+    }
+
     /** Простой чат без документа. */
     fun chat(message: String, maxTokens: Int = 1536): Flow<String> =
         engine.generateStream(buildPrompt(SYSTEM_PROMPT, message), maxTokens)
