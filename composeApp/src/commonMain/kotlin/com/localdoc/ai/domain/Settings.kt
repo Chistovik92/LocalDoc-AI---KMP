@@ -62,13 +62,18 @@ class PersistedSetting<T>(
     private val kv: KeyValueStore,
     private val key: String,
     private val serializer: KSerializer<T>,
-    default: T
+    private val default: T
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val _value = MutableStateFlow(
         kv.get(key)?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() } ?: default
     )
     val value: StateFlow<T> = _value.asStateFlow()
+
+    /** Перечитывает значение из хранилища (после восстановления из резервной копии); без записи — берётся значение по умолчанию. */
+    fun reload() {
+        _value.value = kv.get(key)?.let { runCatching { json.decodeFromString(serializer, it) }.getOrNull() } ?: default
+    }
 
     fun update(transform: (T) -> T) {
         val next = transform(_value.value)

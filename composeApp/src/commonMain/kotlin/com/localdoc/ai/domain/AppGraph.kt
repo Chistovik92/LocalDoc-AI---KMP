@@ -1,5 +1,8 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.backup.BackupService
+import com.localdoc.ai.backup.BackupStorage
+import com.localdoc.ai.backup.RestoreResult
 import com.localdoc.ai.book.BookImporter
 import com.localdoc.ai.book.BookmarkRepository
 import com.localdoc.ai.lang.PageTranslator
@@ -9,6 +12,10 @@ import com.localdoc.ai.download.ModelDownloader
 import com.localdoc.ai.engine.LlamaEngine
 import com.localdoc.ai.model.ModelCatalog
 import com.localdoc.ai.model.ModelSpec
+import com.localdoc.ai.notes.AnnotationRepository
+import com.localdoc.ai.notes.DictionaryRepository
+import com.localdoc.ai.search.FullTextIndex
+import com.localdoc.ai.search.LibrarySearch
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
 import com.localdoc.ai.catalog.CatalogImportResult
@@ -31,6 +38,7 @@ import com.localdoc.ai.platform.RawHttp
 import com.localdoc.ai.platform.SecureStore
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
+import com.localdoc.ai.platform.PlatformActions
 import com.localdoc.ai.rag.HashingEmbedder
 import com.localdoc.ai.rag.RagRepository
 import com.localdoc.ai.rag.VectorStore
@@ -51,6 +59,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Сообщение чата. */
 data class ChatMessage(
@@ -88,7 +97,7 @@ object AppGraph {
     val pdfExtractor: PdfExtractor = PdfExtractor()
     val files: FileAccess = FileAccess()
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
-    val library: LibraryRepository by lazy { LibraryRepository(kv, files) }
+    val library: LibraryRepository by lazy { LibraryRepository(kv, files) { search.invalidate(it) } }
 
     val readerSettings = PersistedSetting(kv, "reader_settings", ReaderSettings.serializer(), ReaderSettings())
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
@@ -96,6 +105,77 @@ object AppGraph {
 
     /** Закладки в книгах и на веб-страницах. */
     val bookmarks: BookmarkRepository = BookmarkRepository({ kv.get(KEY_BOOKMARKS) }, { kv.put(KEY_BOOKMARKS, it) })
+
+    /** Цитаты и заметки в книгах. */
+    val annotations: AnnotationRepository = AnnotationRepository({ kv.get(KEY_ANNOTATIONS) }, { kv.put(KEY_ANNOTATIONS, it) })
+
+    /** Личный словарь: слова, выделенные в тексте, с переводом или определением. */
+    val dictionary: DictionaryRepository = DictionaryRepository({ kv.get(KEY_DICTIONARY) }, { kv.put(KEY_DICTIONARY, it) })
+
+    private val searchIndex: FullTextIndex by lazy {
+        FullTextIndex(files.asNovelFiles(), { kv.get(KEY_SEARCH_INDEX) }, { kv.put(KEY_SEARCH_INDEX, it) })
+    }
+
+    /** Поиск по тексту книг библиотеки и по каталогу устройства; индекс лежит на диске и обновляется по изменениям. */
+    val search: LibrarySearch by lazy {
+        LibrarySearch(searchIndex, { library.entries.value }, { id -> library.load(id)?.blocks?.map { it.text } }, { catalog.items.value })
+    }
+
+    /** Ход обновления поискового индекса: null — не идёт, иначе доля готового (0..1). */
+    val searchIndexProgress = MutableStateFlow<Float?>(null)
+    private var searchSync: Job? = null
+    private var searchSyncAgain = false
+
+    /** Приводит индекс в соответствие с библиотекой и каталогом; вызов во время работы запускает ещё один проход после неё. */
+    fun syncSearchIndex() {
+        if (searchSync?.isActive == true) {
+            searchSyncAgain = true
+            return
+        }
+        searchSync = appScope.launch {
+            try {
+                do {
+                    searchSyncAgain = false
+                    searchIndexProgress.value = 0f
+                    withContext(Dispatchers.Default) {
+                        search.sync { done, total -> searchIndexProgress.value = done.toFloat() / total.coerceAtLeast(1) }
+                    }
+                } while (searchSyncAgain)
+            } finally {
+                searchIndexProgress.value = null
+            }
+        }
+    }
+
+    private val backupStorage = object : BackupStorage {
+        override fun getValue(key: String) = kv.get(key)
+        override fun putValue(key: String, value: String) = kv.put(key, value)
+        override fun removeValue(key: String) = kv.remove(key)
+        override fun readFile(name: String) = files.readAppFile(name)
+        override fun writeFile(name: String, bytes: ByteArray) = files.writeAppFile(name, bytes)
+        override fun listFiles(prefix: String) = files.listAppFiles(prefix)
+        override fun deleteFiles(prefix: String) = files.deleteAppFiles(prefix)
+    }
+
+    /** Резервная копия библиотеки и настроек одним файлом (без паролей сайтов). */
+    val backup: BackupService by lazy { BackupService(backupStorage, PlatformActions.appVersion) }
+
+    /** Восстанавливает данные из копии и обновляет всё, что держит их в памяти. */
+    fun restoreBackup(bytes: ByteArray): RestoreResult {
+        val result = backup.restore(bytes)
+        if (result is RestoreResult.Restored) {
+            library.reload()
+            bookmarks.reload()
+            annotations.reload()
+            dictionary.reload()
+            readerSettings.reload()
+            voiceSettings.reload()
+            translationSettings.reload()
+            searchIndex.clear()
+            syncSearchIndex()
+        }
+        return result
+    }
 
     /** Документы (ключи вида «book:id» / «web:id»), у которых сейчас включён перевод. */
     val translating = MutableStateFlow<Set<String>>(emptySet())
@@ -349,4 +429,7 @@ object AppGraph {
 
     private const val KEY_LOADED_MODEL = "loaded_model_id"
     private const val KEY_BOOKMARKS = "bookmarks_v1"
+    private const val KEY_ANNOTATIONS = "annotations_v1"
+    private const val KEY_DICTIONARY = "dictionary_v1"
+    private const val KEY_SEARCH_INDEX = "search_index_v1"
 }

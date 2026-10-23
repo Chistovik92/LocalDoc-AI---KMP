@@ -59,6 +59,7 @@ import com.localdoc.ai.ui.reader.PlayerBar
 import com.localdoc.ai.ui.reader.ReaderView
 import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
@@ -69,6 +70,8 @@ private enum class Tab(val label: String, val icon: ImageVector, val selectedIco
 }
 
 /** Открытая книга в читалке. */
+private const val SEARCH_INDEX_DELAY_MS = 3_000L
+
 private class OpenBook(val entryId: String, val book: Book, val startBlock: Int)
 
 private fun bookKey(entryId: String) = "book:$entryId"
@@ -155,6 +158,15 @@ fun App() {
             SystemPlayer.start()
             AppGraph.updates.check(silent = true)
             AppGraph.restoreLastModel()
+        }
+
+        // Поисковый индекс следует за библиотекой и каталогом; пауза не даёт перестраивать его на каждый кадр прокрутки
+        val libraryEntries by AppGraph.library.entries.collectAsState()
+        val catalogItems by AppGraph.catalog.items.collectAsState()
+        val indexKey = libraryEntries.map { it.id to it.totalBlocks } to catalogItems.size
+        LaunchedEffect(indexKey) {
+            delay(SEARCH_INDEX_DELAY_MS)
+            AppGraph.syncSearchIndex()
         }
 
         // Документы извне: «Поделиться», открытие файла, ссылки

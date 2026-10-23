@@ -14,7 +14,12 @@ import kotlin.random.Random
  * Библиотека: список записей (KV, JSON) + кэш разобранных книг в файлах приложения.
  * Порядок записей — недавние сверху. Повторный импорт того же источника обновляет запись.
  */
-class LibraryRepository(private val kv: KeyValueStore, private val files: FileAccess) {
+class LibraryRepository(
+    private val kv: KeyValueStore,
+    private val files: FileAccess,
+    /** Содержимое книги заменено повторным импортом: производные данные (поисковый индекс) устарели. */
+    private val onContentReplaced: (String) -> Unit = {}
+) {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
     private val _entries = MutableStateFlow(loadEntries())
@@ -43,6 +48,7 @@ class LibraryRepository(private val kv: KeyValueStore, private val files: FileAc
             imageBytes = imageBytes
         )
         update(listOf(entry) + _entries.value.filterNot { it.id == id })
+        if (existing != null) onContentReplaced(id)
         entry
     }
 
@@ -78,6 +84,11 @@ class LibraryRepository(private val kv: KeyValueStore, private val files: FileAc
         files.deleteAppFile(fileName(id))
         files.deleteAppFiles(imagePrefix(id))
         update(_entries.value.filterNot { it.id == id })
+    }
+
+    /** Перечитывает список из хранилища (после восстановления из резервной копии). */
+    fun reload() {
+        _entries.value = loadEntries()
     }
 
     private fun update(list: List<BookEntry>) {

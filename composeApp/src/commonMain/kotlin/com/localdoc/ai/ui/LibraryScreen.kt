@@ -383,8 +383,9 @@ private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit
     }
 }
 
-/** Удаление книги вместе с её закладками. */
+/** Удаление книги вместе с её закладками, цитатами и заметками. */
 private fun removeBook(id: String) {
     AppGraph.library.remove(id)
     AppGraph.bookmarks.removeForEntry(id)
+    AppGraph.annotations.removeForEntry(id)
 }
