@@ -1,5 +1,7 @@
 package com.localdoc.ai.book
 
+import com.localdoc.ai.notes.AnchorResolver
+import com.localdoc.ai.notes.TextAnchor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,8 +25,17 @@ data class Bookmark(
     /** Адрес страницы для веб-закладок (открывается из кэша, а при его отсутствии — по сети). */
     val url: String = "",
     /** Название главы/раздела на момент создания закладки. */
-    val chapter: String = ""
-)
+    val chapter: String = "",
+    /**
+     * Якорь места (фрагмент, окружение, глава): по нему закладка находит своё место, даже если книгу разобрали заново
+     * и номера блоков сдвинулись. У закладок, созданных до 1.8.0, якоря нет — используется [block].
+     */
+    val anchor: TextAnchor? = null
+) {
+    /** Блок, на котором закладка стоит в текущем разборе [book]. */
+    fun resolveBlock(book: Book): Int =
+        anchor?.let { AnchorResolver.resolve(it, book.blocks, book.chapters).block } ?: block.coerceIn(0, (book.blocks.size - 1).coerceAtLeast(0))
+}
 
 /** Закладки: список в KV (JSON), порядок — новые сверху. Хранилище передаётся функциями — удобно для тестов. */
 class BookmarkRepository(
@@ -43,7 +54,7 @@ class BookmarkRepository(
         _all.value.firstOrNull { it.entryId == entryId && it.block in range }
 
     /** Добавляет закладку; если на этом блоке она уже есть — возвращает существующую. */
-    fun add(entry: BookEntry, block: Int, text: String, chapter: String = ""): Bookmark {
+    fun add(entry: BookEntry, block: Int, text: String, chapter: String = "", anchor: TextAnchor? = null): Bookmark {
         _all.value.firstOrNull { it.entryId == entry.id && it.block == block }?.let { return it }
         val bookmark = Bookmark(
             id = Random.nextLong().toULong().toString(16),
@@ -53,7 +64,8 @@ class BookmarkRepository(
             block = block,
             excerpt = excerptOf(text),
             url = if (entry.format == BookFormat.WEB) entry.source else "",
-            chapter = chapter
+            chapter = chapter,
+            anchor = anchor
         )
         update(listOf(bookmark) + _all.value)
         return bookmark
@@ -62,18 +74,23 @@ class BookmarkRepository(
     fun remove(id: String) = update(_all.value.filterNot { it.id == id })
 
     /** Закладка снимается, если уже стоит на странице, иначе ставится. Возвращает true, если закладка поставлена. */
-    fun toggle(entry: BookEntry, range: IntRange, block: Int, text: String, chapter: String = ""): Boolean {
+    fun toggle(entry: BookEntry, range: IntRange, block: Int, text: String, chapter: String = "", anchor: TextAnchor? = null): Boolean {
         val existing = findIn(entry.id, range)
         if (existing != null) {
             remove(existing.id)
             return false
         }
-        add(entry, block, text, chapter)
+        add(entry, block, text, chapter, anchor)
         return true
     }
 
     /** Удаляет закладки книги вместе с самой книгой. */
     fun removeForEntry(entryId: String) = update(_all.value.filterNot { it.entryId == entryId })
+
+    /** Перечитывает закладки из хранилища (после восстановления из резервной копии). */
+    fun reload() {
+        _all.value = read()
+    }
 
     private fun update(list: List<Bookmark>) {
         _all.value = list
