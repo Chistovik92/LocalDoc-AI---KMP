@@ -44,6 +44,7 @@ import com.localdoc.ai.net.nowMillis
 import com.localdoc.ai.notes.Annotation
 import com.localdoc.ai.notes.AnnotationExport
 import com.localdoc.ai.platform.FilePicker
+import com.localdoc.ai.platform.IoDispatcher
 import com.localdoc.ai.platform.SaveResult
 import com.localdoc.ai.ui.reader.AnnotationRow
 import com.localdoc.ai.ui.reader.NoteDialog
@@ -173,7 +174,7 @@ fun BackupSection() {
             message = null
             scope.launch {
                 try {
-                    val bytes = withContext(Dispatchers.IO) { AppGraph.backup.create() }
+                    val bytes = withContext(IoDispatcher) { AppGraph.backup.create() }
                     AppGraph.fileSaver.save(BackupFormat.suggestedName(nowMillis()), BackupFormat.MIME, bytes) { result ->
                         busy = false
                         message = when (result) {
@@ -202,7 +203,7 @@ fun BackupSection() {
                 scope.launch {
                     try {
                         val bytes = AppGraph.files.readBytes(uri)
-                        when (val check = withContext(Dispatchers.IO) { AppGraph.backup.inspect(bytes) }) {
+                        when (val check = withContext(IoDispatcher) { AppGraph.backup.inspect(bytes) }) {
                             is BackupCheck.Ok -> pending = bytes to check
                             is BackupCheck.Invalid -> message = check.reason
                             is BackupCheck.TooNew -> message = AppGraph.backup.tooNewMessage(check)
@@ -238,7 +239,7 @@ fun BackupSection() {
                     pending = null
                     busy = true
                     scope.launch {
-                        val result = withContext(Dispatchers.IO) { AppGraph.restoreBackup(bytes) }
+                        val result = withContext(IoDispatcher) { AppGraph.restoreBackup(bytes) }
                         busy = false
                         message = when (result) {
                             is RestoreResult.Restored -> "Восстановлено: книг — ${result.manifest.books}"
