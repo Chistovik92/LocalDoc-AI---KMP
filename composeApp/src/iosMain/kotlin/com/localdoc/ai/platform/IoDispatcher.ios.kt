@@ -3,4 +3,5 @@ package com.localdoc.ai.platform
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
-actual val IoDispatcher: CoroutineDispatcher = Dispatchers.IO
+// На Native `Dispatchers.IO` скрыт (internal), а Default — многопоточный пул
+actual val IoDispatcher: CoroutineDispatcher = Dispatchers.Default
