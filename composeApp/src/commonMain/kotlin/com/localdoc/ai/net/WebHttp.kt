@@ -86,17 +86,28 @@ class WebHttp(
         var payload = body
         var previous: String? = null
         repeat(MAX_REDIRECTS + 1) {
-            val headers = LinkedHashMap<String, String>()
-            headers["User-Agent"] = transport.userAgent
-            headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-            headers["Accept-Language"] = "ru,en;q=0.8"
-            headers.putAll(extra)
-            if (previous != null && "Referer" !in headers) headers["Referer"] = previous!!
-            cookies.header(url)?.let { headers["Cookie"] = it }
-            if (payload == null) headers.remove("Content-Type")
+            var retries = 0
+            var response: RawResponse
+            while (true) {
+                // Заголовки собираются заново на каждую попытку: cookie из ответа 429 / 503 должны уйти с повтором
+                val headers = LinkedHashMap<String, String>()
+                headers["User-Agent"] = transport.userAgent
+                headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+                headers["Accept-Language"] = "ru,en;q=0.8"
+                headers.putAll(extra)
+                if (previous != null && "Referer" !in headers) headers["Referer"] = previous!!
+                cookies.header(url)?.let { headers["Cookie"] = it }
+                if (payload == null) headers.remove("Content-Type")
 
-            val response = throttledExecute(RawRequest(url, verb, headers, payload), maxBytes)
-            response.setCookies.forEach { cookies.store(url, it) }
+                val attempt = throttledExecute(RawRequest(url, verb, headers, payload), maxBytes)
+                response = attempt.response
+                response.setCookies.forEach { cookies.store(url, it) }
+                // Повторяются только запросы на чтение: форма входа с одноразовым токеном второй раз не отправляется
+                val retry = response.status in RATE_LIMITED && verb == "GET" && retries < MAX_RATE_RETRIES &&
+                    (attempt.retryAfterMs ?: 0L) <= HostThrottle.MAX_BACKOFF_MS
+                if (!retry) break
+                retries++
+            }
 
             val location = response.headers["location"]
             if (response.status in REDIRECT_CODES && !location.isNullOrBlank()) {
@@ -113,29 +124,24 @@ class WebHttp(
         throw IllegalStateException("Слишком много перенаправлений")
     }
 
+    private class Attempt(val response: RawResponse, val retryAfterMs: Long?)
+
     /**
-     * Запрос в очереди своего сайта ([HostThrottle]). На 429 / 503 ждёт указанное в `Retry-After` (или удвоенную
-     * паузу) и повторяет не больше [MAX_RATE_RETRIES] раз; если сайт просит ждать дольше минуты — отдаёт ответ как есть.
+     * Один запрос в очереди своего сайта ([HostThrottle]). О 429 / 503 очередь узнаёт здесь и увеличивает паузу,
+     * а повтор (не больше [MAX_RATE_RETRIES] раз, только GET, не при `Retry-After` дольше минуты) решает [send].
      */
-    private suspend fun throttledExecute(request: RawRequest, maxBytes: Long): RawResponse {
-        var retries = 0
-        while (true) {
-            var retryAfter: Long? = null
-            val response = throttle.turn(hostOf(request.url)) { turn ->
-                transport.execute(request, maxBytes).also { r ->
-                    if (r.status in RATE_LIMITED) {
-                        retryAfter = parseRetryAfterMs(r.headers["retry-after"])
-                        turn.tooManyRequests(retryAfter)
-                    } else {
-                        turn.succeeded()
-                    }
-                }
+    private suspend fun throttledExecute(request: RawRequest, maxBytes: Long): Attempt =
+        throttle.turn(hostOf(request.url)) { turn ->
+            val response = transport.execute(request, maxBytes)
+            if (response.status in RATE_LIMITED) {
+                val retryAfter = parseRetryAfterMs(response.headers["retry-after"])
+                turn.tooManyRequests(retryAfter)
+                Attempt(response, retryAfter)
+            } else {
+                turn.succeeded()
+                Attempt(response, null)
             }
-            val tooLong = (retryAfter ?: 0L) > HostThrottle.MAX_BACKOFF_MS
-            if (response.status !in RATE_LIMITED || tooLong || retries >= MAX_RATE_RETRIES) return response
-            retries++
         }
-    }
 
     private fun requireHttp(url: String): String {
         require(url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {

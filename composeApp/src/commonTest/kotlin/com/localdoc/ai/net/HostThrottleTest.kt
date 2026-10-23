@@ -75,6 +75,24 @@ class HostThrottleTest {
     }
 
     @Test
+    fun `cookie from a 429 response is sent with the retry`() = runTest {
+        var calls = 0
+        val s = Setup { if (calls++ == 0) page("no", status = 429, cookies = listOf("sid=abc; Path=/")) else page("ok") }
+        val result = s.http.get("https://novel.example/ch1")
+        assertEquals(200, result.status)
+        assertNull(s.transport.requests[0].headers["Cookie"])
+        assertEquals("sid=abc", s.transport.requests[1].headers["Cookie"])
+    }
+
+    @Test
+    fun `form posts are never replayed automatically`() = runTest {
+        val s = Setup { page("no", status = 429) }
+        val result = s.http.postForm("https://novel.example/login", listOf("user" to "a"))
+        assertEquals(429, result.status)
+        assertEquals(1, s.transport.requests.size)
+    }
+
+    @Test
     fun `retry after parses seconds only`() {
         assertEquals(5000L, WebHttp.parseRetryAfterMs(" 5 "))
         assertNull(WebHttp.parseRetryAfterMs("Wed, 21 Oct 2026 07:28:00 GMT"))
