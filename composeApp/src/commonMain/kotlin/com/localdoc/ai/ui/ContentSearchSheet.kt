@@ -30,9 +30,7 @@ import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.search.SearchResults
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 
 /**
  * Поиск по тексту всех книг библиотеки и по каталогу устройства. Результат книги открывает её на найденном месте;
@@ -61,7 +59,7 @@ fun ContentSearchSheet(
         }
         delay(SEARCH_DELAY_MS)
         try {
-            results = withContext(Dispatchers.Default) { AppGraph.search.search(query) }
+            results = AppGraph.searchContent(query)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

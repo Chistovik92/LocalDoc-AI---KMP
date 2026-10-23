@@ -97,7 +97,7 @@ object AppGraph {
     val pdfExtractor: PdfExtractor = PdfExtractor()
     val files: FileAccess = FileAccess()
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
-    val library: LibraryRepository by lazy { LibraryRepository(kv, files) { search.invalidate(it) } }
+    val library: LibraryRepository by lazy { LibraryRepository(kv, files) { id -> appScope.launch(indexDispatcher) { search.invalidate(id) } } }
 
     val readerSettings = PersistedSetting(kv, "reader_settings", ReaderSettings.serializer(), ReaderSettings())
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
@@ -116,10 +116,16 @@ object AppGraph {
         FullTextIndex(files.asNovelFiles(), { kv.get(KEY_SEARCH_INDEX) }, { kv.put(KEY_SEARCH_INDEX, it) })
     }
 
+    /** Все операции с индексом идут по одной на этом диспетчере: индекс не рассчитан на параллельную запись. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val indexDispatcher = Dispatchers.Default.limitedParallelism(1)
+
     /** Поиск по тексту книг библиотеки и по каталогу устройства; индекс лежит на диске и обновляется по изменениям. */
-    val search: LibrarySearch by lazy {
+    private val search: LibrarySearch by lazy {
         LibrarySearch(searchIndex, { library.entries.value }, { id -> library.load(id)?.blocks?.map { it.text } }, { catalog.items.value })
     }
+
+    suspend fun searchContent(query: String) = withContext(indexDispatcher) { search.search(query) }
 
     /** Ход обновления поискового индекса: null — не идёт, иначе доля готового (0..1). */
     val searchIndexProgress = MutableStateFlow<Float?>(null)
@@ -137,7 +143,7 @@ object AppGraph {
                 do {
                     searchSyncAgain = false
                     searchIndexProgress.value = 0f
-                    withContext(Dispatchers.Default) {
+                    withContext(indexDispatcher) {
                         search.sync { done, total -> searchIndexProgress.value = done.toFloat() / total.coerceAtLeast(1) }
                     }
                 } while (searchSyncAgain)
@@ -171,7 +177,7 @@ object AppGraph {
             readerSettings.reload()
             voiceSettings.reload()
             translationSettings.reload()
-            searchIndex.clear()
+            appScope.launch(indexDispatcher) { searchIndex.clear() }
             syncSearchIndex()
         }
         return result
