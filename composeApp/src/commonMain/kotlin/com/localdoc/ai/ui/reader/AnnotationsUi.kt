@@ -30,35 +30,30 @@ import com.localdoc.ai.notes.AnnotationExport
 import com.localdoc.ai.notes.BookNotes
 import com.localdoc.ai.platform.SaveResult
 
-/** Список цитат и заметок: нажатие — переход к месту, значки — правка заметки и удаление. */
+/** Строка цитаты: нажатие — переход к месту, значки — правка заметки и удаление. */
 @Composable
-internal fun AnnotationList(
-    annotations: List<Annotation>,
+internal fun AnnotationRow(
+    item: Annotation,
     showBookTitle: Boolean,
     onJump: (Annotation) -> Unit,
     onEdit: (Annotation) -> Unit,
-    onDelete: (Annotation) -> Unit,
-    modifier: Modifier = Modifier
+    onDelete: (Annotation) -> Unit
 ) {
-    LazyColumn(modifier = modifier) {
-        items(annotations, key = { it.id }) { item ->
-            ListItem(
-                overlineContent = (if (showBookTitle) item.bookTitle else item.chapter).takeIf { it.isNotBlank() }
-                    ?.let { text -> ({ Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) }) },
-                headlineContent = { Text(item.quote.replace('\n', ' '), maxLines = 4, overflow = TextOverflow.Ellipsis) },
-                supportingContent = item.note.takeIf { it.isNotBlank() }
-                    ?.let { note -> ({ Text(note, maxLines = 4, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.primary) }) },
-                trailingContent = {
-                    Row {
-                        IconButton(onClick = { onEdit(item) }) { Icon(Icons.Default.Edit, contentDescription = "Изменить заметку") }
-                        IconButton(onClick = { onDelete(item) }) { Icon(Icons.Default.Delete, contentDescription = "Удалить цитату") }
-                    }
-                },
-                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                modifier = Modifier.clickable { onJump(item) }
-            )
-        }
-    }
+    ListItem(
+        overlineContent = (if (showBookTitle) item.bookTitle else item.chapter).takeIf { it.isNotBlank() }
+            ?.let { text -> ({ Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) }) },
+        headlineContent = { Text(item.quote.replace("\n", " "), maxLines = 4, overflow = TextOverflow.Ellipsis) },
+        supportingContent = item.note.takeIf { it.isNotBlank() }
+            ?.let { note -> ({ Text(note, maxLines = 4, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.primary) }) },
+        trailingContent = {
+            Row {
+                IconButton(onClick = { onEdit(item) }) { Icon(Icons.Default.Edit, contentDescription = "Изменить заметку") }
+                IconButton(onClick = { onDelete(item) }) { Icon(Icons.Default.Delete, contentDescription = "Удалить цитату") }
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.clickable { onJump(item) }
+    )
 }
 
 /** Цитаты и заметки одной книги с выгрузкой в Markdown и EPUB. */
@@ -86,7 +81,9 @@ internal fun AnnotationsSheet(
                 OutlinedButton(onClick = { onExport(false) }) { Text("В Markdown", maxLines = 1, softWrap = false) }
                 OutlinedButton(onClick = { onExport(true) }) { Text("В EPUB", maxLines = 1, softWrap = false) }
             }
-            AnnotationList(annotations, showBookTitle = false, onJump = onJump, onEdit = onEdit, onDelete = onDelete, modifier = Modifier.padding(bottom = 24.dp))
+            LazyColumn(modifier = Modifier.padding(bottom = 24.dp)) {
+                items(annotations, key = { it.id }) { AnnotationRow(it, showBookTitle = false, onJump = onJump, onEdit = onEdit, onDelete = onDelete) }
+            }
         }
     }
 }
