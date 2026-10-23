@@ -92,7 +92,7 @@ class NovelDownloader(
     private val source: ChapterSource,
     private val fetcher: FileFetcher,
     private val files: NovelFiles,
-    private val pause: suspend () -> Unit = { delay(POLITE_DELAY_MS) }
+    private val pause: suspend () -> Unit = {}
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -299,10 +299,10 @@ class NovelDownloader(
     fun forget(tocOrStartUrl: String) = files.deleteAll("novels/" + folderId(tocOrStartUrl) + "/")
 
     companion object {
-        private const val POLITE_DELAY_MS = 250L
-        private const val RETRY_DELAY_MS = 800L
+        // Паузы между запросами к сайту выдерживает общий клиент (WebHttp / HostThrottle); главы идут по одной
+        private const val RETRY_DELAY_MS = 2_000L
         private const val ATTEMPTS = 3
-        private const val BATCH = 3
+        private const val BATCH = 1
         private const val MAX_CONSECUTIVE_FAILURES = 6
         private const val MAX_CANDIDATES = 3
         private const val MIN_TOC = 2

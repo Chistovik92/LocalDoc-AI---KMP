@@ -123,8 +123,8 @@ android {
         applicationId = "com.localdoc.ai"
         minSdk = 29
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.7.5"
+        versionCode = 9
+        versionName = "1.7.6"
 
         ndk {
             // Современные флагманские устройства (Snapdragon 8 серии / Dimensity)
