@@ -55,8 +55,13 @@ class HttpStatusException(val status: Int, val url: String) : IllegalStateExcept
 /**
  * Общий HTTP-клиент приложения: ведёт редиректы вручную (до [MAX_REDIRECTS]), подставляет cookie только
  * тем хостам, которым они выданы, и сохраняет новые. Ни адреса с паролями, ни тела форм в журналы не пишутся.
+ * Запросы к одному сайту идут по одному и с паузой ([HostThrottle]), чтобы сайт не принял скачивание за атаку.
  */
-class WebHttp(private val transport: HttpTransport, val cookies: CookieJar) {
+class WebHttp(
+    private val transport: HttpTransport,
+    val cookies: CookieJar,
+    private val throttle: HostThrottle = HostThrottle()
+) {
 
     val userAgent: String get() = transport.userAgent
 
@@ -81,17 +86,28 @@ class WebHttp(private val transport: HttpTransport, val cookies: CookieJar) {
         var payload = body
         var previous: String? = null
         repeat(MAX_REDIRECTS + 1) {
-            val headers = LinkedHashMap<String, String>()
-            headers["User-Agent"] = transport.userAgent
-            headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
-            headers["Accept-Language"] = "ru,en;q=0.8"
-            headers.putAll(extra)
-            if (previous != null && "Referer" !in headers) headers["Referer"] = previous!!
-            cookies.header(url)?.let { headers["Cookie"] = it }
-            if (payload == null) headers.remove("Content-Type")
+            var retries = 0
+            var response: RawResponse
+            while (true) {
+                // Заголовки собираются заново на каждую попытку: cookie из ответа 429 / 503 должны уйти с повтором
+                val headers = LinkedHashMap<String, String>()
+                headers["User-Agent"] = transport.userAgent
+                headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+                headers["Accept-Language"] = "ru,en;q=0.8"
+                headers.putAll(extra)
+                if (previous != null && "Referer" !in headers) headers["Referer"] = previous!!
+                cookies.header(url)?.let { headers["Cookie"] = it }
+                if (payload == null) headers.remove("Content-Type")
 
-            val response = transport.execute(RawRequest(url, verb, headers, payload), maxBytes)
-            response.setCookies.forEach { cookies.store(url, it) }
+                val attempt = throttledExecute(RawRequest(url, verb, headers, payload), maxBytes)
+                response = attempt.response
+                response.setCookies.forEach { cookies.store(url, it) }
+                // Повторяются только запросы на чтение: форма входа с одноразовым токеном второй раз не отправляется
+                val retry = response.status in RATE_LIMITED && verb == "GET" && retries < MAX_RATE_RETRIES &&
+                    (attempt.retryAfterMs ?: 0L) <= HostThrottle.MAX_BACKOFF_MS
+                if (!retry) break
+                retries++
+            }
 
             val location = response.headers["location"]
             if (response.status in REDIRECT_CODES && !location.isNullOrBlank()) {
@@ -108,6 +124,25 @@ class WebHttp(private val transport: HttpTransport, val cookies: CookieJar) {
         throw IllegalStateException("Слишком много перенаправлений")
     }
 
+    private class Attempt(val response: RawResponse, val retryAfterMs: Long?)
+
+    /**
+     * Один запрос в очереди своего сайта ([HostThrottle]). О 429 / 503 очередь узнаёт здесь и увеличивает паузу,
+     * а повтор (не больше [MAX_RATE_RETRIES] раз, только GET, не при `Retry-After` дольше минуты) решает [send].
+     */
+    private suspend fun throttledExecute(request: RawRequest, maxBytes: Long): Attempt =
+        throttle.turn(hostOf(request.url)) { turn ->
+            val response = transport.execute(request, maxBytes)
+            if (response.status in RATE_LIMITED) {
+                val retryAfter = parseRetryAfterMs(response.headers["retry-after"])
+                turn.tooManyRequests(retryAfter)
+                Attempt(response, retryAfter)
+            } else {
+                turn.succeeded()
+                Attempt(response, null)
+            }
+        }
+
     private fun requireHttp(url: String): String {
         require(url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
             "Поддерживаются только ссылки http(s)"
@@ -120,7 +155,17 @@ class WebHttp(private val transport: HttpTransport, val cookies: CookieJar) {
         const val MAX_PAGE_BYTES = 12L * 1024 * 1024
         const val MAX_IMAGE_BYTES = 8L * 1024 * 1024
         const val MAX_DOWNLOAD_BYTES = 150L * 1024 * 1024
+        const val MAX_RATE_RETRIES = 2
         private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
+        private val RATE_LIMITED = setOf(429, 503)
+
+        /** Сайт (с портом) из адреса — ключ очереди запросов. */
+        internal fun hostOf(url: String): String =
+            url.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#').substringAfterLast('@').lowercase()
+
+        /** `Retry-After` в секундах → миллисекунды; дата и мусор дают null. */
+        internal fun parseRetryAfterMs(value: String?): Long? =
+            value?.trim()?.toLongOrNull()?.takeIf { it >= 0 }?.let { it * 1000 }
 
         /** application/x-www-form-urlencoded: UTF-8, пробел → «+». */
         fun formEncode(fields: List<Pair<String, String>>): String =

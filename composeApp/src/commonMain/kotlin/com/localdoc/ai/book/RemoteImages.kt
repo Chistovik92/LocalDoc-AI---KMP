@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withPermit
  */
 suspend fun Book.embedRemoteImages(
     maxImages: Int = 150,
-    concurrency: Int = 4,
+    concurrency: Int = 2,
     onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     fetch: suspend (String) -> ByteArray?
 ): Book {
