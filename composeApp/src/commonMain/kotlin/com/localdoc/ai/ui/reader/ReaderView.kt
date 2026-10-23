@@ -69,11 +69,14 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,6 +102,12 @@ import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.SpanStyleType
+import com.localdoc.ai.notes.AnchorResolver
+import com.localdoc.ai.notes.Annotation
+import com.localdoc.ai.notes.TextAnchor
+import com.localdoc.ai.notes.WordSelection
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalTextToolbar
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.ChatMessage
 import com.localdoc.ai.domain.ReaderFont
@@ -213,6 +222,18 @@ fun ReaderView(
     var showSaveAs by remember { mutableStateOf(false) }
     var askTerm by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
+    var showAnnotations by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    // Новая заметка (место выделения) и правка существующей; слово для словаря: слово + предложение
+    var noteDraft by remember { mutableStateOf<TextAnchor?>(null) }
+    var noteEdit by remember { mutableStateOf<Annotation?>(null) }
+    var wordLookup by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Смена ключа пересоздаёт область выделения и тем самым снимает выделение после действия
+    var selectionEpoch by remember { mutableStateOf(0) }
+    val toolbarState = remember { SelectionToolbarState() }
+    val textToolbar = remember(toolbarState) { ReaderTextToolbar(toolbarState) }
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
 
     val currentBlock by remember(firstIndex) { derivedStateOf { (firstIndex + listState.firstVisibleItemIndex).coerceAtMost(lastBlock) } }
     val chapterIndex = book.chapterIndexAt(currentBlock)
@@ -221,7 +242,13 @@ fun ReaderView(
 
     val entryId = docKey.substringAfter(':')
     val entry = AppGraph.library.entry(entryId)
-    val pageBookmark = bookmarks.firstOrNull { it.entryId == entryId && it.block in pageInfo.startBlock until pageInfo.endBlock }
+    val allAnnotations by AppGraph.annotations.all.collectAsState()
+    val bookAnnotations = remember(allAnnotations, entryId) { allAnnotations.filter { it.entryId == entryId } }
+    // Цитаты и заметки, подсвеченные в тексте: место ищется в текущем разборе книги, как и у закладок
+    val marksByBlock = remember(book, bookAnnotations) { annotationMarks(book, bookAnnotations) }
+    // Закладка стоит там, куда её якорь указывает в текущем разборе книги, а не на сохранённом номере блока
+    val resolvedBookmarks = remember(bookmarks, book) { bookmarks.filter { it.entryId == entryId }.associateWith { it.resolveBlock(book) } }
+    val pageBookmark = resolvedBookmarks.entries.firstOrNull { it.value in pageInfo.startBlock until pageInfo.endBlock }?.key
 
     val sourceCode = translationSettings.sourceLanguage
     val layout = settings.pageSize.chars
@@ -354,6 +381,49 @@ fun ReaderView(
 
     fun seekPage(index: Int) = goToBlock(pager.page(index.coerceIn(0, (pager.size - 1).coerceAtLeast(0))).startBlock)
 
+    /** Место выделенного текста в книге: сначала рядом с читаемым местом, затем по всей книге. */
+    fun locateSelection(selected: String): TextAnchor? {
+        val near = if (pagedDisplay) pageInfo.startBlock until pageInfo.endBlock
+        else (currentBlock - 5).coerceAtLeast(0)..(currentBlock + 60).coerceAtMost(lastBlock)
+        return TextAnchor.locate(book.blocks, book.chapters, selected, near)
+            ?: TextAnchor.locate(book.blocks, book.chapters, selected, 0..lastBlock)
+    }
+
+    fun onSelectionAction(action: SelectionAction) {
+        val copy = toolbarState.copy ?: return
+        scope.launch {
+            val selected = readSelection(clipboard, copy, keepInClipboard = action == SelectionAction.COPY)
+            if (selected == null) {
+                notice = "Не удалось получить выделенный текст"
+                return@launch
+            }
+            when (action) {
+                SelectionAction.COPY -> notice = "Скопировано"
+                SelectionAction.QUOTE, SelectionAction.NOTE -> {
+                    val anchor = locateSelection(selected)
+                    when {
+                        entry == null || anchor == null -> notice = "Это место не удалось сохранить: выделите текст книги"
+                        action == SelectionAction.QUOTE -> {
+                            AppGraph.annotations.add(entry, anchor)
+                            notice = "Цитата сохранена"
+                        }
+                        else -> noteDraft = anchor
+                    }
+                }
+                SelectionAction.WORD -> {
+                    val word = WordSelection.wordOf(selected)
+                    if (word == null) {
+                        notice = "Выделите одно слово или короткое выражение"
+                    } else {
+                        val block = locateSelection(word)?.block ?: currentBlock
+                        wordLookup = word to WordSelection.sentenceAround(book.blocks.getOrNull(block)?.text.orEmpty(), word)
+                    }
+                }
+            }
+            selectionEpoch++
+        }
+    }
+
     fun listen() = AppGraph.startReading(docKey, book, if (pagedDisplay) pageInfo.startBlock.coerceAtLeast(currentBlock) else currentBlock)
 
     fun runAi(action: ReaderAiAction, term: String? = null) {
@@ -398,6 +468,8 @@ fun ReaderView(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(paper.background)) {
+        CompositionLocalProvider(LocalTextToolbar provides textToolbar) {
+        key(selectionEpoch) { SelectionContainer {
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(top = 88.dp, bottom = 240.dp),
@@ -416,6 +488,7 @@ fun ReaderView(
                         settings = settings,
                         paper = paper,
                         highlight = speaking?.takeIf { it.block == index },
+                        marks = if (translatedBlocks == null) marksByBlock[index].orEmpty() else emptyList(),
                         onTap = if (isMine) ({ AppGraph.readAloud.jumpToBlock(index) }) else null,
                         modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = 24.dp)
                     )
@@ -425,6 +498,24 @@ fun ReaderView(
                 item { ChapterFooter(chapterNavigation, paper) }
             }
         }
+        } }
+        }
+
+        if (toolbarState.visible) {
+            SelectionActionBar(
+                canAnnotate = entry != null && !translating,
+                onAction = ::onSelectionAction,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = if (uiVisible) 76.dp else 12.dp, start = 16.dp, end = 16.dp)
+            )
+        }
+        ReaderNotice(
+            text = notice,
+            onGone = { notice = null },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 170.dp, start = 16.dp, end = 16.dp)
+        )
 
         AnimatedVisibility(
             visible = uiVisible,
@@ -459,7 +550,9 @@ fun ReaderView(
                                 val block = if (pagedDisplay) pageInfo.startBlock else currentBlock
                                 AppGraph.bookmarks.toggle(
                                     entry, pageInfo.startBlock until pageInfo.endBlock, block,
-                                    book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty()
+                                    book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty(),
+                                    TextAnchor.ofBlock(book.blocks, book.chapters, block),
+                                    blockOf = { it.resolveBlock(book) }
                                 )
                             }) {
                                 Icon(
@@ -477,6 +570,12 @@ fun ReaderView(
                                     DropdownMenuItem(text = { Text("Оглавление") }, onClick = { showMenu = false; showToc = true })
                                 }
                                 DropdownMenuItem(text = { Text("Закладки") }, onClick = { showMenu = false; showBookmarks = true })
+                                if (entry != null) {
+                                    DropdownMenuItem(
+                                        text = { Text("Цитаты и заметки" + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "") },
+                                        onClick = { showMenu = false; showAnnotations = true }
+                                    )
+                                }
                                 DropdownMenuItem(
                                     text = { Text(if (translating) "Перевод: включён" else "Перевод…") },
                                     onClick = { showMenu = false; showTranslate = true }
@@ -594,9 +693,56 @@ fun ReaderView(
             title = "Закладки",
             bookmarks = bookmarks.filter { it.entryId == entryId }.sortedBy { it.block },
             showBookTitle = false,
-            onJump = { mark -> showBookmarks = false; goToBlock(mark.block) },
+            onJump = { mark -> showBookmarks = false; goToBlock(mark.resolveBlock(book)) },
             onDelete = { AppGraph.bookmarks.remove(it.id) },
             onDismiss = { showBookmarks = false }
+        )
+    }
+    if (showAnnotations) {
+        AnnotationsSheet(
+            annotations = bookAnnotations,
+            onJump = { a ->
+                showAnnotations = false
+                goToBlock(AnchorResolver.resolve(a.anchor, book.blocks, book.chapters).block)
+            },
+            onEdit = { noteEdit = it },
+            onDelete = { AppGraph.annotations.remove(it.id) },
+            onExport = { epub -> exportBookNotes(entryId, book.title, book.author, epub) { message -> if (message != null) notice = message } },
+            onDismiss = { showAnnotations = false }
+        )
+    }
+    noteDraft?.let { anchor ->
+        NoteDialog(
+            quote = anchor.quote,
+            initial = "",
+            onDismiss = { noteDraft = null },
+            onSave = { text ->
+                entry?.let { AppGraph.annotations.add(it, anchor, text) }
+                noteDraft = null
+                notice = "Заметка сохранена"
+            }
+        )
+    }
+    noteEdit?.let { annotation ->
+        NoteDialog(
+            quote = annotation.quote,
+            initial = annotation.note,
+            onDismiss = { noteEdit = null },
+            onSave = { text ->
+                AppGraph.annotations.updateNote(annotation.id, text)
+                noteEdit = null
+            }
+        )
+    }
+    wordLookup?.let { (word, sentence) ->
+        WordLookupSheet(
+            word = word,
+            sentence = sentence,
+            entryId = entryId,
+            bookTitle = book.title,
+            sourceLanguage = sourceCode,
+            onOpenModels = { wordLookup = null; onOpenModels() },
+            onDismiss = { wordLookup = null }
         )
     }
     if (showAi) {
@@ -618,6 +764,25 @@ fun ReaderView(
             runAi(ReaderAiAction.EXPLAIN_TERM, term)
         }
     )
+}
+
+/** Цвет подсветки сохранённых цитат и заметок. */
+private val MARK_COLOR = Color(0x66FFD54F)
+
+/** Диапазоны символов по блокам, на которые приходятся цитаты и заметки в текущем разборе книги. */
+private fun annotationMarks(book: Book, annotations: List<Annotation>): Map<Int, List<IntRange>> {
+    val result = HashMap<Int, MutableList<IntRange>>()
+    for (annotation in annotations) {
+        val at = AnchorResolver.resolve(annotation.anchor, book.blocks, book.chapters)
+        if (!at.exact) continue
+        for (index in at.block..at.endBlock) {
+            val length = book.blocks.getOrNull(index)?.text?.length ?: continue
+            val from = if (index == at.block) at.start else 0
+            val to = if (index == at.endBlock) at.end else length
+            if (to > from) result.getOrPut(index) { ArrayList() }.add(from until to)
+        }
+    }
+    return result
 }
 
 private const val AI_WAIT_FOR_TRANSLATION_MS = 60_000L
@@ -701,6 +866,7 @@ private fun BlockText(
     settings: ReaderSettings,
     paper: PaperColors,
     highlight: SpeechSegment?,
+    marks: List<IntRange>,
     onTap: (() -> Unit)?,
     modifier: Modifier
 ) {
@@ -728,7 +894,7 @@ private fun BlockText(
         else -> 0.dp
     }
     val bottomPadding = if (block.type == BlockType.HEADING) 10.dp else (base * 0.7f).dp
-    val text = buildBlockText(block, highlight, highlightColor)
+    val text = buildBlockText(block, highlight, highlightColor, marks, MARK_COLOR)
     Text(
         text = if (block.type == BlockType.LIST_ITEM) AnnotatedString("•  ") + text else text,
         style = style.copy(
@@ -750,7 +916,13 @@ private fun BlockText(
     )
 }
 
-private fun buildBlockText(block: Block, highlight: SpeechSegment?, highlightColor: Color): AnnotatedString = buildAnnotatedString {
+private fun buildBlockText(
+    block: Block,
+    highlight: SpeechSegment?,
+    highlightColor: Color,
+    marks: List<IntRange>,
+    markColor: Color
+): AnnotatedString = buildAnnotatedString {
     append(block.text)
     val length = block.text.length
     for (span in block.spans) {
@@ -762,6 +934,11 @@ private fun buildBlockText(block: Block, highlight: SpeechSegment?, highlightCol
             SpanStyleType.CODE -> SpanStyle(fontFamily = FontFamily.Monospace, background = highlightColor.copy(alpha = 0.35f))
         }
         addStyle(style, s, e)
+    }
+    for (mark in marks) {
+        val s = mark.first.coerceIn(0, length)
+        val e = (mark.last + 1).coerceIn(s, length)
+        if (e > s) addStyle(SpanStyle(background = markColor), s, e)
     }
     if (highlight != null) {
         val s = highlight.start.coerceIn(0, length)

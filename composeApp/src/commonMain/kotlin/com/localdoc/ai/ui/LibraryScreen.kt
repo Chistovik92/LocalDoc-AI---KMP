@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -104,13 +105,15 @@ fun LibraryScreen(
     onPasteText: () -> Unit,
     onOpenWeb: () -> Unit,
     onOpenCatalog: () -> Unit,
-    onOpenModels: () -> Unit
+    onOpenModels: () -> Unit,
+    onOpenAt: (BookEntry, Int) -> Unit
 ) {
     val entries by AppGraph.library.entries.collectAsState()
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(LibraryFilter.ALL) }
     var showAdd by remember { mutableStateOf(false) }
     var saveAsFor by remember { mutableStateOf<BookEntry?>(null) }
+    var showContentSearch by remember { mutableStateOf(false) }
 
     val filtered = entries.filter { e ->
         (filter.formats == null || e.format in filter.formats.orEmpty()) &&
@@ -148,6 +151,16 @@ fun LibraryScreen(
                         }
                     }
                 )
+            }
+
+            if (query.trim().length >= 2) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    AssistChip(
+                        onClick = { showContentSearch = true },
+                        label = { Text("Искать «${query.trim()}» в тексте книг", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                    )
+                }
             }
 
             if (entries.isEmpty()) {
@@ -210,6 +223,15 @@ fun LibraryScreen(
     }
 
     saveAsFor?.let { SaveAsDialog(entry = it, onDismiss = { saveAsFor = null }) }
+
+    if (showContentSearch) {
+        ContentSearchSheet(
+            initialQuery = query.trim(),
+            onOpenBook = { entry, block -> showContentSearch = false; onOpenAt(entry, block) },
+            onOpenCatalog = { showContentSearch = false; onOpenCatalog() },
+            onDismiss = { showContentSearch = false }
+        )
+    }
 
     novelOnSheet?.let { novel ->
         NovelChaptersSheet(
@@ -383,8 +405,9 @@ private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit
     }
 }
 
-/** Удаление книги вместе с её закладками. */
+/** Удаление книги вместе с её закладками, цитатами и заметками. */
 private fun removeBook(id: String) {
     AppGraph.library.remove(id)
     AppGraph.bookmarks.removeForEntry(id)
+    AppGraph.annotations.removeForEntry(id)
 }

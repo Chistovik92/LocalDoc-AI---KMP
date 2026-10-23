@@ -19,7 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.book.Bookmark
 import com.localdoc.ai.domain.AppGraph
+import com.localdoc.ai.notes.Annotation
 import com.localdoc.ai.platform.PlatformBackHandler
 import com.localdoc.ai.ui.reader.ReaderSettingsContent
 import com.localdoc.ai.ui.reader.TranslationSettingsContent
@@ -57,14 +60,22 @@ enum class SettingsSection(val title: String, val description: String, val icon:
     TRANSLATION("Перевод", "Язык перевода и оригинала, автоперевод", Icons.Default.Translate),
     READER("Чтение и оформление", "Шрифт, фон, режим «по страницам», размер страницы", Icons.Default.FormatSize),
     BOOKMARKS("Закладки", "Сохранённые места в книгах и веб-страницах", Icons.Default.Bookmarks),
+    NOTES("Цитаты и заметки", "Выделенные места с заметками, выгрузка в Markdown и EPUB", Icons.Default.EditNote),
+    DICTIONARY("Словарь", "Слова из книг с переводом — личный список", Icons.Default.Translate),
     SITES("Сайты и вход", "Входы на сайты, «Забыть сайт»", Icons.Default.Lock),
     STORAGE("Хранилище", "Кэш картинок, скачанные страницы новелл", Icons.Default.Storage),
+    BACKUP("Резервная копия", "Библиотека и настройки одним файлом, восстановление", Icons.Default.Backup),
     ABOUT("Обновления и о приложении", "Версия, проверка обновлений", Icons.Default.Info)
 }
 
 /** Вкладка «Настройки»: список разделов или выбранный раздел с кнопкой «Назад». */
 @Composable
-fun SettingsScreen(section: SettingsSection?, onSection: (SettingsSection?) -> Unit, onOpenBookmark: (Bookmark) -> Unit) {
+fun SettingsScreen(
+    section: SettingsSection?,
+    onSection: (SettingsSection?) -> Unit,
+    onOpenBookmark: (Bookmark) -> Unit,
+    onOpenAnnotation: (Annotation) -> Unit
+) {
     PlatformBackHandler(enabled = section != null) { onSection(null) }
     if (section == null) {
         SettingsHome(onSection)
@@ -79,6 +90,8 @@ fun SettingsScreen(section: SettingsSection?, onSection: (SettingsSection?) -> U
             when (section) {
                 SettingsSection.MODELS -> ModelsScreen()
                 SettingsSection.BOOKMARKS -> BookmarksSection(onOpenBookmark)
+                SettingsSection.NOTES -> NotesSection(onOpenAnnotation)
+                SettingsSection.DICTIONARY -> DictionarySection()
                 else -> Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 32.dp)
@@ -89,6 +102,7 @@ fun SettingsScreen(section: SettingsSection?, onSection: (SettingsSection?) -> U
                         SettingsSection.READER -> ReaderSettingsContent()
                         SettingsSection.SITES -> SitesSection()
                         SettingsSection.STORAGE -> StorageSection()
+                        SettingsSection.BACKUP -> BackupSection()
                         SettingsSection.ABOUT -> AboutSection()
                         else -> Unit
                     }

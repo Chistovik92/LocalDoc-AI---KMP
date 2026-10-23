@@ -51,6 +51,9 @@ import com.localdoc.ai.book.Bookmark
 import com.localdoc.ai.domain.startReading
 import com.localdoc.ai.domain.AppAction
 import com.localdoc.ai.domain.AppGraph
+import com.localdoc.ai.notes.AnchorResolver
+import com.localdoc.ai.notes.Annotation
+import com.localdoc.ai.notes.TextAnchor
 import com.localdoc.ai.domain.IncomingDoc
 import com.localdoc.ai.platform.FilePicker
 import com.localdoc.ai.platform.PlatformBackHandler
@@ -59,6 +62,7 @@ import com.localdoc.ai.ui.reader.PlayerBar
 import com.localdoc.ai.ui.reader.ReaderView
 import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
@@ -69,6 +73,8 @@ private enum class Tab(val label: String, val icon: ImageVector, val selectedIco
 }
 
 /** Открытая книга в читалке. */
+private const val SEARCH_INDEX_DELAY_MS = 3_000L
+
 private class OpenBook(val entryId: String, val book: Book, val startBlock: Int)
 
 private fun bookKey(entryId: String) = "book:$entryId"
@@ -118,12 +124,12 @@ fun App() {
             }
         }
 
-        // Закладка открывает книгу (или сохранённую веб-страницу) на нужном месте
-        fun openBookmark(mark: Bookmark) {
-            AppGraph.library.saveProgress(mark.entryId, mark.block)
-            val entry = AppGraph.library.entry(mark.entryId)
+        // Открывает книгу (или сохранённую веб-страницу) на нужном месте: закладка, цитата, результат поиска
+        fun openPlace(entryId: String, block: Int) {
+            AppGraph.library.saveProgress(entryId, block)
+            val entry = AppGraph.library.entry(entryId)
             when {
-                entry == null -> scope.launch { snackbar.showSnackbar("Книга удалена — закладка больше не работает") }
+                entry == null -> scope.launch { snackbar.showSnackbar("Книга удалена — ссылка больше не работает") }
                 entry.format == BookFormat.WEB -> {
                     openBook = null
                     tab = Tab.Web
@@ -132,6 +138,19 @@ fun App() {
                 else -> open(entry)
             }
         }
+
+        // Якорь находит место и в заново разобранной книге, поэтому блок определяется по текущему тексту
+        fun openAnchored(entryId: String, block: Int, anchor: TextAnchor?) {
+            scope.launch {
+                val book = if (anchor != null) AppGraph.library.load(entryId) else null
+                val at = if (book != null && anchor != null) AnchorResolver.resolve(anchor, book.blocks, book.chapters).block else block
+                openPlace(entryId, at)
+            }
+        }
+
+        fun openBookmark(mark: Bookmark) = openAnchored(mark.entryId, mark.block, mark.anchor)
+
+        fun openAnnotation(annotation: Annotation) = openAnchored(annotation.entryId, annotation.anchor.block, annotation.anchor)
 
         fun importAndOpen(label: String, block: suspend () -> Book) {
             scope.launchImport(
@@ -155,6 +174,15 @@ fun App() {
             SystemPlayer.start()
             AppGraph.updates.check(silent = true)
             AppGraph.restoreLastModel()
+        }
+
+        // Поисковый индекс следует за библиотекой и каталогом; пауза не даёт перестраивать его на каждый кадр прокрутки
+        val libraryEntries by AppGraph.library.entries.collectAsState()
+        val catalogItems by AppGraph.catalog.items.collectAsState()
+        val indexKey = libraryEntries.map { it.id to it.totalBlocks } to catalogItems.size
+        LaunchedEffect(indexKey) {
+            delay(SEARCH_INDEX_DELAY_MS)
+            AppGraph.syncSearchIndex()
         }
 
         // Документы извне: «Поделиться», открытие файла, ссылки
@@ -259,11 +287,12 @@ fun App() {
                             onPasteText = { pasteText = true },
                             onOpenWeb = { tab = Tab.Web },
                             onOpenCatalog = { showCatalog = true },
-                            onOpenModels = ::openModels
+                            onOpenModels = ::openModels,
+                            onOpenAt = { entry, block -> openPlace(entry.id, block) }
                         )
                         Tab.Web -> WebScreen(onOpenAssistant = { tab = Tab.Assistant }, onOpenModels = ::openModels)
                         Tab.Assistant -> ChatScreen(onOpenModels = ::openModels)
-                        Tab.Settings -> SettingsScreen(settingsSection, { settingsSection = it }, ::openBookmark)
+                        Tab.Settings -> SettingsScreen(settingsSection, { settingsSection = it }, ::openBookmark, ::openAnnotation)
                     }
                 }
             }
