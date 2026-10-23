@@ -50,8 +50,8 @@ class BookmarkRepository(
     fun forEntry(entryId: String): List<Bookmark> = _all.value.filter { it.entryId == entryId }.sortedBy { it.block }
 
     /** Закладка, стоящая в блоках [range] (например, на текущей странице). */
-    fun findIn(entryId: String, range: IntRange): Bookmark? =
-        _all.value.firstOrNull { it.entryId == entryId && it.block in range }
+    fun findIn(entryId: String, range: IntRange, blockOf: (Bookmark) -> Int = { it.block }): Bookmark? =
+        _all.value.firstOrNull { it.entryId == entryId && blockOf(it) in range }
 
     /** Добавляет закладку; если на этом блоке она уже есть — возвращает существующую. */
     fun add(entry: BookEntry, block: Int, text: String, chapter: String = "", anchor: TextAnchor? = null): Bookmark {
@@ -74,8 +74,10 @@ class BookmarkRepository(
     fun remove(id: String) = update(_all.value.filterNot { it.id == id })
 
     /** Закладка снимается, если уже стоит на странице, иначе ставится. Возвращает true, если закладка поставлена. */
-    fun toggle(entry: BookEntry, range: IntRange, block: Int, text: String, chapter: String = "", anchor: TextAnchor? = null): Boolean {
-        val existing = findIn(entry.id, range)
+    fun toggle(entry: BookEntry, range: IntRange, block: Int, text: String, chapter: String = "", anchor: TextAnchor? = null,
+        blockOf: (Bookmark) -> Int = { it.block }
+    ): Boolean {
+        val existing = findIn(entry.id, range, blockOf)
         if (existing != null) {
             remove(existing.id)
             return false

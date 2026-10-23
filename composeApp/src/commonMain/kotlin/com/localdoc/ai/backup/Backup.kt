@@ -1,5 +1,6 @@
 package com.localdoc.ai.backup
 
+import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.book.ZipArchive
 import com.localdoc.ai.book.export.ZipWriter
@@ -172,12 +173,15 @@ class BackupService(
                 val value = archive.readText(BackupFormat.KV_DIR + key) ?: return "В копии нет данных «$key» — файл повреждён"
                 json.parseToJsonElement(value)
             }
-            val library = archive.readText(BackupFormat.KV_DIR + BackupFormat.KEY_LIBRARY)?.let { libraryEntries(it) }.orEmpty()
+            // Библиотека разбирается строго: значение неверной схемы (например «{}») не должно стереть текущую
+            val library = archive.readText(BackupFormat.KV_DIR + BackupFormat.KEY_LIBRARY)
+                ?.let { json.decodeFromString(entries, it) }.orEmpty()
             for (entry in library) {
                 if (!BackupFormat.isSafeName(entry.id)) return "В копии неверный идентификатор книги — файл повреждён"
-                if (!archive.contains(BackupFormat.FILES_DIR + bookFile(entry.id))) {
-                    return "В копии нет текста книги «${entry.title}» — файл повреждён или обрезан"
-                }
+                val bytes = archive.read(BackupFormat.FILES_DIR + bookFile(entry.id))
+                    ?: return "В копии нет текста книги «${entry.title}» — файл повреждён или обрезан"
+                // Контрольные суммы ZIP не проверяются, поэтому текст книги разбирается целиком до любой записи
+                json.decodeFromString(Book.serializer(), bytes.decodeToString())
             }
         } catch (e: Exception) {
             return "Файл копии повреждён: ${e.message ?: "ошибка чтения"}"

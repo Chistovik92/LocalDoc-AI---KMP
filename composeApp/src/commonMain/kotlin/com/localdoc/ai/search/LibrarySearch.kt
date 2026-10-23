@@ -64,7 +64,10 @@ class LibrarySearch(
     suspend fun search(query: String, perBook: Int = 3, limit: Int = 60): SearchResults {
         if (SearchTokenizer.tokens(query).isEmpty()) return SearchResults(emptyList(), emptyList())
         val byId = books().associateBy { libDoc(it.id) }
-        val hits = index.search(query, index.indexedDocs() + CATALOG_DOC, perBook, limit)
+        val docs = index.indexedDocs()
+        // Каталог — один документ на все файлы: ему нужен общий лимит, а не «на книгу»
+        val hits = index.search(query, docs - CATALOG_DOC, perBook, limit) +
+            (if (CATALOG_DOC in docs) index.search(query, listOf(CATALOG_DOC), limit, limit) else emptyList())
         val items = catalogItems().associateBy { it.uri }
         val catalog = hits.filter { it.docId == CATALOG_DOC }.mapNotNull { hit -> hit.ref?.let(items::get) }
 
@@ -84,7 +87,7 @@ class LibrarySearch(
     private fun catalogSignature(items: List<CatalogItem>): String {
         var hash = FNV_OFFSET
         for (item in items) {
-            for (ch in "${item.uri}|${item.modified}|${item.title}|${item.author}\n") hash = (hash xor ch.code.toLong()) * FNV_PRIME
+            for (ch in "${item.uri}|${item.modified}|${item.title}|${item.author}|${item.series}|${item.genres.joinToString(",")}|${item.name}|${item.folder}|${item.year}\n") hash = (hash xor ch.code.toLong()) * FNV_PRIME
         }
         return "${items.size}:${hash.toULong().toString(16)}"
     }

@@ -171,4 +171,19 @@ class TextAnchorTest {
         repo.removeForEntry("b1")
         assertTrue(AnnotationRepository({ stored }, { }).all.value.isEmpty())
     }
+
+    @Test
+    fun `bookmark lookup uses the block resolved by the anchor`() {
+        val blocks = sampleBlocks()
+        val repo = BookmarkRepository({ null }, { })
+        repo.add(entry, 10, blocks[10].text, "", TextAnchor.ofBlock(blocks, sampleChapters(), 10))
+        // Книгу разобрали заново: перед текстом добавлены два блока
+        val shifted = book(listOf(paragraph("а"), paragraph("б")) + blocks, sampleChapters().map { it.copy(startBlock = it.startBlock + 2) })
+        val resolve = { m: com.localdoc.ai.book.Bookmark -> m.resolveBlock(shifted) }
+
+        assertNull(repo.findIn("b1", 10..10, resolve))
+        assertNotNull(repo.findIn("b1", 12..12, resolve))
+        assertFalse(repo.toggle(entry, 12..12, 12, "", "", null, resolve))
+        assertTrue(repo.all.value.isEmpty())
+    }
 }

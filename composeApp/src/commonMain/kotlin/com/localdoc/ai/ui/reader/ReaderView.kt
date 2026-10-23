@@ -246,7 +246,9 @@ fun ReaderView(
     val bookAnnotations = remember(allAnnotations, entryId) { allAnnotations.filter { it.entryId == entryId } }
     // Цитаты и заметки, подсвеченные в тексте: место ищется в текущем разборе книги, как и у закладок
     val marksByBlock = remember(book, bookAnnotations) { annotationMarks(book, bookAnnotations) }
-    val pageBookmark = bookmarks.firstOrNull { it.entryId == entryId && it.block in pageInfo.startBlock until pageInfo.endBlock }
+    // Закладка стоит там, куда её якорь указывает в текущем разборе книги, а не на сохранённом номере блока
+    val resolvedBookmarks = remember(bookmarks, book) { bookmarks.filter { it.entryId == entryId }.associateWith { it.resolveBlock(book) } }
+    val pageBookmark = resolvedBookmarks.entries.firstOrNull { it.value in pageInfo.startBlock until pageInfo.endBlock }?.key
 
     val sourceCode = translationSettings.sourceLanguage
     val layout = settings.pageSize.chars
@@ -549,7 +551,8 @@ fun ReaderView(
                                 AppGraph.bookmarks.toggle(
                                     entry, pageInfo.startBlock until pageInfo.endBlock, block,
                                     book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty(),
-                                    TextAnchor.ofBlock(book.blocks, book.chapters, block)
+                                    TextAnchor.ofBlock(book.blocks, book.chapters, block),
+                                    blockOf = { it.resolveBlock(book) }
                                 )
                             }) {
                                 Icon(

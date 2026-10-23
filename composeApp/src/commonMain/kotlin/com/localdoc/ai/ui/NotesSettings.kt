@@ -173,7 +173,7 @@ fun BackupSection() {
             message = null
             scope.launch {
                 try {
-                    val bytes = withContext(Dispatchers.Default) { AppGraph.backup.create() }
+                    val bytes = withContext(Dispatchers.IO) { AppGraph.backup.create() }
                     AppGraph.fileSaver.save(BackupFormat.suggestedName(nowMillis()), BackupFormat.MIME, bytes) { result ->
                         busy = false
                         message = when (result) {
@@ -202,7 +202,7 @@ fun BackupSection() {
                 scope.launch {
                     try {
                         val bytes = AppGraph.files.readBytes(uri)
-                        when (val check = withContext(Dispatchers.Default) { AppGraph.backup.inspect(bytes) }) {
+                        when (val check = withContext(Dispatchers.IO) { AppGraph.backup.inspect(bytes) }) {
                             is BackupCheck.Ok -> pending = bytes to check
                             is BackupCheck.Invalid -> message = check.reason
                             is BackupCheck.TooNew -> message = AppGraph.backup.tooNewMessage(check)
@@ -238,7 +238,7 @@ fun BackupSection() {
                     pending = null
                     busy = true
                     scope.launch {
-                        val result = withContext(Dispatchers.Default) { AppGraph.restoreBackup(bytes) }
+                        val result = withContext(Dispatchers.IO) { AppGraph.restoreBackup(bytes) }
                         busy = false
                         message = when (result) {
                             is RestoreResult.Restored -> "Восстановлено: книг — ${result.manifest.books}"

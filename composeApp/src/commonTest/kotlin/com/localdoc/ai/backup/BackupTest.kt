@@ -39,10 +39,10 @@ class BackupTest {
         values["reader_settings"] = """{"fontSize":22.0,"paged":true}"""
         values["voice_settings"] = """{"rate":1.25}"""
         values["catalog_secret"] = "не должно попасть в копию"
-        files["a1.json"] = """{"title":"Первая"}""".encodeToByteArray()
+        files["a1.json"] = """{"title":"Первая","format":"EPUB","blocks":[]}""".encodeToByteArray()
         files["a1.img.im0"] = byteArrayOf(1, 2, 3)
         files["a1.img.im1"] = byteArrayOf(4, 5)
-        files["b2.json"] = """{"title":"Вторая"}""".encodeToByteArray()
+        files["b2.json"] = """{"title":"Вторая","format":"EPUB","blocks":[]}""".encodeToByteArray()
         files["catalog.json"] = "{}".encodeToByteArray()
         files["idx.lib.a1.json"] = "{}".encodeToByteArray()
     }
@@ -162,4 +162,27 @@ class BackupTest {
 
     private fun zipWith(vararg entries: Pair<String, String>): ByteArray =
         ZipWriter().apply { entries.forEach { (name, text) -> add(name, text) } }.finish()
+
+    @Test
+    fun `library with a wrong schema or a damaged book is rejected before anything is deleted`() {
+        val target = filled()
+        val before = target.values.toMap()
+        val svc = service(target)
+        val manifest = BackupFormat.MANIFEST to """{"format":"localdoc-backup","version":1,"keys":["library_v1"]}"""
+
+        val wrongSchema = zipWith(manifest, "kv/library_v1" to "{}")
+        assertIs<BackupCheck.Invalid>(svc.inspect(wrongSchema))
+        assertIs<RestoreResult.Failed>(svc.restore(wrongSchema))
+
+        val damagedBook = zipWith(
+            manifest,
+            "kv/library_v1" to libraryValue(entry("a1", "Первая")),
+            "files/a1.json" to "не json книги"
+        )
+        assertIs<BackupCheck.Invalid>(svc.inspect(damagedBook))
+        assertIs<RestoreResult.Failed>(svc.restore(damagedBook))
+
+        assertEquals(before, target.values)
+        assertEquals(6, target.files.size)
+    }
 }

@@ -176,6 +176,7 @@ object AppGraph {
             dictionary.reload()
             readerSettings.reload()
             voiceSettings.reload()
+            appScope.launch { applyVoiceSettings() }
             translationSettings.reload()
             appScope.launch(indexDispatcher) { searchIndex.clear() }
             syncSearchIndex()
@@ -217,6 +218,15 @@ object AppGraph {
             setPitch(v.pitch)
             setVoice(v.voiceId)
         }
+    }
+
+    /** Применяет сохранённые настройки голоса к уже созданному синтезатору (после восстановления из копии). */
+    private fun applyVoiceSettings() {
+        val v = voiceSettings.value.value
+        speaker.setEngine(v.engineId)
+        speaker.setRate(v.rate)
+        speaker.setPitch(v.pitch)
+        speaker.setVoice(v.voiceId)
     }
 
     /** Постраничный перевод моделью; кэш и предзагрузка соседней страницы. */

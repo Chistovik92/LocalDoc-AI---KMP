@@ -150,4 +150,18 @@ class FullTextIndexTest {
         assertEquals(listOf("many", "many", "few"), result.map { it.entry.id })
         assertEquals(1, search.search("дракон", perBook = 5, limit = 1).books.size)
     }
+
+    @Test
+    fun `catalog results are not cut by the per book limit and re-index when any indexed field changes`() = runTest {
+        val f = Fixture()
+        f.catalog = (1..8).map { catalogItem("u$it", "Хроники $it", "Автор") }
+        val search = f.search()
+        search.sync()
+        assertEquals(8, search.search("хроники", perBook = 3).catalog.size)
+
+        // Обогащение изменило только серию: подпись каталога должна измениться
+        f.catalog = f.catalog.map { it.copy(series = "Космос") }
+        assertEquals(1, search.sync())
+        assertEquals(8, search.search("космос").catalog.size)
+    }
 }
