@@ -62,7 +62,21 @@ object BackupFormat {
     /** Имя файла из архива допустимо, только если это простое имя без путей: защита от выхода из папки приложения. */
     fun isSafeName(name: String) = SAFE_NAME.matches(name) && ".." !in name
 
-    fun suggestedName(createdAt: Long) = "LocalDoc-копия-${createdAt / DAY_MS}.$EXTENSION"
+    fun suggestedName(createdAt: Long) = "LocalDoc-копия-${isoDate(createdAt)}.$EXTENSION"
+
+    /** Дата по UTC в виде 2026-10-23 (алгоритм «civil from days» — без зависимости от платформенных календарей). */
+    fun isoDate(millis: Long): String {
+        val z = millis.floorDiv(DAY_MS) + 719_468
+        val era = z.floorDiv(146_097L)
+        val dayOfEra = z - era * 146_097
+        val yearOfEra = (dayOfEra - dayOfEra / 1_460 + dayOfEra / 36_524 - dayOfEra / 146_096) / 365
+        val dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
+        val mp = (5 * dayOfYear + 2) / 153
+        val day = dayOfYear - (153 * mp + 2) / 5 + 1
+        val month = if (mp < 10) mp + 3 else mp - 9
+        val year = yearOfEra + era * 400 + if (month <= 2) 1 else 0
+        return "$year-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
+    }
 
     private const val DAY_MS = 86_400_000L
 }

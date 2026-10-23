@@ -155,7 +155,9 @@ class BackupTest {
     fun `an empty app can be backed up and the file name carries the extension`() {
         val bytes = service(MemoryStorage()).create()
         assertEquals(0, (service(MemoryStorage()).inspect(bytes) as BackupCheck.Ok).manifest.books)
-        assertTrue(BackupFormat.suggestedName(1_700_000_000_000).endsWith(".ldbackup"))
+        assertEquals("LocalDoc-копия-2023-11-14.ldbackup", BackupFormat.suggestedName(1_700_000_000_000))
+        assertEquals("1970-01-01", BackupFormat.isoDate(0))
+        assertEquals("2024-02-29", BackupFormat.isoDate(1_709_164_800_000))
     }
 
     private fun zipWith(vararg entries: Pair<String, String>): ByteArray =
