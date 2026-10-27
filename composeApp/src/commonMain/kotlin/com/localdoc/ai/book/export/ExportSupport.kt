@@ -79,7 +79,17 @@ internal fun Book.withChapterHeadings(): Book {
         val starting = byStart[index]?.firstOrNull()
         if (starting != null) {
             newChapters.add(Chapter(starting.title, result.size))
-            if (block.type != BlockType.HEADING) result.add(Block(BlockType.HEADING, starting.title, 1))
+            when {
+                block.type == BlockType.HEADING -> result.add(block)
+                // Строка «Глава 1» сама и есть название: делаем её заголовком, а не повторяем над ней
+                block.type == BlockType.PARAGRAPH && block.text.trim() == starting.title ->
+                    result.add(Block(BlockType.HEADING, starting.title, 1))
+                else -> {
+                    result.add(Block(BlockType.HEADING, starting.title, 1))
+                    result.add(block)
+                }
+            }
+            continue
         }
         result.add(block)
     }
