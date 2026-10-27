@@ -46,6 +46,7 @@ object ChapterDetector {
     private const val MAX_TITLE_WORDS = 12
     private const val MAX_NUMBER_TOKENS = 3
     private const val MIN_BARE_NUMBERS = 3
+    private const val MIN_BARE_NUMBER_SPAN_CHARS = 3_000
     private const val MAX_BARE_NUMBER_VALUE = 3999
 
     private val RU_CARDINALS = setOf(
@@ -141,7 +142,10 @@ object ChapterDetector {
                 expected++
             }
         }
-        return if (run.size >= MIN_BARE_NUMBERS) run else emptyList()
+        if (run.size < MIN_BARE_NUMBERS) return emptyList()
+        // Номера страниц тоже идут подряд, но через страницу текста; у глав расстояние между номерами больше
+        val spanChars = blocks.subList(run.first().first, run.last().first).sumOf { it.text.length }
+        return if (spanChars / (run.size - 1) >= MIN_BARE_NUMBER_SPAN_CHARS) run else emptyList()
     }
 
     private fun bareNumberValue(text: String): Int? {

@@ -66,6 +66,14 @@ class LibraryRepository(
         book.copy(imageData = data)
     }
 
+    /** Заменяет оглавление книги; текст, картинки, прогресс и закладки остаются прежними. Возвращает обновлённую книгу. */
+    suspend fun replaceChapters(id: String, chapters: List<Chapter>): Book? = withContext(Dispatchers.Default) {
+        val book = load(id) ?: return@withContext null
+        val updated = book.copy(chapters = chapters.sortedBy { it.startBlock })
+        files.writeAppFile(fileName(id), json.encodeToString(Book.serializer(), updated).encodeToByteArray())
+        updated
+    }
+
     fun entry(id: String): BookEntry? = _entries.value.firstOrNull { it.id == id }
 
     /** Отметка «открыта сейчас»: поднимает книгу наверх списка. */

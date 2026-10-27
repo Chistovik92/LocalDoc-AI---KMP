@@ -176,6 +176,8 @@ fun ReaderView(
     onOpenAssistant: () -> Unit,
     onOpenModels: () -> Unit,
     chapterNavigation: ChapterNavigation? = null,
+    /** Книга из библиотеки: новое оглавление (найденное по словам, нейросетью или отмеченное вручную) нужно сохранить. */
+    onChaptersChanged: ((List<com.localdoc.ai.book.Chapter>) -> Unit)? = null,
     /** false — экран внутри Scaffold с нижней навигацией, отступ системной панели уже учтён. */
     applyNavigationBarInsets: Boolean = true,
     topBarActions: @Composable RowScope.() -> Unit = {}
@@ -220,6 +222,7 @@ fun ReaderView(
     var showBookmarks by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showSaveAs by remember { mutableStateOf(false) }
+    var showChapters by remember { mutableStateOf(false) }
     var askTerm by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
     var showAnnotations by remember { mutableStateOf(false) }
@@ -410,6 +413,18 @@ fun ReaderView(
                         else -> noteDraft = anchor
                     }
                 }
+                SelectionAction.CHAPTER -> {
+                    val at = locateSelection(selected)?.block
+                    val title = selected.trim().replace(Regex("\\s+"), " ").take(90)
+                    if (onChaptersChanged == null || at == null || title.isEmpty()) {
+                        notice = "Это место не удалось отметить: выделите текст книги"
+                    } else {
+                        onChaptersChanged(
+                            (book.chapters.filter { it.startBlock != at } + com.localdoc.ai.book.Chapter(title, at)).sortedBy { it.startBlock }
+                        )
+                        notice = "Начало главы отмечено"
+                    }
+                }
                 SelectionAction.WORD -> {
                     val word = WordSelection.wordOf(selected)
                     if (word == null) {
@@ -504,6 +519,7 @@ fun ReaderView(
         if (toolbarState.visible) {
             SelectionActionBar(
                 canAnnotate = entry != null && !translating,
+                canMarkChapter = entry != null && !translating && onChaptersChanged != null,
                 onAction = ::onSelectionAction,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -568,6 +584,9 @@ fun ReaderView(
                             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                                 if (book.chapters.isNotEmpty()) {
                                     DropdownMenuItem(text = { Text("Оглавление") }, onClick = { showMenu = false; showToc = true })
+                                }
+                                if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
+                                    DropdownMenuItem(text = { Text("Главы и оглавление…") }, onClick = { showMenu = false; showChapters = true })
                                 }
                                 DropdownMenuItem(text = { Text("Закладки") }, onClick = { showMenu = false; showBookmarks = true })
                                 if (entry != null) {
@@ -667,6 +686,16 @@ fun ReaderView(
 
     if (showSettings) ReaderSettingsSheet(onDismiss = { showSettings = false })
     if (showSaveAs && entry != null) SaveAsDialog(entry = entry, onDismiss = { showSaveAs = false })
+    if (showChapters && entry != null && onChaptersChanged != null) {
+        ChaptersSheet(
+            book = book,
+            canSaveAs = true,
+            onApply = onChaptersChanged,
+            onSaveAs = { showChapters = false; showSaveAs = true },
+            onOpenModels = { showChapters = false; onOpenModels() },
+            onDismiss = { showChapters = false }
+        )
+    }
     if (showVoice) VoiceSettingsSheet(onDismiss = { showVoice = false })
     if (showToc) {
         TocSheet(

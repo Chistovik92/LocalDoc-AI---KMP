@@ -42,6 +42,8 @@ internal enum class SelectionAction(val label: String) {
     QUOTE("Цитата"),
     NOTE("Заметка"),
     WORD("Слово"),
+    /** Отметить выделенное («Глава 5», «Пролог») как начало главы. */
+    CHAPTER("Глава"),
     COPY("Копировать")
 }
 
@@ -104,7 +106,12 @@ private const val COPY_WAIT_MS = 40L
 /** Панель действий над выделенным текстом. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun SelectionActionBar(canAnnotate: Boolean, onAction: (SelectionAction) -> Unit, modifier: Modifier = Modifier) {
+internal fun SelectionActionBar(
+    canAnnotate: Boolean,
+    onAction: (SelectionAction) -> Unit,
+    modifier: Modifier = Modifier,
+    canMarkChapter: Boolean = false
+) {
     Surface(
         color = MaterialTheme.colorScheme.inverseSurface,
         contentColor = MaterialTheme.colorScheme.inverseOnSurface,
@@ -115,6 +122,7 @@ internal fun SelectionActionBar(canAnnotate: Boolean, onAction: (SelectionAction
         FlowRow(horizontalArrangement = Arrangement.Center, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
             SelectionAction.entries.forEach { action ->
                 if (!canAnnotate && (action == SelectionAction.QUOTE || action == SelectionAction.NOTE)) return@forEach
+                if (!canMarkChapter && action == SelectionAction.CHAPTER) return@forEach
                 TextButton(onClick = { onAction(action) }) {
                     Text(action.label, color = MaterialTheme.colorScheme.inversePrimary, maxLines = 1, softWrap = false)
                 }

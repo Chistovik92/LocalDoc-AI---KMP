@@ -74,8 +74,15 @@ class ChapterDetectorTest {
 
     @Test
     fun `a counted run of bare numbers is a chapter list`() {
-        val found = titles("1", body, "2", body, "3", body, "4", body)
+        val chapter = body.repeat(15)
+        val found = titles("1", chapter, "2", chapter, "3", chapter, "4", chapter)
         assertEquals(listOf("1", "2", "3", "4"), found)
+    }
+
+    @Test
+    fun `page numbers in a row are not chapters`() {
+        val page = body.repeat(6)
+        assertEquals(emptyList(), titles("1", page, "2", page, "3", page, "4", page, "5", page))
     }
 
     @Test
