@@ -1,14 +1,17 @@
 package com.localdoc.ai.book.export
 
 import com.localdoc.ai.book.ByteArrayBuilder
+import com.localdoc.ai.book.deflateRaw
 
 /**
  * Запись ZIP-контейнера (EPUB, DOCX, ODT, FB2.ZIP) без сжатия (метод Stored): формат остаётся
  * валидным для всех читалок, а код не зависит от платформенного Deflate. Имена — UTF-8.
+ * При [deflate] файлы, которые от этого уменьшаются, пишутся методом Deflate (резервные копии); экспорт книг
+ * остаётся без сжатия.
  */
-class ZipWriter {
+class ZipWriter(private val deflate: Boolean = false) {
 
-    private class Entry(val name: ByteArray, val crc: Long, val size: Int, val offset: Int)
+    private class Entry(val name: ByteArray, val crc: Long, val size: Int, val packedSize: Int, val method: Int, val offset: Int)
 
     private val body = ByteArrayBuilder()
     private val entries = ArrayList<Entry>()
@@ -18,13 +21,16 @@ class ZipWriter {
         require(names.add(name)) { "Дубликат файла в архиве: $name" }
         val nameBytes = name.encodeToByteArray()
         val crc = Crc32.of(data)
+        val packed = if (deflate && data.size >= MIN_DEFLATE_BYTES) deflateRaw(data).takeIf { it.size < data.size } else null
+        val stored = packed ?: data
+        val method = if (packed != null) METHOD_DEFLATE else METHOD_STORED
         val offset = body.size
-        body.append(le32(LOCAL_SIG)); body.append(le16(20)); body.append(le16(FLAG_UTF8)); body.append(le16(0))
+        body.append(le32(LOCAL_SIG)); body.append(le16(20)); body.append(le16(FLAG_UTF8)); body.append(le16(method))
         body.append(le16(DOS_TIME)); body.append(le16(DOS_DATE)); body.append(le32(crc))
-        body.append(le32(data.size.toLong())); body.append(le32(data.size.toLong()))
+        body.append(le32(stored.size.toLong())); body.append(le32(data.size.toLong()))
         body.append(le16(nameBytes.size)); body.append(le16(0))
-        body.append(nameBytes); body.append(data)
-        entries.add(Entry(nameBytes, crc, data.size, offset))
+        body.append(nameBytes); body.append(stored)
+        entries.add(Entry(nameBytes, crc, data.size, stored.size, method, offset))
     }
 
     fun add(name: String, text: String) = add(name, text.encodeToByteArray())
@@ -32,9 +38,9 @@ class ZipWriter {
     fun finish(): ByteArray {
         val centralStart = body.size
         for (e in entries) {
-            body.append(le32(CENTRAL_SIG)); body.append(le16(20)); body.append(le16(20)); body.append(le16(FLAG_UTF8)); body.append(le16(0))
+            body.append(le32(CENTRAL_SIG)); body.append(le16(20)); body.append(le16(20)); body.append(le16(FLAG_UTF8)); body.append(le16(e.method))
             body.append(le16(DOS_TIME)); body.append(le16(DOS_DATE)); body.append(le32(e.crc))
-            body.append(le32(e.size.toLong())); body.append(le32(e.size.toLong()))
+            body.append(le32(e.packedSize.toLong())); body.append(le32(e.size.toLong()))
             body.append(le16(e.name.size)); body.append(le16(0)); body.append(le16(0)); body.append(le16(0)); body.append(le16(0))
             body.append(le32(0)); body.append(le32(e.offset.toLong())); body.append(e.name)
         }
@@ -53,6 +59,9 @@ class ZipWriter {
         const val CENTRAL_SIG = 0x02014b50L
         const val EOCD_SIG = 0x06054b50L
         const val FLAG_UTF8 = 0x0800
+        const val METHOD_STORED = 0
+        const val METHOD_DEFLATE = 8
+        const val MIN_DEFLATE_BYTES = 64
         const val DOS_TIME = 0
         const val DOS_DATE = 0x0021 // 1980-01-01
     }

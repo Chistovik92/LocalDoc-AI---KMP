@@ -1,6 +1,14 @@
 package com.localdoc.ai.domain
 
 import com.localdoc.ai.backup.BackupService
+import com.localdoc.ai.backup.ScheduledBackup
+import com.localdoc.ai.storage.KvAccess
+import com.localdoc.ai.storage.StorageMigrations
+import com.localdoc.ai.sync.BookLinkedCollection
+import com.localdoc.ai.sync.ProgressCollection
+import com.localdoc.ai.sync.ShelfCollection
+import com.localdoc.ai.sync.SyncEngine
+import com.localdoc.ai.backup.BackupFormat
 import com.localdoc.ai.backup.BackupStorage
 import com.localdoc.ai.backup.RestoreResult
 import com.localdoc.ai.book.BookImporter
@@ -92,6 +100,19 @@ enum class AppAction { CONTINUE_READING, OPEN_FILE, OPEN_URL, TOGGLE_PLAYBACK }
 object AppGraph {
 
     val kv: KeyValueStore = KeyValueStore()
+
+    /** Доступ к KV для миграций, копий и синхронизации. */
+    private val kvAccess = object : KvAccess {
+        override fun getValue(key: String) = kv.get(key)
+        override fun putValue(key: String, value: String) = kv.put(key, value)
+        override fun removeValue(key: String) = kv.remove(key)
+    }
+
+    // Миграции хранилища идут раньше любого чтения данных репозиториями ниже
+    init {
+        StorageMigrations(kvAccess).run()
+    }
+
     val engine: LlamaEngine = LlamaEngine()
     val downloader: ModelDownloader = ModelDownloader()
     /** Защищённое хранилище (Keystore / Keychain): пароли сайтов и cookie сессий. */
@@ -194,6 +215,30 @@ object AppGraph {
 
     /** Резервная копия библиотеки и настроек одним файлом (без паролей сайтов). */
     val backup: BackupService by lazy { BackupService(backupStorage, PlatformActions.appVersion) }
+
+    /** Копия по расписанию: проверяется при запуске приложения. */
+    val scheduledBackup: ScheduledBackup by lazy { ScheduledBackup(kvAccess, backupStorage, backup) }
+
+    /** Синхронизация прогресса, закладок, цитат и подборок (зашифрованный файл в облаке; пароли сайтов не входят). */
+    val syncEngine: SyncEngine by lazy {
+        SyncEngine(
+            collections = listOf(
+                ProgressCollection(backupStorage),
+                BookLinkedCollection.bookmarks(backupStorage),
+                BookLinkedCollection.annotations(backupStorage),
+                ShelfCollection({ catalog.shelves.value }, catalog::replaceShelves, { catalog.items.value }, { library.entries.value })
+            ),
+            loadState = { kv.get(KEY_SYNC_STATE) },
+            saveState = { kv.put(KEY_SYNC_STATE, it) },
+            // Перед первой записью синхронизации в данные устройства — копия на случай, если что-то пойдёт не так
+            safetyCopy = { files.writeAppFile("presync-backup.${BackupFormat.EXTENSION}", backup.create()) },
+            onApplied = { kinds ->
+                if ("progress" in kinds) library.reload()
+                if ("bookmark" in kinds) bookmarks.reload()
+                if ("annotation" in kinds) annotations.reload()
+            }
+        )
+    }
 
     /** Восстанавливает данные из копии и обновляет всё, что держит их в памяти. */
     fun restoreBackup(bytes: ByteArray): RestoreResult {
@@ -512,4 +557,5 @@ object AppGraph {
     private const val KEY_ANNOTATIONS = "annotations_v1"
     private const val KEY_DICTIONARY = "dictionary_v1"
     private const val KEY_SEARCH_INDEX = "search_index_v1"
+    private const val KEY_SYNC_STATE = "sync_state_v1"
 }
