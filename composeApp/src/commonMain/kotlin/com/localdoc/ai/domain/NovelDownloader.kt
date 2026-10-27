@@ -71,7 +71,17 @@ data class DownloadProgress(val phase: DownloadPhase, val done: Int = 0, val tot
 class NovelDownloadException(message: String) : IllegalStateException(message)
 
 /** Итог: книга целиком. [original] — исходный файл, если сайт отдал книгу готовой. */
-class NovelResult(val book: Book, val chapters: Int, val missing: Int, val original: DownloadedFile?)
+class NovelResult(
+    val book: Book,
+    val chapters: Int,
+    val missing: Int,
+    val original: DownloadedFile?,
+    /** Оглавление и адреса глав — по ним автообновление находит новые главы; пусто, если книга собрана без оглавления. */
+    val tocUrl: String? = null,
+    val chapterUrls: List<String> = emptyList(),
+    /** Адреса глав, текст которых действительно скачан (без недоступных). */
+    val downloadedUrls: List<String> = emptyList()
+)
 
 @Serializable
 private class NovelMeta(val title: String, val tocUrl: String, val chapters: List<ChapterRef>)
@@ -116,7 +126,12 @@ class NovelDownloader(
 
         val loaded = fetchChapters(folder, chapters, start, progress)
         progress(DownloadProgress(DownloadPhase.BUILDING, chapters.size, chapters.size))
-        return assemble(title, tocUrl ?: startUrl, tocPage ?: start, chapters, loaded)
+        val result = assemble(title, tocUrl ?: startUrl, tocPage ?: start, chapters, loaded)
+        if (tocUrl == null || toc.size < MIN_TOC) return result
+        return NovelResult(
+            result.book, result.chapters, result.missing, null, tocUrl, chapters.map { it.url },
+            chapters.filterIndexed { i, _ -> loaded[i] != null }.map { it.url }
+        )
     }
 
     // ---------- 1. готовый файл ----------

@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Storage
@@ -62,6 +64,8 @@ enum class SettingsSection(val title: String, val description: String, val icon:
     BOOKMARKS("Закладки", "Сохранённые места в книгах и веб-страницах", Icons.Default.Bookmarks),
     NOTES("Цитаты и заметки", "Выделенные места с заметками, выгрузка в Markdown и EPUB", Icons.Default.EditNote),
     DICTIONARY("Словарь", "Слова из книг с переводом — личный список", Icons.Default.Translate),
+    CATALOGS("Онлайн-каталоги", "Каталоги OPDS: открытые библиотеки и свои серверы, поиск и скачивание", Icons.Default.Language),
+    UPDATES("Скачивание и обновления", "Скорость скачивания, проверка новых глав по расписанию", Icons.Default.Sync),
     SITES("Сайты и вход", "Входы на сайты, «Забыть сайт»", Icons.Default.Lock),
     STORAGE("Хранилище", "Кэш картинок, скачанные страницы новелл", Icons.Default.Storage),
     BACKUP("Резервная копия", "Библиотека и настройки одним файлом, восстановление", Icons.Default.Backup),
@@ -90,6 +94,7 @@ fun SettingsScreen(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (section) {
                 SettingsSection.MODELS -> ModelsScreen()
+                SettingsSection.CATALOGS -> OpdsSection()
                 SettingsSection.BOOKMARKS -> BookmarksSection(onOpenBookmark)
                 SettingsSection.NOTES -> NotesSection(onOpenAnnotation)
                 SettingsSection.DICTIONARY -> DictionarySection()
@@ -101,6 +106,7 @@ fun SettingsScreen(
                         SettingsSection.VOICE -> VoiceSettingsContent()
                         SettingsSection.TRANSLATION -> TranslationSettingsContent()
                         SettingsSection.READER -> ReaderSettingsContent()
+                        SettingsSection.UPDATES -> UpdatesSection()
                         SettingsSection.SITES -> SitesSection()
                         SettingsSection.STORAGE -> StorageSection()
                         SettingsSection.BACKUP -> BackupSection()
