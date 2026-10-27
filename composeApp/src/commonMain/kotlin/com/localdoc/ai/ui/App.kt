@@ -59,6 +59,7 @@ import com.localdoc.ai.platform.FilePicker
 import com.localdoc.ai.platform.PlatformBackHandler
 import com.localdoc.ai.platform.SystemPlayer
 import com.localdoc.ai.ui.reader.PlayerBar
+import com.localdoc.ai.ui.reader.PdfPagesScreen
 import com.localdoc.ai.ui.reader.ReaderView
 import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.CoroutineScope
@@ -231,11 +232,24 @@ fun App() {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
             Box(Modifier.fillMaxSize()) {
+            // PDF с копией файла открывается страницами-картинками; режим «текст» — по кнопке в панели
+            var pdfAsText by remember(reading.entryId) { mutableStateOf(false) }
+            // Позиция общая для обоих режимов: при переключении чтение продолжается с того же места
+            var currentBlock by remember(reading.entryId) { mutableStateOf(reading.startBlock) }
+            if (reading.book.pdfFile != null && !pdfAsText) {
+                PdfPagesScreen(
+                    book = reading.book,
+                    startBlock = currentBlock,
+                    onProgress = { currentBlock = it; AppGraph.library.saveProgress(reading.entryId, it) },
+                    onBack = { openBook = null },
+                    onShowText = { pdfAsText = true }
+                )
+            } else
             ReaderView(
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
-                startBlock = reading.startBlock,
-                onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
+                startBlock = currentBlock,
+                onProgress = { currentBlock = it; AppGraph.library.saveProgress(reading.entryId, it) },
                 onChaptersChanged = { chapters ->
                     scope.launch {
                         AppGraph.library.replaceChapters(reading.entryId, chapters)

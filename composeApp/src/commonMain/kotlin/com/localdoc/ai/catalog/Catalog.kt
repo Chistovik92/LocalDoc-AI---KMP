@@ -294,7 +294,7 @@ class CatalogRepository(
     companion object {
         private const val FILE = "catalog.json"
         const val MAX_READ_BYTES = 40L * 1024 * 1024
-        val BOOK_EXTENSIONS = setOf("fb2", "fb2.zip", "fbz", "epub", "pdf", "docx", "docm", "dotx", "dotm", "doc", "odt", "rtf", "wps", "pages")
+        val BOOK_EXTENSIONS = setOf("fb2", "fb2.zip", "fbz", "epub", "pdf", "docx", "docm", "dotx", "dotm", "doc", "odt", "rtf", "wps", "pages", "mobi", "azw", "azw3", "prc", "cbz")
         val TEXT_EXTENSIONS = setOf("txt", "md", "markdown", "html", "htm", "xml")
         private val READABLE = setOf(BookFormat.FB2, BookFormat.EPUB, BookFormat.DOCX, BookFormat.ODT, BookFormat.PDF)
     }
