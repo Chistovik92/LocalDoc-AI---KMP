@@ -32,7 +32,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.SmartPipeline
+import com.localdoc.ai.lang.LanguageDetector
 import com.localdoc.ai.lang.Languages
+import com.localdoc.ai.notes.AnnotationColor
+import com.localdoc.ai.notes.WordLinks
+import com.localdoc.ai.platform.PlatformActions
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
@@ -155,13 +171,23 @@ private const val NOTICE_MS = 2_500L
 
 /** Диалог заметки к цитате: показывает цитату и поле для текста (при правке поле заполнено прежней заметкой). */
 @Composable
-internal fun NoteDialog(quote: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+internal fun NoteDialog(
+    quote: String,
+    initial: String,
+    initialColor: AnnotationColor,
+    onDismiss: () -> Unit,
+    onSave: (String, AnnotationColor) -> Unit,
+    /** Только для уже сохранённой цитаты: убрать её вместе с подсветкой. */
+    onDelete: (() -> Unit)? = null
+) {
     var text by remember { mutableStateOf(initial) }
+    var color by remember { mutableStateOf(initialColor) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial.isBlank()) "Заметка" else "Правка заметки") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ColorPicker(color) { color = it }
                 Text(
                     quote,
                     style = MaterialTheme.typography.bodyMedium,
@@ -178,9 +204,37 @@ internal fun NoteDialog(quote: String, initial: String, onDismiss: () -> Unit, o
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Сохранить") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        confirmButton = { TextButton(onClick = { onSave(text, color) }) { Text("Сохранить") } },
+        dismissButton = {
+            Row {
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+                }
+                TextButton(onClick = onDismiss) { Text("Отмена") }
+            }
+        }
     )
+}
+
+/** Выбор цвета подсветки цитаты. */
+@Composable
+private fun ColorPicker(selected: AnnotationColor, onSelect: (AnnotationColor) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        AnnotationColor.entries.forEach { color ->
+            val chosen = color == selected
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(Color(color.argb).copy(alpha = 1f), CircleShape)
+                    .border(
+                        BorderStroke(if (chosen) 3.dp else 1.dp, if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                        CircleShape
+                    )
+                    .semantics { contentDescription = color.label }
+                    .clickable { onSelect(color) }
+            )
+        }
+    }
 }
 
 /**
@@ -269,6 +323,14 @@ internal fun WordLookupSheet(
                     }
                 } else {
                     TextButton(onClick = { onDismiss(); onOpenModels() }) { Text("Загрузить модель", maxLines = 1, softWrap = false) }
+                }
+                // Википедия — на языке слова: язык оригинала книги, иначе определяется по предложению
+                val wordLanguage = sourceLanguage ?: LanguageDetector.detect(sentence.ifBlank { word })
+                TextButton(onClick = { PlatformActions.openUrl(WordLinks.webSearch(word)) }) {
+                    Text("Найти в интернете", maxLines = 1, softWrap = false)
+                }
+                TextButton(onClick = { PlatformActions.openUrl(WordLinks.wikipedia(word, wordLanguage)) }) {
+                    Text("Википедия", maxLines = 1, softWrap = false)
                 }
             }
         }
