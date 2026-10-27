@@ -120,6 +120,7 @@ fun ModelsScreen() {
         modifier = Modifier.fillMaxSize()
     ) {
         item { Hero(loadedId) }
+        item { SemanticSearchCard() }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 RamFilter.entries.forEach { f -> FilterChip(selected = ramFilter == f, onClick = { ramFilter = f }, label = { Text(f.label) }) }

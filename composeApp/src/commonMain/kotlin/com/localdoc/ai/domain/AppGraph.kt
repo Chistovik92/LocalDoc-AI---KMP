@@ -187,8 +187,26 @@ object AppGraph {
     /** Документы (ключи вида «book:id» / «web:id»), у которых сейчас включён перевод. */
     val translating = MutableStateFlow<Set<String>>(emptySet())
 
+    /** Модель эмбеддингов multilingual-e5-small: скачивается по запросу, без неё работает хеширование. */
+    val semanticModel: com.localdoc.ai.rag.SemanticModelManager by lazy {
+        com.localdoc.ai.rag.SemanticModelManager(
+            files = com.localdoc.ai.rag.DownloaderFiles(ModelDownloader("embeddings", ".bin")),
+            storage = com.localdoc.ai.rag.KeyValueRagStorage(kv),
+            runtime = com.localdoc.ai.rag.E5Runtime,
+            fileSha256 = { path -> com.localdoc.ai.rag.fileSha256(path) },
+            totalMemoryMb = { com.localdoc.ai.rag.totalDeviceMemoryMb() },
+            runtimeAvailable = com.localdoc.ai.rag.onnxRuntimeAvailable,
+            scope = appScope,
+            io = Dispatchers.Default
+        )
+    }
+
     private val ragRepository: RagRepository by lazy {
-        RagRepository(VectorStore(kv), HashingEmbedder())
+        RagRepository(
+            store = VectorStore(kv),
+            embedderSource = { semanticModel.embedder() },
+            onEmbedderFailure = { semanticModel.onEmbedderFailure(it) }
+        )
     }
     val pipeline: SmartPipeline by lazy {
         SmartPipeline(engine, ragRepository) { activeSpec?.template ?: com.localdoc.ai.model.ChatTemplate.CHATML }
