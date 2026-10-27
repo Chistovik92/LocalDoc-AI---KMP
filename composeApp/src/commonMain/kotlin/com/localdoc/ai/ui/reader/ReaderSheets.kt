@@ -113,6 +113,7 @@ fun PlayerBar(state: ReadAloudState, title: String, onVoiceSettings: () -> Unit)
                     )
                 }
                 SleepTimerButton()
+                com.localdoc.ai.platform.AudioRouteButton()
                 IconButton(onClick = onVoiceSettings) { Icon(Icons.Default.RecordVoiceOver, contentDescription = "Голос") }
             }
             if (state.total > 0) {
