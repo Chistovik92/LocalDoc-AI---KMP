@@ -5,6 +5,8 @@ import com.localdoc.ai.book.pdf.PageRenderer
 import com.localdoc.ai.book.pdf.PdfPageSource
 import com.localdoc.ai.book.pdf.PdfPages
 import com.localdoc.ai.book.pdf.PdfRenderSize
+import com.localdoc.ai.book.pdf.blockOfPdfPage
+import com.localdoc.ai.book.pdf.pdfPageOfBlock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -134,5 +136,22 @@ class PdfPagesTest {
         val old = """{"title":"Старая","format":"PDF","blocks":[{"type":"PARAGRAPH","text":"т"}]}"""
         val book = json.decodeFromString(Book.serializer(), old)
         assertNull(book.pdfFile)
+    }
+
+    @Test
+    fun `page and block mapping works with and without page chapters`() {
+        val blocks = List(30) { Block(BlockType.PARAGRAPH, "п$it") }
+        val withChapters = Book(
+            title = "PDF", format = BookFormat.PDF, blocks = blocks,
+            chapters = List(10) { Chapter("Страница ${it + 1}", it * 3) }
+        )
+        assertEquals(12, withChapters.blockOfPdfPage(4, 10))
+        assertEquals(4, withChapters.pdfPageOfBlock(13, 10))
+        val noChapters = withChapters.copy(chapters = emptyList())
+        assertEquals(15, noChapters.blockOfPdfPage(5, 10))
+        assertEquals(5, noChapters.pdfPageOfBlock(15, 10))
+        // Выход за границы не ломается
+        assertEquals(9, noChapters.pdfPageOfBlock(10_000, 10))
+        assertEquals(0, noChapters.blockOfPdfPage(0, 10))
     }
 }

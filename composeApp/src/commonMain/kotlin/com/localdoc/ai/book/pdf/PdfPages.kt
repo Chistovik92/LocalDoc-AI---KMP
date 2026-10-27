@@ -125,3 +125,18 @@ object PdfPages {
         return book.copy(images = book.images + id, imageData = book.imageData + (id to bytes), cover = id)
     }
 }
+
+/** Блок, с которого книга-PDF считает страницу [page]: оглавление «Страница N», а без него — пропорционально. */
+fun com.localdoc.ai.book.Book.blockOfPdfPage(page: Int, pageCount: Int): Int {
+    if (blocks.isEmpty()) return 0
+    val byChapter = chapters.takeIf { it.size == pageCount }?.getOrNull(page)?.startBlock
+    return (byChapter ?: (page.toLong() * blocks.size / pageCount.coerceAtLeast(1)).toInt()).coerceIn(0, blocks.size - 1)
+}
+
+/** Страница PDF, на которую попадает блок [block] (обратное к [blockOfPdfPage]). */
+fun com.localdoc.ai.book.Book.pdfPageOfBlock(block: Int, pageCount: Int): Int {
+    if (pageCount <= 0) return 0
+    val page = if (chapters.size == pageCount) chapterIndexAt(block).coerceAtLeast(0)
+    else (block.toLong() * pageCount / blocks.size.coerceAtLeast(1)).toInt()
+    return page.coerceIn(0, pageCount - 1)
+}
