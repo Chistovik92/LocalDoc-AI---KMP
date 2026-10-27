@@ -78,7 +78,9 @@ class NovelResult(
     val original: DownloadedFile?,
     /** Оглавление и адреса глав — по ним автообновление находит новые главы; пусто, если книга собрана без оглавления. */
     val tocUrl: String? = null,
-    val chapterUrls: List<String> = emptyList()
+    val chapterUrls: List<String> = emptyList(),
+    /** Адреса глав, текст которых действительно скачан (без недоступных). */
+    val downloadedUrls: List<String> = emptyList()
 )
 
 @Serializable
@@ -126,7 +128,10 @@ class NovelDownloader(
         progress(DownloadProgress(DownloadPhase.BUILDING, chapters.size, chapters.size))
         val result = assemble(title, tocUrl ?: startUrl, tocPage ?: start, chapters, loaded)
         if (tocUrl == null || toc.size < MIN_TOC) return result
-        return NovelResult(result.book, result.chapters, result.missing, null, tocUrl, chapters.map { it.url })
+        return NovelResult(
+            result.book, result.chapters, result.missing, null, tocUrl, chapters.map { it.url },
+            chapters.filterIndexed { i, _ -> loaded[i] != null }.map { it.url }
+        )
     }
 
     // ---------- 1. готовый файл ----------

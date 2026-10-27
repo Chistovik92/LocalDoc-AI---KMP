@@ -40,11 +40,23 @@ actual object BackgroundUpdates {
     fun register() {
         BGTaskScheduler.sharedScheduler.registerForTaskWithIdentifier(TASK_ID, null) { task: BGTask? ->
             if (task != null) {
+                // Следующий запуск назначается заранее: если система прервёт задачу, расписание не оборвётся
+                runCatching { AppGraph.autoUpdate.reschedule() }
+                var finished = false
                 val job = AppGraph.appScope.launch {
                     runCatching { AppGraph.autoUpdate.runScheduled() }
-                    task.setTaskCompletedWithSuccess(true)
+                    if (!finished) {
+                        finished = true
+                        task.setTaskCompletedWithSuccess(true)
+                    }
                 }
-                task.expirationHandler = { job.cancel() }
+                task.expirationHandler = {
+                    job.cancel()
+                    if (!finished) {
+                        finished = true
+                        task.setTaskCompletedWithSuccess(false)
+                    }
+                }
             }
         }
     }

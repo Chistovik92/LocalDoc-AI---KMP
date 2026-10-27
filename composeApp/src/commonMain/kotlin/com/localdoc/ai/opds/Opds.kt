@@ -8,9 +8,11 @@ import com.localdoc.ai.domain.DownloadedFile
 import com.localdoc.ai.domain.NovelDownloader
 import com.localdoc.ai.net.HttpStatusException
 import com.localdoc.ai.net.WebHttp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -269,7 +271,7 @@ class OpdsClient(private val http: WebHttp) {
     suspend fun load(url: String): OpdsFeed {
         val result = http.get(url, headers = mapOf("Accept" to ACCEPT), maxBytes = MAX_FEED_BYTES)
         if (!result.isOk) throw HttpStatusException(result.status, result.url)
-        return OpdsParser.parseFeed(result.text(), result.url)
+        return withContext(Dispatchers.Default) { OpdsParser.parseFeed(result.text(), result.url) }
     }
 
     /** Шаблон поиска каталога; если он лежит в описании OpenSearch, описание загружается один раз. */
@@ -278,7 +280,7 @@ class OpdsClient(private val http: WebHttp) {
         if (!search.isDescription) return search.href
         val result = http.get(search.href, maxBytes = MAX_FEED_BYTES)
         if (!result.isOk) throw HttpStatusException(result.status, result.url)
-        return OpdsParser.openSearchTemplate(result.text(), result.url)
+        return withContext(Dispatchers.Default) { OpdsParser.openSearchTemplate(result.text(), result.url) }
     }
 
     suspend fun search(feed: OpdsFeed, query: String): OpdsFeed {

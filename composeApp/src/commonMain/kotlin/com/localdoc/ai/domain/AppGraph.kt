@@ -296,8 +296,8 @@ object AppGraph {
                 val tocUrl = result.tocUrl
                 if (tocUrl != null) {
                     novelTracker.register(NovelDownloader.folderId(tocUrl), title, tocUrl, result.chapterUrls.map(ChapterDiff::normalizeUrl))
-                    // Скачаны все главы списка: ожидавшие докачки считаются полученными
-                    novelTracker.markDownloaded(NovelDownloader.folderId(tocUrl), result.chapterUrls.map(ChapterDiff::normalizeUrl))
+                    // Ожидавшими перестают быть только реально скачанные главы; недоступные остаются в списке
+                    novelTracker.markDownloaded(NovelDownloader.folderId(tocUrl), result.downloadedUrls.map(ChapterDiff::normalizeUrl))
                 }
             }
         )
