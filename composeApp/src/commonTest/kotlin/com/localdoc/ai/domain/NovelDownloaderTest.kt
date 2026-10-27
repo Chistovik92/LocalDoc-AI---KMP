@@ -33,6 +33,9 @@ class FakeSite(val chapters: Int, private val links: Map<String, List<PageLink>>
     var tocCalls = 0
     var withNextLinks = false
 
+    /** Ссылки «Назад»; у первой главы она ведёт на страницу книги (как на многих сайтах). */
+    var withPrevLinks = false
+
     private fun chapterUrl(i: Int) = "https://site.example/ch/$i"
 
     override suspend fun load(url: String): WebPage {
@@ -42,6 +45,11 @@ class FakeSite(val chapters: Int, private val links: Map<String, List<PageLink>>
         if (url in failing) error("сеть недоступна")
         val n = url.substringAfterLast('/').toIntOrNull() ?: 0
         val next = if (withNextLinks && n < chapters) chapterUrl(n + 1) else null
+        val prev = when {
+            !withPrevLinks || n < 1 -> null
+            n == 1 -> "https://site.example/toc"
+            else -> chapterUrl(n - 1)
+        }
         val book = Book(
             title = if (n > 0) "Моя новелла - Глава $n" else "Моя новелла",
             format = BookFormat.WEB, source = url,
@@ -50,7 +58,7 @@ class FakeSite(val chapters: Int, private val links: Map<String, List<PageLink>>
                 Block(BlockType.PARAGRAPH, "Текст главы $n. " + "Слова. ".repeat(20)),
                 Block(BlockType.PARAGRAPH, "Подписывайтесь на канал в Telegram")
             ),
-            web = WebNavigation(next = next, toc = "https://site.example/toc")
+            web = WebNavigation(next = next, prev = prev, toc = "https://site.example/toc")
         )
         return WebPage(book, links[url].orEmpty(), emptyList())
     }
@@ -158,6 +166,67 @@ class NovelDownloaderTest {
         val result = downloader(site).run("https://site.example/ch/1", null, emptyList()) {}
         assertEquals(4, result.chapters)
         assertEquals(0, site.tocCalls)
+    }
+
+    @Test
+    fun `without a table of contents the book is downloaded from the first chapter even when started in the middle`() = runTest {
+        val site = FakeSite(5).also { it.withNextLinks = true; it.withPrevLinks = true }
+        val result = downloader(site).run("https://site.example/ch/3", null, emptyList()) {}
+        assertEquals(5, result.chapters)
+        assertEquals((1..5).toList(), result.book.chapters.map { NovelTitles.number(it.title) })
+        // Каждая страница главы открыта один раз: обход и скачивание не грузят её дважды
+        assertTrue(site.loads.filterKeys { "/ch/" in it }.values.all { it == 1 }, site.loads.toString())
+    }
+
+    @Test
+    fun `links taken from a chapter page are not mistaken for the table of contents`() = runTest {
+        val site = FakeSite(5).also { it.withNextLinks = true; it.withPrevLinks = true }
+        // Со страницы главы 3 найдены только соседние главы 2 и 4: это не оглавление, книга идёт с первой главы
+        val neighbours = listOf(PageLink("Глава 2", "https://site.example/ch/2"), PageLink("Глава 4", "https://site.example/ch/4"))
+        val result = downloader(site).run("https://site.example/ch/3", null, neighbours) {}
+        assertEquals(5, result.chapters)
+        assertEquals((1..5).toList(), result.book.chapters.map { NovelTitles.number(it.title) })
+    }
+
+    @Test
+    fun `a real table of contents is used even when its first chapter has no number one`() = runTest {
+        val site = FakeSite(5)
+        val result = downloader(site).run("https://site.example/ch/3", "https://site.example/toc", emptyList()) {}
+        assertEquals(5, result.chapters)
+        assertEquals(1, site.tocCalls)
+    }
+
+    @Test
+    fun `walking back stops at the book page instead of adding it as a chapter`() = runTest {
+        // У первой главы «Назад» ведёт на страницу книги, а у той есть ссылка «Читать» на главу 1
+        val site = FakeSite(4).also { it.withNextLinks = true; it.withPrevLinks = true }
+        val result = downloader(site).run("https://site.example/ch/2", null, emptyList()) {}
+        assertEquals(4, result.chapters)
+        assertTrue(result.book.chapters.none { it.title == "Моя новелла" }, result.book.chapters.toString())
+    }
+
+    @Test
+    fun `starting from the last chapter still downloads the whole book`() = runTest {
+        val site = FakeSite(4).also { it.withNextLinks = true; it.withPrevLinks = true }
+        val result = downloader(site).run("https://site.example/ch/4", null, emptyList()) {}
+        assertEquals(4, result.chapters)
+        assertEquals((1..4).toList(), result.book.chapters.map { NovelTitles.number(it.title) })
+    }
+
+    @Test
+    fun `a cycle in the back links does not hang the download`() = runTest {
+        val looping = object : ChapterSource {
+            val site = FakeSite(3).also { it.withNextLinks = true }
+            override suspend fun load(url: String): WebPage {
+                val page = site.load(url)
+                val web = page.book.web ?: return page
+                // Из любой главы «Назад» ведёт на саму себя и на главу 3
+                return WebPage(page.book.copy(web = web.copy(prev = "https://site.example/ch/3")), page.links, page.downloads)
+            }
+            override suspend fun tableOfContents(tocUrl: String) = site.tableOfContents(tocUrl)
+        }
+        val result = downloader(looping).run("https://site.example/ch/3", null, emptyList()) {}
+        assertTrue(result.chapters >= 1)
     }
 
     @Test
