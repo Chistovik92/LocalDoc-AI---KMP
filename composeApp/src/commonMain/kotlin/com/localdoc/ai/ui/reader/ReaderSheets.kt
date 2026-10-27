@@ -278,6 +278,8 @@ internal fun VoiceSettingsContent() {
 
         BuiltinVoicesSection()
 
+        VoiceControlSection()
+
         SectionLabel("Системный синтезатор")
         // Выбор системного движка — и способ вернуться к нему со встроенного голоса (на iOS тоже)
         EngineRow("Системный по умолчанию", voice.engineId == null) { AppGraph.updateVoice { it.copy(engineId = null, voiceId = null) } }

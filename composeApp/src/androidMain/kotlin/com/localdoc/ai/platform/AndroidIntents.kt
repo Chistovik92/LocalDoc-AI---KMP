@@ -37,6 +37,21 @@ object AndroidIntents {
     private var folderLauncher: ActivityResultLauncher<Uri?>? = null
     private var folderCallback: ((Uri?) -> Unit)? = null
 
+    private var microphoneLauncher: ActivityResultLauncher<String>? = null
+    private var microphoneCallback: ((Boolean) -> Unit)? = null
+
+    fun registerMicrophone(launcher: ActivityResultLauncher<String>) { microphoneLauncher = launcher }
+
+    fun launchMicrophonePermission(onResult: (Boolean) -> Unit) {
+        microphoneCallback = onResult
+        microphoneLauncher?.launch(android.Manifest.permission.RECORD_AUDIO) ?: onResult(false)
+    }
+
+    fun onMicrophoneResult(granted: Boolean) {
+        microphoneCallback?.invoke(granted)
+        microphoneCallback = null
+    }
+
     fun registerSaver(launcher: ActivityResultLauncher<SaveRequest>) { saveLauncher = launcher }
     fun registerFolderPicker(launcher: ActivityResultLauncher<Uri?>) { folderLauncher = launcher }
 

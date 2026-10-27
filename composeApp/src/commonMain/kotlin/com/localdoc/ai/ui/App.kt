@@ -172,6 +172,7 @@ fun App() {
         // Восстанавливаем модель, загруженную до перезапуска; тихо проверяем обновления
         LaunchedEffect(Unit) {
             SystemPlayer.start()
+            AppGraph.voiceControl
             AppGraph.readingStats // подключает учёт озвучки к статистике чтения
             AppGraph.updates.check(silent = true)
             AppGraph.restoreLastModel()

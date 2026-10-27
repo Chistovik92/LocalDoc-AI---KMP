@@ -49,6 +49,9 @@ import com.localdoc.ai.rag.VectorStore
 import com.localdoc.ai.tts.PiperSpeechEngine
 import com.localdoc.ai.tts.ReadAloudController
 import com.localdoc.ai.tts.SleepTimerController
+import com.localdoc.ai.voice.VoiceControl
+import com.localdoc.ai.voice.VoiceControlSettings
+import com.localdoc.ai.voice.createPhraseRecognizer
 import com.localdoc.ai.tts.Speaker
 import com.localdoc.ai.tts.SpeechRouter
 import com.localdoc.ai.tts.VoicePackManager
@@ -266,6 +269,13 @@ object AppGraph {
 
     /** Плеер чтения вслух — общий для книг и веб-страниц. */
     val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope) }
+
+    val voiceControlSettings = PersistedSetting(kv, "voice_control_v1", VoiceControlSettings.serializer(), VoiceControlSettings())
+
+    /** Голосовое управление чтением: «дальше», «назад», «пауза»; слушает только при открытом плеере и включённой настройке. */
+    val voiceControl: VoiceControl by lazy {
+        VoiceControl(readAloud, voiceControlSettings, createPhraseRecognizer(), appScope).also { it.start() }
+    }
 
     /** Таймер сна озвучки: остановка через N минут или в конце главы, с плавным затуханием. */
     val sleepTimer: SleepTimerController by lazy { SleepTimerController(readAloud, appScope) }
