@@ -10,10 +10,25 @@ package com.localdoc.ai.rag
  */
 interface EmbeddingProvider {
     val dimensions: Int
+
+    /** Короткое имя провайдера; вместе с размерностью даёт [signature] индекса. */
+    val id: String get() = "custom"
+
+    /** Подпись пространства векторов: индексы с разной подписью несовместимы и пересчитываются. */
+    val signature: String get() = "$id-$dimensions"
+
     fun encode(text: String): FloatArray
+
+    /** Вектор поискового запроса (у моделей e5 — с префиксом «query: »). */
+    fun encodeQuery(text: String): FloatArray = encode(text)
+
+    /** Вектор фрагмента документа (у моделей e5 — с префиксом «passage: »). */
+    fun encodePassage(text: String): FloatArray = encode(text)
 }
 
 class HashingEmbedder(override val dimensions: Int = 384) : EmbeddingProvider {
+
+    override val id: String get() = "hash"
 
     private fun hash32(s: String, seed: Int): Int {
         var h = seed xor 0x811c9dc5.toInt()

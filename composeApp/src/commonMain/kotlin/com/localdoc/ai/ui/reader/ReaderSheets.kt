@@ -43,6 +43,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
+import com.localdoc.ai.domain.splitEdit
+import com.localdoc.ai.domain.applyOverride
+import com.localdoc.ai.domain.BookOverride
+import com.localdoc.ai.platform.FilePicker
+import kotlin.math.roundToInt
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -164,24 +171,45 @@ fun PlayerBar(state: ReadAloudState, title: String, onVoiceSettings: () -> Unit)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReaderSettingsSheet(onDismiss: () -> Unit) {
+fun ReaderSettingsSheet(onDismiss: () -> Unit, docKey: String? = null) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Оформление", style = MaterialTheme.typography.titleLarge)
-            ReaderSettingsContent()
+            ReaderSettingsContent(docKey)
         }
     }
 }
 
 /** Оформление и режим чтения — для шторки читалки и вкладки «Настройки». */
 @Composable
-internal fun ReaderSettingsContent() {
-    val settings by AppGraph.readerSettings.value.collectAsState()
-    val update = AppGraph.readerSettings::update
+internal fun ReaderSettingsContent(docKey: String? = null) {
+    val global by AppGraph.readerSettings.value.collectAsState()
+    val overrides by AppGraph.bookOverrides.value.collectAsState()
+    val bookOverride = docKey?.let { overrides[it] }
+    // Правка идёт в настройки книги, пока они включены: оформление остаётся у книги, остальное — в общих
+    val settings = global.applyOverride(bookOverride)
+    val update: ((ReaderSettings) -> ReaderSettings) -> Unit = { change ->
+        if (docKey != null && bookOverride != null) {
+            val (newGlobal, newOverride) = global.splitEdit(change(settings))
+            AppGraph.readerSettings.update { newGlobal }
+            AppGraph.bookOverrides.update { it + (docKey to newOverride) }
+        } else AppGraph.readerSettings.update(change)
+    }
+    val scope = rememberCoroutineScope()
+    var fonts by remember { mutableStateOf(AppGraph.fonts.list()) }
+    var fontError by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (docKey != null) {
+            SwitchRow("Только для этой книги", bookOverride != null) { on ->
+                AppGraph.bookOverrides.update { if (on) it + (docKey to BookOverride()) else it - docKey }
+            }
+            if (bookOverride != null && !bookOverride.isEmpty) {
+                TextButton(onClick = { AppGraph.bookOverrides.update { it + (docKey to BookOverride()) } }) { Text("Сбросить к общим настройкам") }
+            }
+        }
         SectionLabel("Цвет страницы")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
             ReaderTheme.entries.forEach { theme ->
@@ -213,10 +241,52 @@ internal fun ReaderSettingsContent() {
             }
         }
 
+        SectionLabel("Свой шрифт")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = settings.fontFile == null, onClick = { update { it.copy(fontFile = null) } }, label = { Text("Стандартный") })
+            fonts.forEach { name ->
+                FilterChip(
+                    selected = settings.fontFile == name,
+                    onClick = { update { it.copy(fontFile = name) } },
+                    label = { Text(name.substringBeforeLast('.'), maxLines = 1) }
+                )
+            }
+            AssistChip(onClick = {
+                FilePicker().pick("*/*") { uri ->
+                    if (uri != null) scope.launch {
+                        val name = AppGraph.fonts.import(uri)
+                        fontError = name == null
+                        fonts = AppGraph.fonts.list()
+                        if (name != null) update { it.copy(fontFile = name) }
+                    }
+                }
+            }, label = { Text("Добавить TTF / OTF…") })
+        }
+        if (fontError) Text("Это не шрифт TTF или OTF.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        if (settings.fontFile != null) {
+            TextButton(onClick = {
+                val name = settings.fontFile
+                AppGraph.readerSettings.update { if (it.fontFile == name) it.copy(fontFile = null) else it }
+                AppGraph.bookOverrides.update { map -> map.mapValues { (_, o) -> if (o.fontFile == name) o.copy(fontFile = null) else o } }
+                name?.let { AppGraph.fonts.remove(it) }
+                fonts = AppGraph.fonts.list()
+            }) { Text("Удалить этот шрифт") }
+        }
+
         LabeledSlider("Размер текста", "${settings.fontSize.toInt()} sp", settings.fontSize, MIN_READER_FONT_SIZE..MAX_READER_FONT_SIZE) { v -> update { it.copy(fontSize = v) } }
         LabeledSlider("Межстрочный интервал", "×${(settings.lineHeight * 10).toInt() / 10.0}", settings.lineHeight, 1.2f..2.2f) { v -> update { it.copy(lineHeight = v) } }
 
+        LabeledSlider("Жирность шрифта", settings.fontWeight.toString(), settings.fontWeight.toFloat(), 300f..700f) { v ->
+            update { it.copy(fontWeight = (v / 100f).roundToInt() * 100) }
+        }
+        LabeledSlider("Межбуквенный интервал", "${(settings.letterSpacing * 10).roundToInt() / 10.0} sp", settings.letterSpacing, -0.5f..3f) { v ->
+            update { it.copy(letterSpacing = (v * 10).roundToInt() / 10f) }
+        }
+        LabeledSlider("Поля страницы", "${settings.margin.toInt()} dp", settings.margin, 8f..64f) { v -> update { it.copy(margin = v.roundToInt().toFloat()) } }
         SwitchRow("Выравнивание по ширине", settings.justify) { v -> update { it.copy(justify = v) } }
+        if (settings.justify) {
+            SwitchRow("Умная выключка: переносы слов, пробелы растягиваются меньше", settings.smartJustify) { v -> update { it.copy(smartJustify = v) } }
+        }
         SwitchRow("Следовать за озвучкой", settings.followSpeech) { v -> update { it.copy(followSpeech = v) } }
         SwitchRow("Автопереход к следующей главе (веб-новеллы)", settings.autoNext) { v -> update { it.copy(autoNext = v) } }
         SectionLabel("Режим чтения")

@@ -60,6 +60,7 @@ import com.localdoc.ai.platform.FilePicker
 import com.localdoc.ai.platform.PlatformBackHandler
 import com.localdoc.ai.platform.SystemPlayer
 import com.localdoc.ai.ui.reader.PlayerBar
+import com.localdoc.ai.ui.reader.PdfPagesScreen
 import com.localdoc.ai.ui.reader.ReaderView
 import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.CoroutineScope
@@ -236,11 +237,29 @@ fun App() {
             // Закрытая читалка не должна засчитываться как чтение: интервал закрывается, накопленное сохраняется
             DisposableEffect(reading.entryId) { onDispose { AppGraph.readingStats.onPause() } }
             Box(Modifier.fillMaxSize()) {
+            // PDF с копией файла открывается страницами-картинками; режим «текст» — по кнопке в панели
+            var pdfAsText by remember(reading.entryId) { mutableStateOf(false) }
+            // Позиция общая для обоих режимов: при переключении чтение продолжается с того же места
+            var currentBlock by remember(reading.entryId) { mutableStateOf(reading.startBlock) }
+            if (reading.book.pdfFile != null && !pdfAsText) {
+                PdfPagesScreen(
+                    book = reading.book,
+                    startBlock = currentBlock,
+                    onProgress = {
+                        currentBlock = it
+                        AppGraph.library.saveProgress(reading.entryId, it)
+                        AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
+                    },
+                    onBack = { openBook = null },
+                    onShowText = { pdfAsText = true }
+                )
+            } else
             ReaderView(
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
-                startBlock = reading.startBlock,
+                startBlock = currentBlock,
                 onProgress = {
+                    currentBlock = it
                     AppGraph.library.saveProgress(reading.entryId, it)
                     AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
                 },

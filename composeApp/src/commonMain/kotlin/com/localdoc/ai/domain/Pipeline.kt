@@ -125,7 +125,7 @@ class SmartPipeline(
             // ключ включает хэш содержимого, чтобы разные документы с одним заголовком не смешивались
             val docId = "${doc.title}#${doc.content.hashCode()}"
             rag.ensureIndexed(docId = docId, rawText = doc.content)
-            val chunks = rag.retrieveTopK(docId = docId, question = question, topK = 4)
+            val chunks = rag.retrieveTopK(docId = docId, question = question, topK = 4, rawText = doc.content)
             val contextBlock = if (chunks.isEmpty()) {
                 doc.content.take(DIRECT_CONTEXT_CHAR_LIMIT)
             } else {

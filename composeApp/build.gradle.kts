@@ -75,6 +75,8 @@ kotlin {
             implementation(libs.mlkit.text.recognition)
             // sherpa-onnx: JNI + Kotlin API OfflineTts, onnxruntime слинкован статически
             implementation("com.k2fsa.sherpa:sherpa-onnx-static-link-onnxruntime:${libs.versions.sherpaOnnx.get()}@aar")
+            // ONNX Runtime для эмбеддингов multilingual-e5-small (отдельно от статического в sherpa-onnx)
+            implementation(libs.onnxruntime.android)
             // bzip2 для распаковки голосовых пакетов (tar разбирает общий TarReader)
             implementation(libs.commons.compress)
         }

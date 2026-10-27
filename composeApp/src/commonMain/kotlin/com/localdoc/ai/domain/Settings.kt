@@ -44,6 +44,16 @@ data class ReaderSettings(
     val autoNext: Boolean = false,
     /** Слова, по которым в тексте ищутся начала глав («Глава, Часть, Пролог…»); пусто — стандартный список. */
     val chapterWords: String = "",
+    /** Свой шрифт: имя файла TTF/OTF в хранилище приложения (`fonts/…`); null — шрифт из [font]. */
+    val fontFile: String? = null,
+    /** Поля страницы по горизонтали, dp. */
+    val margin: Float = 24f,
+    /** Межбуквенный интервал, sp. */
+    val letterSpacing: Float = 0f,
+    /** Жирность шрифта: 300 — тонкий, 400 — обычный, 700 — жирный. */
+    val fontWeight: Int = 400,
+    /** Выключка с переносами слов и балансом строк — пробелы растягиваются меньше. */
+    val smartJustify: Boolean = false,
     val tapZones: TapZones = TapZones.EDGES,
     /** Ширина боковой зоны листания в долях ширины экрана. */
     val tapZoneWidth: Float = 0.3f,

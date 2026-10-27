@@ -25,4 +25,10 @@ expect class FileAccess() {
 
     /** Размер файла хранилища в байтах (0 — файла нет). */
     fun appFileSize(name: String): Long
+
+    /** Потоково копирует внешний файл в хранилище приложения (без загрузки в память); возвращает размер в байтах. */
+    suspend fun copyToAppFile(pathOrUri: String, name: String): Long
+
+    /** Абсолютный путь файла хранилища — для платформенных API, которым нужен путь (рендер PDF). */
+    fun appFilePath(name: String): String
 }

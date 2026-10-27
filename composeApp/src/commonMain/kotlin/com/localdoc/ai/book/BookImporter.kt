@@ -1,6 +1,8 @@
 package com.localdoc.ai.book
 
+import com.localdoc.ai.book.pdf.PdfPages
 import com.localdoc.ai.parser.PdfExtractor
+import com.localdoc.ai.platform.PdfPageRenderer
 import com.localdoc.ai.platform.FileAccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +29,8 @@ object FormatDetector {
         "xml" -> BookFormat.XML
         "wps" -> BookFormat.WPS
         "pages" -> BookFormat.PAGES
+        "mobi", "azw", "azw3", "prc" -> BookFormat.MOBI
+        "cbz" -> BookFormat.CBZ
         else -> null
     }
 
@@ -37,6 +41,7 @@ object FormatDetector {
     fun bySignature(bytes: ByteArray): BookFormat {
         if (isPdf(bytes)) return BookFormat.PDF
         if (Ole2File.isOle2(bytes)) return BookFormat.DOC
+        if (MobiParser.isMobi(bytes)) return BookFormat.MOBI
         if (ZipArchive.isZip(bytes)) return zipKind(bytes)
         if (RtfParser.isRtf(bytes)) return BookFormat.RTF
         if (looksBinary(bytes)) throw UnsupportedFormatException(BINARY_MESSAGE)
@@ -50,12 +55,14 @@ object FormatDetector {
     fun resolve(name: String, bytes: ByteArray): BookFormat {
         val byName = byName(name)
         if (isPdf(bytes)) return BookFormat.PDF
+        if (MobiParser.isMobi(bytes)) return BookFormat.MOBI
         if (Ole2File.isOle2(bytes)) return if (byName == BookFormat.WPS) BookFormat.WPS else BookFormat.DOC
         if (ZipArchive.isZip(bytes)) return zipKind(bytes)
         if (RtfParser.isRtf(bytes)) return BookFormat.RTF
         return when (byName) {
             null -> bySignature(bytes)
-            BookFormat.EPUB, BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.PDF, BookFormat.WPS, BookFormat.PAGES ->
+            BookFormat.EPUB, BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.PDF, BookFormat.WPS, BookFormat.PAGES,
+            BookFormat.MOBI, BookFormat.CBZ ->
                 throw UnsupportedFormatException("Файл «$name» повреждён или не является документом ${byName.label}.")
             BookFormat.RTF -> {
                 if (!RtfParser.isRtf(bytes)) throw UnsupportedFormatException("Файл «$name» повреждён или не является документом RTF.")
@@ -99,7 +106,8 @@ object FormatDetector {
         OdtParser.isOdt(zip) -> BookFormat.ODT
         PagesParser.isPages(zip) -> BookFormat.PAGES
         zip.names.any { it.endsWith(".fb2", ignoreCase = true) } -> BookFormat.FB2
-        else -> throw UnsupportedFormatException("В архиве нет книги: поддерживаются EPUB, FB2.ZIP, DOCX, ODT и Pages.")
+        CbzParser.isCbz(zip) -> BookFormat.CBZ
+        else -> throw UnsupportedFormatException("В архиве нет книги: поддерживаются EPUB, FB2.ZIP, DOCX, ODT, Pages и CBZ.")
     }
 
     /**
@@ -125,7 +133,7 @@ object FormatDetector {
 
     private const val BINARY_SAMPLE = 8192
     private const val BINARY_MESSAGE =
-        "Не удаётся прочитать файл: это не текстовый документ. Поддерживаются PDF, EPUB, FB2, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML и XML."
+        "Не удаётся прочитать файл: это не текстовый документ. Поддерживаются PDF, EPUB, FB2, Mobi/AZW3, CBZ, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML и XML."
 }
 
 /** Импорт файла любого поддерживаемого формата в единую модель [Book]. */
@@ -167,7 +175,35 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
 
     private suspend fun importPdf(pathOrUri: String, title: String): Book {
         val parsed = pdfExtractor.extract(pathOrUri)
-        return PdfTextAdapter.toBook(parsed.title.substringBeforeLast('.').ifBlank { title }, parsed.content, pathOrUri)
+        val book = PdfTextAdapter.toBook(parsed.title.substringBeforeLast('.').ifBlank { title }, parsed.content, pathOrUri)
+        return withPageImages(book, pathOrUri)
+    }
+
+    /**
+     * Копия PDF в хранилище приложения (по ней страницы рисуются картинками, а доступ к исходному файлу
+     * не нужен) и обложка — первая страница. Любой сбой оставляет книгу в режиме «текст».
+     */
+    private suspend fun withPageImages(book: Book, pathOrUri: String): Book {
+        val name = PdfPages.fileNameFor(pathOrUri)
+        try {
+            val size = files.copyToAppFile(pathOrUri, name)
+            if (size > PdfPages.MAX_COPY_BYTES) {
+                files.deleteAppFile(name)
+                return book
+            }
+            val withFile = book.copy(pdfFile = name)
+            val renderer = PdfPageRenderer(files.appFilePath(name))
+            return try {
+                withContext(Dispatchers.Default) { PdfPages.withCover(withFile, renderer) }
+            } finally {
+                renderer.close()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            files.deleteAppFile(name)
+            return book
+        }
     }
 
     companion object {
@@ -187,6 +223,8 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
                 BookFormat.XML -> XmlBookParser.parse(bytes, title)
                 BookFormat.WPS -> WpsParser.parse(bytes, title)
                 BookFormat.PAGES -> PagesParser.parse(ZipArchive(bytes), title)
+                BookFormat.MOBI -> MobiParser.parse(bytes, title)
+                BookFormat.CBZ -> CbzParser.parse(ZipArchive(bytes), title)
                 BookFormat.FB2 -> {
                     val xml = if (ZipArchive.isZip(bytes)) {
                         val zip = ZipArchive(bytes)

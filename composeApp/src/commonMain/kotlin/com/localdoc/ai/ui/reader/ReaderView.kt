@@ -119,6 +119,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -135,6 +136,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -153,6 +156,7 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.ChatMessage
 import com.localdoc.ai.domain.ReaderFont
 import com.localdoc.ai.domain.ReaderSettings
+import com.localdoc.ai.domain.applyOverride
 import com.localdoc.ai.domain.ReaderTheme
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.tts.ReadAloudStop
@@ -223,7 +227,9 @@ fun ReaderView(
     applyNavigationBarInsets: Boolean = true,
     topBarActions: @Composable RowScope.() -> Unit = {}
 ) {
-    val settings by AppGraph.readerSettings.value.collectAsState()
+    val globalSettings by AppGraph.readerSettings.value.collectAsState()
+    val bookOverrides by AppGraph.bookOverrides.value.collectAsState()
+    val settings = remember(globalSettings, bookOverrides[docKey]) { globalSettings.applyOverride(bookOverrides[docKey]) }
     val translationSettings by AppGraph.translationSettings.value.collectAsState()
     val translatingDocs by AppGraph.translating.collectAsState()
     val bookmarks by AppGraph.bookmarks.all.collectAsState()
@@ -701,7 +707,7 @@ fun ReaderView(
                         marks = if (translatedBlocks == null) marksByBlock[index].orEmpty() else emptyList(),
                         onTap = if (isMine) ({ AppGraph.readAloud.jumpToBlock(index) }) else null,
                         onMarkTap = { id -> bookAnnotations.firstOrNull { it.id == id }?.let { noteEdit = it } },
-                        modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = 24.dp)
+                        modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = settings.margin.dp)
                     )
                 }
             }
@@ -922,7 +928,7 @@ fun ReaderView(
         }
     }
 
-    if (showSettings) ReaderSettingsSheet(onDismiss = { showSettings = false })
+    if (showSettings) ReaderSettingsSheet(docKey = docKey, onDismiss = { showSettings = false })
     if (showSaveAs && entry != null) SaveAsDialog(entry = entry, onDismiss = { showSaveAs = false })
     if (showChapters && entry != null && onChaptersChanged != null) {
         ChaptersSheet(
@@ -1159,19 +1165,23 @@ private fun BlockText(
         block.image?.let { BookImage(entryId, it, block.text, referer, modifier.padding(vertical = 8.dp)) }
         return
     }
-    val family = if (settings.font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif
+    val custom by produceState(AppGraph.fonts.cached(settings.fontFile), settings.fontFile) { value = AppGraph.fonts.load(settings.fontFile) }
+    val family = custom ?: if (settings.font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif
+    val weight = FontWeight(settings.fontWeight.coerceIn(100, 900))
+    val spacing = settings.letterSpacing.sp
     val base = settings.fontSize
     val highlightColor = if (paper.background.luminance() < 0.3f) paper.highlight.copy(alpha = 0.8f) else paper.highlight
     val style = when (block.type) {
         BlockType.HEADING -> TextStyle(
             fontFamily = family,
             fontSize = (base * if (block.level <= 1) 1.5f else 1.25f).sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight((settings.fontWeight + 200).coerceIn(600, 900)),
+            letterSpacing = spacing,
             lineHeight = (base * 1.9f).sp
         )
-        BlockType.QUOTE -> TextStyle(fontFamily = family, fontSize = base.sp, fontStyle = FontStyle.Italic, lineHeight = (base * settings.lineHeight).sp)
+        BlockType.QUOTE -> TextStyle(fontFamily = family, fontWeight = weight, letterSpacing = spacing, fontSize = base.sp, fontStyle = FontStyle.Italic, lineHeight = (base * settings.lineHeight).sp)
         BlockType.CODE -> TextStyle(fontFamily = FontFamily.Monospace, fontSize = (base * 0.82f).sp, lineHeight = (base * 1.35f).sp)
-        BlockType.LIST_ITEM, BlockType.PARAGRAPH, BlockType.IMAGE -> TextStyle(fontFamily = family, fontSize = base.sp, lineHeight = (base * settings.lineHeight).sp)
+        BlockType.LIST_ITEM, BlockType.PARAGRAPH, BlockType.IMAGE -> TextStyle(fontFamily = family, fontWeight = weight, letterSpacing = spacing, fontSize = base.sp, lineHeight = (base * settings.lineHeight).sp)
     }
     val topPadding = when (block.type) {
         BlockType.HEADING -> if (block.level <= 1) 28.dp else 18.dp
@@ -1187,7 +1197,9 @@ private fun BlockText(
         onTextLayout = { layout = it },
         style = style.copy(
             color = if (block.type == BlockType.QUOTE) paper.secondary else paper.text,
-            textAlign = if (settings.justify && block.type == BlockType.PARAGRAPH) TextAlign.Justify else TextAlign.Start
+            textAlign = if (settings.justify && block.type == BlockType.PARAGRAPH) TextAlign.Justify else TextAlign.Start,
+            lineBreak = if (settings.justify && settings.smartJustify) LineBreak.Paragraph else LineBreak.Unspecified,
+            hyphens = if (settings.justify && settings.smartJustify) Hyphens.Auto else Hyphens.Unspecified
         ),
         modifier = modifier
             .fillMaxWidth()
