@@ -94,6 +94,18 @@ actual class FileAccess actual constructor() {
         return (attrs[NSFileSize] as? NSNumber)?.longValue ?: 0L
     }
 
+    actual suspend fun copyToAppFile(pathOrUri: String, name: String): Long = withContext(Dispatchers.IO) {
+        val target = pathOf(name)
+        val fm = NSFileManager.defaultManager
+        if ('/' in name) fm.createDirectoryAtPath(target.substringBeforeLast('/'), withIntermediateDirectories = true, attributes = null, error = null)
+        fm.removeItemAtPath(target, error = null)
+        val source = pathOrUri.removePrefix("file://")
+        if (!fm.copyItemAtPath(source, toPath = target, error = null)) throw IllegalStateException("Файл недоступен: $source")
+        appFileSize(name)
+    }
+
+    actual fun appFilePath(name: String): String = pathOf(name)
+
     private fun isDirectory(path: String): Boolean {
         val attrs = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null) ?: return false
         return attrs[NSFileType] == NSFileTypeDirectory

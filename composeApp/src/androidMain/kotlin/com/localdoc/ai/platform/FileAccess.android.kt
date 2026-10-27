@@ -69,4 +69,21 @@ actual class FileAccess actual constructor() {
     }
 
     actual fun appFileSize(name: String): Long = resolve(name).takeIf { it.isFile }?.length() ?: 0L
+
+    actual suspend fun copyToAppFile(pathOrUri: String, name: String): Long = withContext(Dispatchers.IO) {
+        val target = resolve(name)
+        target.parentFile?.mkdirs()
+        val temp = File(target.parentFile, target.name + ".tmp")
+        val input = if (pathOrUri.startsWith("/")) File(pathOrUri).inputStream() else context.contentResolver.openInputStream(Uri.parse(pathOrUri))
+        val copied = (input ?: throw IllegalStateException("Файл недоступен: $pathOrUri")).use { source ->
+            temp.outputStream().use { source.copyTo(it) }
+        }
+        if (!temp.renameTo(target)) {
+            target.delete()
+            temp.renameTo(target)
+        }
+        copied
+    }
+
+    actual fun appFilePath(name: String): String = resolve(name).absolutePath
 }

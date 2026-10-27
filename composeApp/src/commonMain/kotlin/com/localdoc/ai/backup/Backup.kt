@@ -60,13 +60,30 @@ object BackupFormat {
      */
     val KV_KEYS = listOf(
         KEY_LIBRARY, "bookmarks_v1", "annotations_v1", "dictionary_v1",
-        "reader_settings", "voice_settings", "translation_settings"
+        "reader_settings", "book_reader_overrides", "voice_settings", "translation_settings"
     )
 
     private val SAFE_NAME = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
     /** Имя файла из архива допустимо, только если это простое имя без путей: защита от выхода из папки приложения. */
     fun isSafeName(name: String) = SAFE_NAME.matches(name) && ".." !in name
+
+    /** Недопустимые в имени файла символы: имя шрифта может быть любым «человеческим», но не путём. */
+    private val BAD_FONT_CHARS = charArrayOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
+
+    /**
+     * Файл из архива допустим, если это простое имя, копия PDF (`pdf/имя`) или шрифт (`fonts/имя`):
+     * вложенные пути и «..» по-прежнему запрещены.
+     */
+    fun isSafePath(name: String): Boolean {
+        if (isSafeName(name)) return true
+        val rest = name.substringAfter('/', "")
+        return when (name.substringBefore('/')) {
+            "pdf" -> isSafeName(rest)
+            "fonts" -> rest.isNotBlank() && !rest.startsWith('.') && ".." !in rest && rest.none { it in BAD_FONT_CHARS || it.code < 0x20 }
+            else -> false
+        }
+    }
 
     fun suggestedName(createdAt: Long) = "LocalDoc-копия-${isoDate(createdAt)}.$EXTENSION"
 
@@ -115,7 +132,7 @@ class BackupService(
     /** Архив: manifest, значения настроек (`kv/…`) и файлы книг с картинками (`files/…`). */
     fun create(): ByteArray {
         val library = libraryEntries(storage.getValue(BackupFormat.KEY_LIBRARY))
-        val fileNames = library.flatMap { bookFiles(it.id) }.distinct().filter { storage.readFile(it) != null }
+        val fileNames = (library.flatMap { bookFiles(it.id) } + storage.listFiles("fonts/")).distinct().filter { storage.readFile(it) != null }
         val keys = BackupFormat.KV_KEYS.filter { storage.getValue(it) != null }
         val manifest = BackupManifest(
             version = BackupFormat.VERSION, appVersion = appVersion, createdAt = clock(),
@@ -201,7 +218,7 @@ class BackupService(
         val restoredFiles = archive.names
             .filter { it.startsWith(BackupFormat.FILES_DIR) }
             .map { it.removePrefix(BackupFormat.FILES_DIR) }
-            .filter(BackupFormat::isSafeName)
+            .filter(BackupFormat::isSafePath)
             .associateWith { requireNotNull(archive.read(BackupFormat.FILES_DIR + it)) }
 
         libraryEntries(storage.getValue(BackupFormat.KEY_LIBRARY)).forEach {
@@ -227,7 +244,18 @@ class BackupService(
     private fun libraryEntries(raw: String?): List<BookEntry> =
         raw?.let { runCatching { json.decodeFromString(entries, it) }.getOrNull() }.orEmpty()
 
-    private fun bookFiles(id: String): List<String> = listOf(bookFile(id)) + storage.listFiles(imagePrefix(id))
+    /** Файлы книги: текст, картинки и копия PDF (если она не больше [MAX_PDF_COPY_BYTES]). */
+    private fun bookFiles(id: String): List<String> {
+        val pdf = storage.readFile(bookFile(id))
+            ?.let { runCatching { json.decodeFromString(Book.serializer(), it.decodeToString()).pdfFile }.getOrNull() }
+            ?.takeIf { BackupFormat.isSafePath(it) && (storage.readFile(it)?.size ?: Int.MAX_VALUE) <= MAX_PDF_COPY_BYTES }
+        return listOf(bookFile(id)) + storage.listFiles(imagePrefix(id)) + listOfNotNull(pdf)
+    }
+
+    private companion object {
+        /** Копии PDF крупнее в архив не кладутся (он собирается в памяти); такая книга после восстановления открывается текстом. */
+        const val MAX_PDF_COPY_BYTES = 64 * 1024 * 1024
+    }
 
     private fun bookFile(id: String) = "$id.json"
 

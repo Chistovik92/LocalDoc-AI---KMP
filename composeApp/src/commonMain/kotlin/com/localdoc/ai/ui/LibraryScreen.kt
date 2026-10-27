@@ -83,7 +83,7 @@ import com.localdoc.ai.domain.AppGraph
 /** Фильтры библиотеки по типу источника. */
 private enum class LibraryFilter(val label: String, val formats: Set<BookFormat>?) {
     ALL("Все", null),
-    BOOKS("Книги", setOf(BookFormat.EPUB, BookFormat.FB2)),
+    BOOKS("Книги", setOf(BookFormat.EPUB, BookFormat.FB2, BookFormat.MOBI, BookFormat.CBZ)),
     PDF("PDF", setOf(BookFormat.PDF)),
     TEXT(
         "Документы и текст",
