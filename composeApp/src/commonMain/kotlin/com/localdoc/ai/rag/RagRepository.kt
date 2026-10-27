@@ -43,11 +43,18 @@ class RagRepository(
         else index(docId, rawText, embedder)
     }
 
-    fun retrieveTopK(docId: String, question: String, topK: Int = 4): List<StoredChunk> = withFallback { embedder ->
-        // Индекс другого провайдера лежит в другом пространстве векторов — искать по нему нельзя
-        if (!store.isCurrent(docId, embedder.signature)) emptyList()
-        else store.topK(docId, embedder.encodeQuery(question), topK)
-    }
+    /**
+     * Топ-K фрагментов. Если индекс посчитан другим провайдером (например, после отката модели на
+     * хеширование), его векторы непригодны: при заданном [rawText] индекс пересчитывается, иначе результат пуст.
+     */
+    fun retrieveTopK(docId: String, question: String, topK: Int = 4, rawText: String? = null): List<StoredChunk> =
+        withFallback { embedder ->
+            if (!store.isCurrent(docId, embedder.signature) && (rawText == null || index(docId, rawText, embedder) == 0)) {
+                emptyList()
+            } else {
+                store.topK(docId, embedder.encodeQuery(question), topK)
+            }
+        }
 
     fun removeDocument(docId: String) = store.remove(docId)
 

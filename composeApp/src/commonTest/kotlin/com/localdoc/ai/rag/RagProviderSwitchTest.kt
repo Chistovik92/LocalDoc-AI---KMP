@@ -114,4 +114,24 @@ class RagProviderSwitchTest {
         assertEquals(chunks, store.get("doc"))
         assertTrue(encodedNothing.passages.isEmpty())
     }
+
+    @Test
+    fun queryFailureAfterIndexingRebuildsIndexWithFallback() {
+        val onnx = FakeEmbedder("onnx", 2)
+        val fallback = FakeEmbedder("hash", 3)
+        var queryBroken = false
+        val flaky = object : EmbeddingProvider by onnx {
+            override fun encodeQuery(text: String): FloatArray =
+                if (queryBroken) error("query failed") else onnx.encodeQuery(text)
+        }
+        var current: EmbeddingProvider = flaky
+        val rag = repo({ current }, onFailure = { current = fallback })
+        rag.ensureIndexed("doc", text)
+
+        queryBroken = true
+        val found = rag.retrieveTopK("doc", "вопрос", rawText = text)
+
+        assertTrue(found.isNotEmpty())
+        assertEquals("hash-3", store.providerOf("doc"))
+    }
 }

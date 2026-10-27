@@ -48,7 +48,7 @@ class SemanticModelManagerTest {
         scope: TestScope,
         sha: (String) -> String?,
         memoryMb: Long,
-        benchmarkMillis: Long
+        benchmark: (EmbeddingProvider) -> Long
     ) {
         val files = FakeFiles()
         val storage = MemoryRagStorage()
@@ -56,15 +56,16 @@ class SemanticModelManagerTest {
         val manager = SemanticModelManager(
             files, storage, runtime, sha, { memoryMb }, runtimeAvailable = true,
             scope = scope, io = StandardTestDispatcher(scope.testScheduler),
-            benchmark = { benchmarkMillis }
+            benchmark = benchmark
         )
     }
 
     private fun TestScope.env(
         sha: (String) -> String? = ::correctSha,
         memoryMb: Long = 8000,
-        benchmarkMillis: Long = 100
-    ) = Env(this, sha, memoryMb, benchmarkMillis)
+        benchmarkMillis: Long = 100,
+        benchmark: (EmbeddingProvider) -> Long = { benchmarkMillis }
+    ) = Env(this, sha, memoryMb, benchmark)
 
     @Test
     fun downloadVerifiesLoadsAndSwitchesProvider() = runTest {
@@ -154,5 +155,15 @@ class SemanticModelManagerTest {
 
         assertIs<SemanticModelState.Failed>(env.manager.state.value)
         assertEquals("hash-384", env.manager.embedder().signature)
+    }
+
+    @Test
+    fun benchmarkFailureUnloadsLoadedProvider() = runTest {
+        val env = env(benchmark = { error("inference failed") })
+        env.manager.download()
+        advanceUntilIdle()
+
+        assertIs<SemanticModelState.Failed>(env.manager.state.value)
+        assertEquals(listOf<EmbeddingProvider>(env.runtime.provider), env.runtime.unloaded)
     }
 }

@@ -173,7 +173,13 @@ class SemanticModelManager(
         val outcome = withContext(io) {
             runCatching {
                 val provider = runtime.load(files.pathFor(SemanticModelCatalog.model), files.pathFor(SemanticModelCatalog.tokenizer))
-                val slow = SemanticModelPolicy.speedVerdict(benchmark(provider))
+                // Пока провайдер не передан в active, закрывать его некому — освобождаем на любом провале
+                val slow = try {
+                    SemanticModelPolicy.speedVerdict(benchmark(provider))
+                } catch (e: Throwable) {
+                    runtime.unload(provider)
+                    throw e
+                }
                 if (slow != null) runtime.unload(provider)
                 provider to slow
             }
