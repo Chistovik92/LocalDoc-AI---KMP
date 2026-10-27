@@ -46,7 +46,6 @@ import androidx.compose.material3.FilterChip
 import com.localdoc.ai.domain.splitEdit
 import com.localdoc.ai.domain.applyOverride
 import com.localdoc.ai.domain.BookOverride
-import com.localdoc.ai.domain.ReaderSettings
 import com.localdoc.ai.platform.FilePicker
 import kotlin.math.roundToInt
 import androidx.compose.runtime.rememberCoroutineScope
@@ -80,6 +79,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.localdoc.ai.domain.MAX_AUTO_SCROLL_LPM
+import com.localdoc.ai.domain.MAX_EINK_REFRESH_PAGES
+import com.localdoc.ai.domain.MAX_READER_FONT_SIZE
+import com.localdoc.ai.domain.MAX_ZONE_WIDTH
+import com.localdoc.ai.domain.MIN_AUTO_SCROLL_LPM
+import com.localdoc.ai.domain.MIN_EINK_REFRESH_PAGES
+import com.localdoc.ai.domain.MIN_READER_FONT_SIZE
+import com.localdoc.ai.domain.MIN_ZONE_WIDTH
+import com.localdoc.ai.domain.OrientationLock
+import com.localdoc.ai.domain.ReaderSettings
+import com.localdoc.ai.domain.TapZones
+import com.localdoc.ai.platform.ScreenControls
 import com.localdoc.ai.book.Chapter
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.ChatMessage
@@ -260,7 +271,7 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
             }) { Text("Удалить этот шрифт") }
         }
 
-        LabeledSlider("Размер текста", "${settings.fontSize.toInt()} sp", settings.fontSize, 13f..32f) { v -> update { it.copy(fontSize = v) } }
+        LabeledSlider("Размер текста", "${settings.fontSize.toInt()} sp", settings.fontSize, MIN_READER_FONT_SIZE..MAX_READER_FONT_SIZE) { v -> update { it.copy(fontSize = v) } }
         LabeledSlider("Межстрочный интервал", "×${(settings.lineHeight * 10).toInt() / 10.0}", settings.lineHeight, 1.2f..2.2f) { v -> update { it.copy(lineHeight = v) } }
 
         LabeledSlider("Жирность шрифта", settings.fontWeight.toString(), settings.fontWeight.toFloat(), 300f..700f) { v ->
@@ -292,6 +303,84 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
                 )
             }
         }
+        ReaderControlsSettings(settings, update)
+    }
+}
+
+/** Управление читалкой: зоны касания, жесты, экран, анимация, автопрокрутка и режим e-ink. */
+@Composable
+private fun ReaderControlsSettings(settings: ReaderSettings, update: ((ReaderSettings) -> ReaderSettings) -> Unit) {
+    SectionLabel("Зоны касания")
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        TapZones.entries.forEach { zones ->
+            EngineRow(zones.label, settings.tapZones == zones) { update { it.copy(tapZones = zones) } }
+        }
+    }
+    if (settings.tapZones != TapZones.MENU_ONLY) {
+        LabeledSlider("Ширина боковых зон", "${(settings.tapZoneWidth * 100).toInt()}%", settings.tapZoneWidth, MIN_ZONE_WIDTH..MAX_ZONE_WIDTH) { v ->
+            update { it.copy(tapZoneWidth = v) }
+        }
+    }
+    Text(
+        "Центр экрана показывает и прячет меню. При листании длинная страница сначала прокручивается.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    SectionLabel("Жесты и кнопки")
+    SwitchRow("Свайп влево и вправо листает", settings.swipePaging) { v -> update { it.copy(swipePaging = v) } }
+    SwitchRow("Щипок меняет размер шрифта", settings.pinchZoom) { v -> update { it.copy(pinchZoom = v) } }
+    SwitchRow("Яркость: тянуть у левого края", settings.brightnessGesture) { v -> update { it.copy(brightnessGesture = v) } }
+    if (settings.brightness != null) {
+        TextButton(onClick = { update { it.copy(brightness = null) } }) { Text("Вернуть яркость системы (${((settings.brightness ?: 0f) * 100).toInt()}%)") }
+    }
+    if (ScreenControls.supportsVolumeKeys) {
+        SwitchRow("Листать кнопками громкости", settings.volumeKeys) { v -> update { it.copy(volumeKeys = v) } }
+    }
+
+    SectionLabel("Экран")
+    SwitchRow("Не гасить экран при чтении", settings.keepScreenOn) { v -> update { it.copy(keepScreenOn = v) } }
+    if (ScreenControls.supportsOrientationLock) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrientationLock.entries.forEach { lock ->
+                FilterChip(
+                    selected = settings.orientation == lock,
+                    onClick = { update { it.copy(orientation = lock) } },
+                    label = { Text("Ориентация: ${lock.label}", maxLines = 1, softWrap = false) }
+                )
+            }
+        }
+    }
+
+    SectionLabel("Листание")
+    SwitchRow("Анимация листания", settings.pageAnimation && !settings.eInk) { v -> update { it.copy(pageAnimation = v) } }
+    Text(
+        "Анимация отключается и системной настройкой «уменьшить анимацию».",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    LabeledSlider(
+        "Скорость автопрокрутки", "${settings.autoScrollSpeed} строк/мин", settings.autoScrollSpeed.toFloat(),
+        MIN_AUTO_SCROLL_LPM.toFloat()..MAX_AUTO_SCROLL_LPM.toFloat()
+    ) { v -> update { it.copy(autoScrollSpeed = v.toInt()) } }
+    Text(
+        "Автопрокрутка включается в меню читалки «⋮»; нажатие на экран её останавливает.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    SectionLabel("Экран e-ink")
+    SwitchRow("Режим e-ink: без анимаций", settings.eInk) { v -> update { it.copy(eInk = v) } }
+    if (settings.eInk) {
+        LabeledSlider(
+            "Полное обновление экрана", "раз в ${settings.eInkRefreshPages} стр.", settings.eInkRefreshPages.toFloat(),
+            MIN_EINK_REFRESH_PAGES.toFloat()..MAX_EINK_REFRESH_PAGES.toFloat()
+        ) { v -> update { it.copy(eInkRefreshPages = v.toInt()) } }
+        Text(
+            "Раз в несколько страниц экран коротко вспыхивает чёрным и белым — так на e-ink исчезают остаточные следы текста.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

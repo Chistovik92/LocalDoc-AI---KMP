@@ -16,6 +16,18 @@ enum class ReaderTheme(val label: String) { SYSTEM("Авто"), LIGHT("Свет�
 @Serializable
 enum class ReaderFont(val label: String) { SERIF("С засечками"), SANS("Без засечек") }
 
+/** Зоны касания: края листают, центр открывает меню. */
+@Serializable
+enum class TapZones(val label: String) {
+    EDGES("Правый край — дальше, левый — назад"),
+    EDGES_REVERSED("Левый край — дальше, правый — назад"),
+    MENU_ONLY("Только меню по нажатию")
+}
+
+/** Блокировка ориентации экрана в читалке. */
+@Serializable
+enum class OrientationLock(val label: String) { AUTO("Авто"), PORTRAIT("Книжная"), LANDSCAPE("Альбомная") }
+
 @Serializable
 data class ReaderSettings(
     val fontSize: Float = 18f,
@@ -41,7 +53,27 @@ data class ReaderSettings(
     /** Жирность шрифта: 300 — тонкий, 400 — обычный, 700 — жирный. */
     val fontWeight: Int = 400,
     /** Выключка с переносами слов и балансом строк — пробелы растягиваются меньше. */
-    val smartJustify: Boolean = false
+    val smartJustify: Boolean = false,
+    val tapZones: TapZones = TapZones.EDGES,
+    /** Ширина боковой зоны листания в долях ширины экрана. */
+    val tapZoneWidth: Float = 0.3f,
+    /** Листание кнопками громкости (Android). */
+    val volumeKeys: Boolean = false,
+    /** Размер шрифта щипком двумя пальцами. */
+    val pinchZoom: Boolean = true,
+    /** Листание горизонтальным свайпом. */
+    val swipePaging: Boolean = false,
+    /** Яркость вертикальным жестом у левого края; [brightness] null — яркость системы. */
+    val brightnessGesture: Boolean = false,
+    val brightness: Float? = null,
+    val keepScreenOn: Boolean = false,
+    val orientation: OrientationLock = OrientationLock.AUTO,
+    val pageAnimation: Boolean = true,
+    /** Скорость автопрокрутки в строках в минуту. */
+    val autoScrollSpeed: Int = 20,
+    /** Режим для e-ink: без анимаций, полное обновление экрана раз в [eInkRefreshPages] страниц. */
+    val eInk: Boolean = false,
+    val eInkRefreshPages: Int = 6
 )
 
 /** Голос, закреплённый за языком: движок (null — системный по умолчанию) и id голоса. */
