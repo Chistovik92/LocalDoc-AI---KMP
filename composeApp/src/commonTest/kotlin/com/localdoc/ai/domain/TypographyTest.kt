@@ -97,4 +97,25 @@ class TypographyTest {
         assertTrue(FontLibrary.safeName("Шрифт Книги.otf").endsWith(".otf"))
         assertTrue(FontLibrary.safeName("a".repeat(300) + ".ttf").length <= 80)
     }
+
+    @Test
+    fun `a book can use the standard font while the global one is custom`() {
+        val global = ReaderSettings(fontFile = "A.ttf")
+        val (newGlobal, override) = global.splitEdit(global.copy(fontFile = null))
+        assertEquals("A.ttf", newGlobal.fontFile)
+        assertEquals("", override.fontFile)
+        assertNull(global.applyOverride(override).fontFile)
+        // Другая книга без настроек по-прежнему видит общий шрифт
+        assertEquals("A.ttf", global.applyOverride(null).fontFile)
+    }
+
+    @Test
+    fun `backup accepts pdf copies and fonts but no other nested paths`() {
+        assertTrue(com.localdoc.ai.backup.BackupFormat.isSafePath("pdf/1a2b.pdf"))
+        assertTrue(com.localdoc.ai.backup.BackupFormat.isSafePath("fonts/Шрифт Книги.ttf"))
+        assertFalse(com.localdoc.ai.backup.BackupFormat.isSafePath("fonts/../x.ttf"))
+        assertFalse(com.localdoc.ai.backup.BackupFormat.isSafePath("pdf/a/b.pdf"))
+        assertFalse(com.localdoc.ai.backup.BackupFormat.isSafePath("other/x"))
+        assertFalse(com.localdoc.ai.backup.BackupFormat.isSafePath("/etc/passwd"))
+    }
 }

@@ -119,6 +119,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -1164,7 +1165,7 @@ private fun BlockText(
         block.image?.let { BookImage(entryId, it, block.text, referer, modifier.padding(vertical = 8.dp)) }
         return
     }
-    val custom = remember(settings.fontFile) { AppGraph.fonts.family(settings.fontFile) }
+    val custom by produceState(AppGraph.fonts.cached(settings.fontFile), settings.fontFile) { value = AppGraph.fonts.load(settings.fontFile) }
     val family = custom ?: if (settings.font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif
     val weight = FontWeight(settings.fontWeight.coerceIn(100, 900))
     val spacing = settings.letterSpacing.sp

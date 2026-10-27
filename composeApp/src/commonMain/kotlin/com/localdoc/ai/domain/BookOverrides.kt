@@ -11,6 +11,7 @@ data class BookOverride(
     val fontSize: Float? = null,
     val lineHeight: Float? = null,
     val font: ReaderFont? = null,
+    /** Имя файла шрифта; пустая строка — стандартный шрифт, даже если в общих настройках выбран свой. */
     val fontFile: String? = null,
     val theme: ReaderTheme? = null,
     val justify: Boolean? = null,
@@ -28,7 +29,7 @@ fun ReaderSettings.applyOverride(o: BookOverride?): ReaderSettings {
         fontSize = o.fontSize ?: fontSize,
         lineHeight = o.lineHeight ?: lineHeight,
         font = o.font ?: font,
-        fontFile = o.fontFile ?: fontFile,
+        fontFile = if (o.fontFile == null) fontFile else o.fontFile.ifEmpty { null },
         theme = o.theme ?: theme,
         justify = o.justify ?: justify,
         margin = o.margin ?: margin,
@@ -48,7 +49,8 @@ fun ReaderSettings.splitEdit(edited: ReaderSettings): Pair<ReaderSettings, BookO
         fontSize = diff(edited.fontSize, fontSize),
         lineHeight = diff(edited.lineHeight, lineHeight),
         font = diff(edited.font, font),
-        fontFile = diff(edited.fontFile, fontFile),
+        // Пустая строка — «обычный шрифт» явно, в отличие от null — «как в общих»
+        fontFile = if (edited.fontFile != fontFile) edited.fontFile.orEmpty() else null,
         theme = diff(edited.theme, theme),
         justify = diff(edited.justify, justify),
         margin = diff(edited.margin, margin),

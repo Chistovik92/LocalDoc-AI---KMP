@@ -2,6 +2,8 @@ package com.localdoc.ai.book
 
 import androidx.compose.ui.text.font.FontFamily
 import com.localdoc.ai.platform.FileAccess
+import com.localdoc.ai.platform.IoDispatcher
+import kotlinx.coroutines.withContext
 import com.localdoc.ai.platform.fontFamilyFromBytes
 
 /** Свои шрифты читалки: файлы TTF/OTF лежат в хранилище приложения (`fonts/`), выбор — по имени файла. */
@@ -26,12 +28,16 @@ class FontLibrary(private val files: FileAccess) {
         families.remove(name)
     }
 
-    /** Семейство для имени файла; null — файл исчез или повреждён (тогда читалка берёт обычный шрифт). */
-    fun family(name: String?): FontFamily? {
+    /** Уже загруженное семейство (без чтения файла — безопасно вызывать при отрисовке); null — ещё не загружено. */
+    fun cached(name: String?): FontFamily? = name?.let { families[it] }
+
+    /** Загружает семейство в фоне; null — файл исчез или повреждён (тогда читалка берёт обычный шрифт). */
+    suspend fun load(name: String?): FontFamily? {
         if (name == null) return null
-        return families.getOrPut(name) {
+        if (name in families) return families[name]
+        return withContext(IoDispatcher) {
             files.readAppFile(PREFIX + name)?.takeIf(::isFont)?.let { fontFamilyFromBytes(name, it) }
-        }
+        }.also { families[name] = it }
     }
 
     companion object {

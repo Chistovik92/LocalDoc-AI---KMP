@@ -234,11 +234,13 @@ fun App() {
             Box(Modifier.fillMaxSize()) {
             // PDF с копией файла открывается страницами-картинками; режим «текст» — по кнопке в панели
             var pdfAsText by remember(reading.entryId) { mutableStateOf(false) }
+            // Позиция общая для обоих режимов: при переключении чтение продолжается с того же места
+            var currentBlock by remember(reading.entryId) { mutableStateOf(reading.startBlock) }
             if (reading.book.pdfFile != null && !pdfAsText) {
                 PdfPagesScreen(
                     book = reading.book,
-                    startBlock = reading.startBlock,
-                    onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
+                    startBlock = currentBlock,
+                    onProgress = { currentBlock = it; AppGraph.library.saveProgress(reading.entryId, it) },
                     onBack = { openBook = null },
                     onShowText = { pdfAsText = true }
                 )
@@ -246,8 +248,8 @@ fun App() {
             ReaderView(
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
-                startBlock = reading.startBlock,
-                onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
+                startBlock = currentBlock,
+                onProgress = { currentBlock = it; AppGraph.library.saveProgress(reading.entryId, it) },
                 onChaptersChanged = { chapters ->
                     scope.launch {
                         AppGraph.library.replaceChapters(reading.entryId, chapters)
