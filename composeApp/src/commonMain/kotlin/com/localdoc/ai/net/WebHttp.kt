@@ -60,8 +60,23 @@ class HttpStatusException(val status: Int, val url: String) : IllegalStateExcept
 class WebHttp(
     private val transport: HttpTransport,
     val cookies: CookieJar,
-    private val throttle: HostThrottle = HostThrottle()
+    private val throttle: HostThrottle = HostThrottle(),
+    /** `robots.txt` сайтов: `Crawl-delay` удлиняет паузу между запросами; null — не учитывается. */
+    private val robots: RobotsPolicy? = null
 ) {
+    private val preparedHosts = HashSet<String>()
+
+    /** Можно ли открыть [url] автоматически (по расписанию) с точки зрения `robots.txt`; без политики — да. */
+    suspend fun allowedByRobots(url: String): Boolean = robots?.isAllowed(url) ?: true
+
+    /** Один раз на сайт читает `robots.txt` и передаёт очереди запросов `Crawl-delay`. */
+    private suspend fun prepareHost(url: String) {
+        val policy = robots ?: return
+        if (url.substringBefore('?').endsWith("/robots.txt")) return
+        val host = hostOf(url)
+        if (!preparedHosts.add(host)) return
+        policy.rulesFor(url).crawlDelayMs?.let { throttle.setCrawlDelay(host, it) }
+    }
 
     val userAgent: String get() = transport.userAgent
 
@@ -88,6 +103,7 @@ class WebHttp(
         repeat(MAX_REDIRECTS + 1) {
             var retries = 0
             var response: RawResponse
+            if (verb == "GET") prepareHost(url)
             while (true) {
                 // Заголовки собираются заново на каждую попытку: cookie из ответа 429 / 503 должны уйти с повтором
                 val headers = LinkedHashMap<String, String>()

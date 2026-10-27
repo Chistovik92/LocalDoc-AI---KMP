@@ -10,11 +10,14 @@ import kotlin.time.TimeSource
  * Бережная очередь запросов: к каждому сайту идёт не больше одного запроса одновременно, между запросами
  * выдерживается пауза с небольшим случайным разбросом, а после ответа «слишком много запросов» (429 / 503)
  * пауза растёт и медленно возвращается к обычной. Через случайное число запросов (каждый раз новое) сайт получает
- * длинный отдых. Так сайты не принимают скачивание за атаку и не блокируют.
+ * длинный отдых; скорость выбирает пользователь ([DownloadSpeed]), а `Crawl-delay` сайта только удлиняет паузу. Так сайты не принимают скачивание за атаку и не блокируют.
  * Часы, случайность и ожидание подменяются в тестах.
  */
 class HostThrottle(
-    private val intervalMs: Long = DEFAULT_INTERVAL_MS,
+    /** Фиксированная пауза вместо паузы режима скорости (нужна тестам); null — берётся из [speed]. */
+    private val intervalMs: Long? = null,
+    /** Режим «Скорость скачивания»: читается на каждом запросе, поэтому смена в настройках действует сразу. */
+    private val speed: () -> DownloadSpeed = { DownloadSpeed.CAUTIOUS },
     private val now: () -> Long = MONOTONIC_MILLIS,
     private val random: () -> Double = { Random.nextDouble() },
     private val sleep: suspend (Long) -> Unit = { delay(it) }
@@ -24,6 +27,9 @@ class HostThrottle(
         val lock = Mutex()
         var nextAt = 0L
         var slowdown = 1
+
+        /** Минимальная пауза из `Crawl-delay` в robots.txt сайта. */
+        var crawlDelayMs = 0L
     }
 
     /** Итог запроса, о котором запрос сообщает очереди. */
@@ -46,9 +52,15 @@ class HostThrottle(
     private val hosts = HashMap<String, HostState>()
     private val registry = Mutex()
 
+    /** Сайт [host] просит не чаще одного запроса в [delayMs] (`Crawl-delay`); 0 — без требования. */
+    suspend fun setCrawlDelay(host: String, delayMs: Long) {
+        val state = registry.withLock { hosts.getOrPut(host) { HostState(speed().requestsUntilRest(random())) } }
+        state.lock.withLock { state.crawlDelayMs = delayMs.coerceIn(0L, MAX_CRAWL_DELAY_MS) }
+    }
+
     /** Выполняет [block] в очереди сайта [host]: ждёт своей очереди и паузы после предыдущего запроса. */
     suspend fun <T> turn(host: String, block: suspend (Turn) -> T): T {
-        val state = registry.withLock { hosts.getOrPut(host) { HostState(requestsUntilRest(random())) } }
+        val state = registry.withLock { hosts.getOrPut(host) { HostState(speed().requestsUntilRest(random())) } }
         return state.lock.withLock {
             val wait = state.nextAt - now()
             if (wait > 0) sleep(wait)
@@ -68,13 +80,14 @@ class HostThrottle(
         } else if (turn.succeeded && state.slowdown > 1) {
             state.slowdown--
         }
-        val regular = jittered(intervalMs * state.slowdown)
+        val current = speed()
+        val regular = jittered((intervalMs ?: current.intervalMs) * state.slowdown)
         // Через случайное число запросов сайт получает длинный отдых, после чего счёт начинается заново
         val rest = if (--state.untilRest <= 0) {
-            state.untilRest = requestsUntilRest(random())
-            jittered(REST_MS)
+            state.untilRest = current.requestsUntilRest(random())
+            jittered(current.restMs)
         } else 0L
-        val base = maxOf(regular, rest)
+        val base = maxOf(regular, rest, state.crawlDelayMs)
         val pause = if (backoff != null) maxOf(backoff.coerceAtMost(MAX_BACKOFF_MS), base) else base
         state.nextAt = now() + pause
     }
@@ -82,21 +95,21 @@ class HostThrottle(
     private fun jittered(ms: Long): Long = (ms * (1.0 - JITTER + 2 * JITTER * random())).toLong()
 
     companion object {
-        /** Десять секунд между запросами к одному сайту (с разбросом ±30 %): книга качается долго, но не «по метроному». */
+        /** Значения режима «Осторожно» — по умолчанию. */
         const val DEFAULT_INTERVAL_MS = 10_000L
-
-        /** Длинный отдых через случайное число запросов, каждый раз новое: от [REST_AFTER_MIN] до [REST_AFTER_MAX]. */
         const val REST_AFTER_MIN = 12
         const val REST_AFTER_MAX = 31
         const val REST_MS = 60_000L
 
-        /** Сколько запросов пройдёт до следующего длинного отдыха; [random] — число от 0 (включая) до 1 (не включая). */
-        fun requestsUntilRest(random: Double): Int =
-            (REST_AFTER_MIN + (random * (REST_AFTER_MAX - REST_AFTER_MIN + 1)).toInt()).coerceIn(REST_AFTER_MIN, REST_AFTER_MAX)
+        /** Сколько запросов пройдёт до следующего длинного отдыха в режиме «Осторожно». */
+        fun requestsUntilRest(random: Double): Int = DownloadSpeed.CAUTIOUS.requestsUntilRest(random)
 
         const val MAX_BACKOFF_MS = 60_000L
+
+        /** Дольше двух минут между запросами по `Crawl-delay` не ждём: такие значения — ошибка или защита от ботов. */
+        const val MAX_CRAWL_DELAY_MS = 120_000L
         private const val MAX_SLOWDOWN = 8
-        private const val JITTER = 0.3
+        private const val JITTER = DownloadSpeed.JITTER
         private val ORIGIN = TimeSource.Monotonic.markNow()
         private val MONOTONIC_MILLIS: () -> Long = { ORIGIN.elapsedNow().inWholeMilliseconds }
     }
