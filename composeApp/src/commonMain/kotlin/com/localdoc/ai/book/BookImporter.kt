@@ -27,6 +27,8 @@ object FormatDetector {
         "xml" -> BookFormat.XML
         "wps" -> BookFormat.WPS
         "pages" -> BookFormat.PAGES
+        "mobi", "azw", "azw3", "prc" -> BookFormat.MOBI
+        "cbz" -> BookFormat.CBZ
         else -> null
     }
 
@@ -37,6 +39,7 @@ object FormatDetector {
     fun bySignature(bytes: ByteArray): BookFormat {
         if (isPdf(bytes)) return BookFormat.PDF
         if (Ole2File.isOle2(bytes)) return BookFormat.DOC
+        if (MobiParser.isMobi(bytes)) return BookFormat.MOBI
         if (ZipArchive.isZip(bytes)) return zipKind(bytes)
         if (RtfParser.isRtf(bytes)) return BookFormat.RTF
         if (looksBinary(bytes)) throw UnsupportedFormatException(BINARY_MESSAGE)
@@ -50,12 +53,14 @@ object FormatDetector {
     fun resolve(name: String, bytes: ByteArray): BookFormat {
         val byName = byName(name)
         if (isPdf(bytes)) return BookFormat.PDF
+        if (MobiParser.isMobi(bytes)) return BookFormat.MOBI
         if (Ole2File.isOle2(bytes)) return if (byName == BookFormat.WPS) BookFormat.WPS else BookFormat.DOC
         if (ZipArchive.isZip(bytes)) return zipKind(bytes)
         if (RtfParser.isRtf(bytes)) return BookFormat.RTF
         return when (byName) {
             null -> bySignature(bytes)
-            BookFormat.EPUB, BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.PDF, BookFormat.WPS, BookFormat.PAGES ->
+            BookFormat.EPUB, BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.PDF, BookFormat.WPS, BookFormat.PAGES,
+            BookFormat.MOBI, BookFormat.CBZ ->
                 throw UnsupportedFormatException("Файл «$name» повреждён или не является документом ${byName.label}.")
             BookFormat.RTF -> {
                 if (!RtfParser.isRtf(bytes)) throw UnsupportedFormatException("Файл «$name» повреждён или не является документом RTF.")
@@ -99,7 +104,8 @@ object FormatDetector {
         OdtParser.isOdt(zip) -> BookFormat.ODT
         PagesParser.isPages(zip) -> BookFormat.PAGES
         zip.names.any { it.endsWith(".fb2", ignoreCase = true) } -> BookFormat.FB2
-        else -> throw UnsupportedFormatException("В архиве нет книги: поддерживаются EPUB, FB2.ZIP, DOCX, ODT и Pages.")
+        CbzParser.isCbz(zip) -> BookFormat.CBZ
+        else -> throw UnsupportedFormatException("В архиве нет книги: поддерживаются EPUB, FB2.ZIP, DOCX, ODT, Pages и CBZ.")
     }
 
     /**
@@ -125,7 +131,7 @@ object FormatDetector {
 
     private const val BINARY_SAMPLE = 8192
     private const val BINARY_MESSAGE =
-        "Не удаётся прочитать файл: это не текстовый документ. Поддерживаются PDF, EPUB, FB2, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML и XML."
+        "Не удаётся прочитать файл: это не текстовый документ. Поддерживаются PDF, EPUB, FB2, Mobi/AZW3, CBZ, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML и XML."
 }
 
 /** Импорт файла любого поддерживаемого формата в единую модель [Book]. */
@@ -187,6 +193,8 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
                 BookFormat.XML -> XmlBookParser.parse(bytes, title)
                 BookFormat.WPS -> WpsParser.parse(bytes, title)
                 BookFormat.PAGES -> PagesParser.parse(ZipArchive(bytes), title)
+                BookFormat.MOBI -> MobiParser.parse(bytes, title)
+                BookFormat.CBZ -> CbzParser.parse(ZipArchive(bytes), title)
                 BookFormat.FB2 -> {
                     val xml = if (ZipArchive.isZip(bytes)) {
                         val zip = ZipArchive(bytes)
