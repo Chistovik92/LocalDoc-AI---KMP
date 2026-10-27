@@ -13,6 +13,7 @@ pdfboxAndroid = "2.0.27.0"
 sherpaOnnx = "1.13.8"
 commonsCompress = "1.27.1"
 androidxWork = "2.10.0"
+onnxruntime = "1.20.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -27,6 +28,7 @@ androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidxCore
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "androidxWork" }
+onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android", version.ref = "onnxruntime" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 
 [plugins]
