@@ -172,6 +172,7 @@ fun App() {
         // Восстанавливаем модель, загруженную до перезапуска; тихо проверяем обновления
         LaunchedEffect(Unit) {
             SystemPlayer.start()
+            AppGraph.readingStats // подключает учёт озвучки к статистике чтения
             AppGraph.updates.check(silent = true)
             AppGraph.restoreLastModel()
         }
@@ -235,7 +236,10 @@ fun App() {
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
                 startBlock = reading.startBlock,
-                onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
+                onProgress = {
+                    AppGraph.library.saveProgress(reading.entryId, it)
+                    AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
+                },
                 onChaptersChanged = { chapters ->
                     scope.launch {
                         AppGraph.library.replaceChapters(reading.entryId, chapters)

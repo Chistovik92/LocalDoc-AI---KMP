@@ -15,6 +15,9 @@ import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.notes.AnnotationRepository
 import com.localdoc.ai.notes.DictionaryRepository
 import com.localdoc.ai.search.FullTextIndex
+import com.localdoc.ai.stats.ReadingRecorder
+import com.localdoc.ai.stats.ReadingStats
+import com.localdoc.ai.backup.BackupFormat
 import com.localdoc.ai.search.LibrarySearch
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
@@ -39,6 +42,7 @@ import com.localdoc.ai.platform.SecureStore
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
 import com.localdoc.ai.platform.PlatformActions
+import com.localdoc.ai.platform.localUtcOffsetMillis
 import com.localdoc.ai.rag.HashingEmbedder
 import com.localdoc.ai.rag.RagRepository
 import com.localdoc.ai.rag.VectorStore
@@ -103,6 +107,19 @@ object AppGraph {
     val readerSettings = PersistedSetting(kv, "reader_settings", ReaderSettings.serializer(), ReaderSettings())
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
     val translationSettings = PersistedSetting(kv, "translation_settings", TranslationSettings.serializer(), TranslationSettings())
+
+    /** Статистика чтения: время, слова и скорость по дням; хранится локально и входит в резервную копию. */
+    val readingStatsSetting = PersistedSetting(kv, BackupFormat.KEY_READING_STATS, ReadingStats.serializer(), ReadingStats())
+
+    /** Принимает события чтения и озвучки; озвучка подключается при первом обращении. */
+    val readingStats: ReadingRecorder by lazy {
+        ReadingRecorder(readingStatsSetting::update, offsetMs = ::localUtcOffsetMillis).also(::feedStatsFromReadAloud)
+    }
+
+    fun resetReadingStats() {
+        readingStats.flush()
+        readingStatsSetting.update { ReadingStats() }
+    }
 
     /** Закладки в книгах и на веб-страницах. */
     val bookmarks: BookmarkRepository = BookmarkRepository({ kv.get(KEY_BOOKMARKS) }, { kv.put(KEY_BOOKMARKS, it) })
@@ -177,6 +194,7 @@ object AppGraph {
             dictionary.reload()
             readerSettings.reload()
             voiceSettings.reload()
+            readingStatsSetting.reload()
             appScope.launch { applyVoiceSettings() }
             translationSettings.reload()
             appScope.launch(indexDispatcher) { searchIndex.clear() }
