@@ -5,16 +5,16 @@ import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.book.ZipArchive
 import com.localdoc.ai.book.export.ZipWriter
 import com.localdoc.ai.net.nowMillis
+import com.localdoc.ai.storage.KvAccess
+import com.localdoc.ai.storage.StorageMigrations
+import com.localdoc.ai.storage.StorageSchema
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /** Доступ резервной копии к данным приложения: настройки (KV) и файлы книг. Пароли сайтов сюда не входят. */
-interface BackupStorage {
-    fun getValue(key: String): String?
-    fun putValue(key: String, value: String)
-    fun removeValue(key: String)
+interface BackupStorage : KvAccess {
     fun readFile(name: String): ByteArray?
     fun writeFile(name: String, bytes: ByteArray)
     fun listFiles(prefix: String): List<String>
@@ -31,14 +31,19 @@ data class BackupManifest(
     val createdAt: Long = 0,
     val books: Int = 0,
     val keys: List<String> = emptyList(),
-    val files: List<String> = emptyList()
+    val files: List<String> = emptyList(),
+    /** Версия схемы хранилища ([StorageSchema.CURRENT]) на момент копии; 0 — копия формата 1, до версионирования. */
+    val schema: Int = 0
 )
 
 object BackupFormat {
     const val ID = "localdoc-backup"
 
-    /** Текущая версия формата архива. Увеличивается при несовместимом изменении состава или разметки. */
-    const val VERSION = 1
+    /**
+     * Текущая версия формата архива. Увеличивается при несовместимом изменении состава или разметки.
+     * 1 — ZIP без сжатия; 2 — записи сжаты Deflate, в manifest появилось поле `schema`. Формат описан в docs/BACKUP_FORMAT.md.
+     */
+    const val VERSION = 2
 
     const val MANIFEST = "backup.json"
     const val KV_DIR = "kv/"
@@ -114,9 +119,9 @@ class BackupService(
         val keys = BackupFormat.KV_KEYS.filter { storage.getValue(it) != null }
         val manifest = BackupManifest(
             version = BackupFormat.VERSION, appVersion = appVersion, createdAt = clock(),
-            books = library.size, keys = keys, files = fileNames
+            books = library.size, keys = keys, files = fileNames, schema = StorageSchema.CURRENT
         )
-        val zip = ZipWriter()
+        val zip = ZipWriter(deflate = true)
         zip.add(BackupFormat.MANIFEST, json.encodeToString(BackupManifest.serializer(), manifest))
         for (key in keys) zip.add(BackupFormat.KV_DIR + key, storage.getValue(key).orEmpty())
         for (name in fileNames) storage.readFile(name)?.let { zip.add(BackupFormat.FILES_DIR + name, it) }
@@ -161,7 +166,7 @@ class BackupService(
         }
         if (manifest == null || manifest.format != BackupFormat.ID) return notBackup
         if (manifest.version > BackupFormat.VERSION) return BackupCheck.TooNew(manifest.version, manifest.appVersion) to null
-        if (manifest.version < 1) return BackupCheck.Invalid("Неизвестная версия формата копии: ${manifest.version}") to null
+        if (manifest.version < MIN_VERSION) return BackupCheck.Invalid("Неизвестная версия формата копии: ${manifest.version}") to null
 
         val problem = validateContents(manifest, archive)
         return if (problem != null) BackupCheck.Invalid(problem) to null else BackupCheck.Ok(manifest) to archive
@@ -208,6 +213,15 @@ class BackupService(
             val value = values[key]
             if (value != null) storage.putValue(key, value) else storage.removeValue(key)
         }
+        // Данные копии могут быть старой схемы: отметка схемы относится к устройству, а не к копии, поэтому
+        // сбрасываем её и прогоняем миграции заново (они идемпотентны).
+        storage.removeValue(StorageSchema.KEY)
+        StorageMigrations(storage).run()
+    }
+
+    private companion object {
+        /** Самая старая читаемая версия формата. */
+        const val MIN_VERSION = 1
     }
 
     private fun libraryEntries(raw: String?): List<BookEntry> =

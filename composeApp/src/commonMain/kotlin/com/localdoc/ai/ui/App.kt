@@ -55,6 +55,7 @@ import com.localdoc.ai.notes.AnchorResolver
 import com.localdoc.ai.notes.Annotation
 import com.localdoc.ai.notes.TextAnchor
 import com.localdoc.ai.domain.IncomingDoc
+import com.localdoc.ai.platform.IoDispatcher
 import com.localdoc.ai.platform.FilePicker
 import com.localdoc.ai.platform.PlatformBackHandler
 import com.localdoc.ai.platform.SystemPlayer
@@ -64,6 +65,7 @@ import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     Books("Книги", Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
@@ -173,6 +175,7 @@ fun App() {
         LaunchedEffect(Unit) {
             SystemPlayer.start()
             AppGraph.updates.check(silent = true)
+            withContext(IoDispatcher) { AppGraph.scheduledBackup.runIfDue() }
             AppGraph.restoreLastModel()
         }
 

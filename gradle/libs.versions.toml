@@ -12,6 +12,8 @@ pdfboxAndroid = "2.0.27.0"
 # Офлайн-синтез речи Piper; та же версия — для iOS (cpp_core/scripts/fetch_sherpa_onnx_ios.sh)
 sherpaOnnx = "1.13.8"
 commonsCompress = "1.27.1"
+# PBKDF2 + AES-GCM для шифрования синхронизации (JCA на Android, CryptoKit/CommonCrypto на iOS)
+cryptography = "0.6.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -26,6 +28,9 @@ androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidxCore
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
+
+cryptography-core = { module = "dev.whyoleg.cryptography:cryptography-core", version.ref = "cryptography" }
+cryptography-provider-optimal = { module = "dev.whyoleg.cryptography:cryptography-provider-optimal", version.ref = "cryptography" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

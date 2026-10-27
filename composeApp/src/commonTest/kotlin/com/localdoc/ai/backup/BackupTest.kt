@@ -59,7 +59,7 @@ class BackupTest {
 
         val restored = assertIs<RestoreResult.Restored>(result)
         assertEquals(2, restored.manifest.books)
-        assertEquals(source.values.filterKeys { it in BackupFormat.KV_KEYS }, target.values)
+        assertEquals(source.values.filterKeys { it in BackupFormat.KV_KEYS }, target.values.filterKeys { it != com.localdoc.ai.storage.StorageSchema.KEY })
         assertEquals(setOf("a1.json", "a1.img.im0", "a1.img.im1", "b2.json"), target.files.keys)
         for ((name, data) in target.files) assertContentEquals(source.files.getValue(name), data, name)
     }
@@ -69,7 +69,7 @@ class BackupTest {
         val bytes = service(filled()).create()
         val manifest = (service(MemoryStorage()).inspect(bytes) as BackupCheck.Ok).manifest
 
-        assertEquals(1, manifest.version)
+        assertEquals(BackupFormat.VERSION, manifest.version)
         assertEquals("1.8.0", manifest.appVersion)
         assertEquals(listOf("library_v1", "bookmarks_v1", "annotations_v1", "reader_settings", "voice_settings"), manifest.keys)
         assertTrue(manifest.files.none { it.startsWith("idx.") || it == "catalog.json" })

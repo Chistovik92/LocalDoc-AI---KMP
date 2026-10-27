@@ -59,6 +59,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ksoup)
             implementation(libs.ksoup.network)
+            implementation(libs.cryptography.core)
+            implementation(libs.cryptography.provider.optimal)
         }
 
         commonTest.dependencies {

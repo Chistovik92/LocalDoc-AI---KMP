@@ -291,6 +291,12 @@ class CatalogRepository(
         save()
     }
 
+    /** Заменяет подборки целиком (применение синхронизации). */
+    fun replaceShelves(list: List<UserShelf>) {
+        _shelves.value = list
+        save()
+    }
+
     companion object {
         private const val FILE = "catalog.json"
         const val MAX_READ_BYTES = 40L * 1024 * 1024

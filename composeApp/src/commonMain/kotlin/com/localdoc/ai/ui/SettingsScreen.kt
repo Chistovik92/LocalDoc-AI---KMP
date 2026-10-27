@@ -65,6 +65,7 @@ enum class SettingsSection(val title: String, val description: String, val icon:
     SITES("Сайты и вход", "Входы на сайты, «Забыть сайт»", Icons.Default.Lock),
     STORAGE("Хранилище", "Кэш картинок, скачанные страницы новелл", Icons.Default.Storage),
     BACKUP("Резервная копия", "Библиотека и настройки одним файлом, восстановление", Icons.Default.Backup),
+    SYNC("Синхронизация", "Прогресс, закладки и заметки между устройствами; копия по расписанию", Icons.Default.Backup),
     ABOUT("Обновления и о приложении", "Версия, проверка обновлений", Icons.Default.Info)
 }
 
@@ -103,6 +104,7 @@ fun SettingsScreen(
                         SettingsSection.SITES -> SitesSection()
                         SettingsSection.STORAGE -> StorageSection()
                         SettingsSection.BACKUP -> BackupSection()
+                        SettingsSection.SYNC -> SyncSection()
                         SettingsSection.ABOUT -> AboutSection()
                         else -> Unit
                     }
