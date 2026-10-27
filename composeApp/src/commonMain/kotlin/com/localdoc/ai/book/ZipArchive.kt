@@ -24,15 +24,32 @@ class ZipArchive(private val bytes: ByteArray) {
 
     fun read(name: String): ByteArray? {
         val entry = entries[name] ?: return null
+        return try {
+            readEntry(name, entry)
+        } catch (e: IllegalArgumentException) {
+            throw e
+        } catch (e: Exception) {
+            // Выход за границы массива, ошибка распаковщика: для вызывающего это просто повреждённый архив
+            throw IllegalArgumentException("Повреждённый ZIP: «$name» не читается", e)
+        }
+    }
+
+    private fun readEntry(name: String, entry: Entry): ByteArray {
         val off = entry.localOffset
+        require(off >= 0 && off + 30 <= bytes.size) { "Повреждённый ZIP: «$name» вне файла" }
         require(u32(off) == LOCAL_SIG) { "Повреждённый ZIP: нет локального заголовка «$name»" }
+        require(entry.compressedSize >= 0) { "Повреждённый ZIP: размер «$name»" }
         val dataStart = off + 30 + u16(off + 26) + u16(off + 28)
         require(dataStart + entry.compressedSize <= bytes.size) { "Повреждённый ZIP: «$name» обрезан" }
         require(entry.size in 0..MAX_ENTRY_BYTES) { "Слишком большой файл в архиве: «$name»" }
         require(inflatedTotal + entry.size <= MAX_TOTAL_BYTES) { "Архив распаковывается в слишком большой объём" }
         val raw = bytes.copyOfRange(dataStart, dataStart + entry.compressedSize)
         return when (entry.method) {
-            METHOD_STORED -> raw
+            METHOD_STORED -> {
+                require(entry.compressedSize == entry.size) { "Повреждённый ZIP: размеры «$name» не совпадают" }
+                inflatedTotal += raw.size
+                raw
+            }
             METHOD_DEFLATE -> inflateRaw(raw, entry.size).also {
                 require(it.size <= entry.size) { "Повреждённый ZIP: «$name» больше заявленного размера" }
                 inflatedTotal += it.size
@@ -46,11 +63,16 @@ class ZipArchive(private val bytes: ByteArray) {
     private fun readCentralDirectory(): Map<String, Entry> {
         val eocd = findEndOfCentralDirectory()
         val count = u16(eocd + 10)
-        var p = u32(eocd + 16).toInt()
+        val start = u32(eocd + 16)
+        require(start in 0 until bytes.size) { "Повреждённый ZIP: центральный каталог вне файла" }
+        // Запись каталога занимает не меньше 46 байт: больше записей, чем помещается, — заведомо порча
+        require(count.toLong() * 46 <= bytes.size - start) { "Повреждённый ZIP: число записей не сходится с каталогом" }
+        var p = start.toInt()
         val result = LinkedHashMap<String, Entry>(count)
         repeat(count) {
             require(p + 46 <= bytes.size && u32(p) == CENTRAL_SIG) { "Повреждённый ZIP: центральный каталог" }
             val nameLen = u16(p + 28)
+            require(p + 46 + nameLen <= bytes.size) { "Повреждённый ZIP: имя записи выходит за файл" }
             val name = bytes.decodeToString(p + 46, p + 46 + nameLen)
             result[name] = Entry(
                 name = name,

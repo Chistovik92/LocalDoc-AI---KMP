@@ -32,7 +32,7 @@ actual class VoicePackStorage actual constructor() {
         val sink = FileTarSink(dest)
         try {
             BZip2CompressorInputStream(BufferedInputStream(FileInputStream(archivePath), BUFFER)).use { input ->
-                TarReader { buffer, offset, length -> input.read(buffer, offset, length) }
+                TarReader(read = { buffer, offset, length -> input.read(buffer, offset, length) })
                     .extractTo(sink, stripComponents = 1)
             }
         } finally {

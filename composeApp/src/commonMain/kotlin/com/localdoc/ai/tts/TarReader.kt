@@ -17,10 +17,15 @@ class ArchiveException(message: String) : Exception(message)
  * возвращает -1 в конце потока. Ссылки и спецфайлы пропускаются; пути вида «../»
  * и абсолютные отклоняются, чтобы архив не мог писать за пределы каталога голоса.
  */
-class TarReader(private val read: (ByteArray, Int, Int) -> Int) {
+class TarReader(
+    private val read: (ByteArray, Int, Int) -> Int,
+    /** Сколько байт файлов можно распаковать всего: защита от архива-бомбы, который заполнит диск. */
+    private val maxTotalBytes: Long = DEFAULT_MAX_TOTAL_BYTES
+) {
 
     private val header = ByteArray(BLOCK)
     private val buffer = ByteArray(1 shl 16)
+    private var totalBytes = 0L
 
     /** Распаковывает весь архив, отбрасывая первые [stripComponents] компонентов пути. */
     fun extractTo(sink: TarSink, stripComponents: Int = 0) {
@@ -65,6 +70,8 @@ class TarReader(private val read: (ByteArray, Int, Int) -> Int) {
     }
 
     private fun copyFile(path: String, size: Long, sink: TarSink) {
+        if (size > maxTotalBytes - totalBytes) throw ArchiveException("Архив распаковывается в слишком большой объём")
+        totalBytes += size
         sink.beginFile(path)
         var left = size
         while (left > 0) {
@@ -148,6 +155,8 @@ class TarReader(private val read: (ByteArray, Int, Int) -> Int) {
     }
 
     companion object {
+        /** Самый большой голос sherpa-onnx — сотни мегабайт; 2 ГБ с запасом, но не «бесконечность». */
+        const val DEFAULT_MAX_TOTAL_BYTES = 2L * 1024 * 1024 * 1024
         private const val BLOCK = 512
         private const val NAME_LENGTH = 100
         private const val SIZE_OFFSET = 124
