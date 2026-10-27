@@ -80,4 +80,31 @@ class StorageMigrationsTest {
         assertEquals(MigrationReport.TooNew(99), StorageMigrations(kv).run())
         assertEquals("""[{"junk":1}]""", kv.values["library_v1"])
     }
+
+    @Test
+    fun `reader settings of 1_8 and 1_9 survive untouched and an unknown enum in a new field is dropped alone`() {
+        val s18 = """{"fontSize":20.0,"theme":"SEPIA","paged":true,"chapterWords":"Глава"}"""
+        val s19 = """{"fontSize":20.0,"tapZones":"EDGES","volumeKeys":true,"brightness":0.4,"orientation":"AUTO","eInk":true,"eInkRefreshPages":8}"""
+        val kv = Memory("reader_settings" to s18)
+        StorageMigrations(kv).run()
+        assertEquals(s18, kv.values["reader_settings"])
+        val kv2 = Memory("reader_settings" to s19)
+        StorageMigrations(kv2).run()
+        assertEquals(s19, kv2.values["reader_settings"])
+
+        val broken = """{"fontSize":20.0,"orientation":"БОКОМ","eInk":true}"""
+        val kv3 = Memory("reader_settings" to broken)
+        StorageMigrations(kv3).run()
+        assertEquals("""{"fontSize":20.0,"eInk":true}""", kv3.values["reader_settings"])
+    }
+
+    @Test
+    fun `annotations with and without the 1_9 color field both stay`() {
+        val mixed = """[{"id":"n1","entryId":"a1","bookTitle":"К","format":"EPUB","anchor":{"block":1},"color":"YELLOW"},""" +
+            """{"id":"n2","entryId":"a1","bookTitle":"К","format":"EPUB","anchor":{"block":2}}]"""
+        val kv = Memory("annotations_v1" to mixed)
+        val report = assertIs<MigrationReport.Migrated>(StorageMigrations(kv).run())
+        assertEquals(0, report.droppedItems)
+        assertEquals(mixed, kv.values["annotations_v1"])
+    }
 }
