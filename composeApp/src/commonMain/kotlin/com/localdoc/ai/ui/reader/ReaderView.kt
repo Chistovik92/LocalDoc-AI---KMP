@@ -1,6 +1,12 @@
 package com.localdoc.ai.ui.reader
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -36,6 +42,41 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
+import com.localdoc.ai.domain.OrientationLock
+import com.localdoc.ai.domain.PageTurn
+import com.localdoc.ai.domain.TapAction
+import com.localdoc.ai.domain.autoScrollDelta
+import com.localdoc.ai.domain.brightnessAfterDrag
+import com.localdoc.ai.domain.needsFullRefresh
+import com.localdoc.ai.domain.pageAnimationEnabled
+import com.localdoc.ai.domain.pageTurn
+import com.localdoc.ai.domain.pinchFontSize
+import com.localdoc.ai.domain.swipeAction
+import com.localdoc.ai.domain.tapAction
+import com.localdoc.ai.notes.AnnotationColor
+import com.localdoc.ai.notes.TextMark
+import com.localdoc.ai.notes.markAt
+import com.localdoc.ai.platform.ScreenControls
+import com.localdoc.ai.platform.VolumeKeys
+import kotlinx.coroutines.delay
+import kotlin.math.abs
 import com.localdoc.ai.domain.pagerFor
 import com.localdoc.ai.domain.startReading
 import com.localdoc.ai.lang.LanguageDetector
@@ -482,6 +523,111 @@ fun ReaderView(
         }
     }
 
+    // Управление: листание зонами, свайпом и кнопками громкости, автопрокрутка, e-ink
+    var autoScroll by remember { mutableStateOf(false) }
+    val reducedMotion = remember { ScreenControls.prefersReducedMotion }
+    val animate = pageAnimationEnabled(settings.pageAnimation, settings.eInk, reducedMotion)
+
+    fun turn(forward: Boolean) {
+        scope.launch {
+            val canScroll = if (forward) listState.canScrollForward else listState.canScrollBackward
+            when (pageTurn(forward, canScroll, pagedDisplay, page, pager.size)) {
+                PageTurn.SCROLL -> {
+                    val distance = listState.layoutInfo.viewportSize.height * SCREEN_SCROLL_FRACTION * (if (forward) 1f else -1f)
+                    if (animate) listState.animateScrollBy(distance) else listState.scrollBy(distance)
+                }
+                PageTurn.PAGE -> seekPage(if (forward) page + 1 else page - 1)
+                PageTurn.NONE -> when {
+                    forward && chapterNavigation?.hasNext == true -> chapterNavigation.onNext()
+                    !forward && chapterNavigation?.hasPrevious == true -> chapterNavigation.onPrevious()
+                }
+            }
+        }
+    }
+
+    fun handleTap(x: Float, width: Float) {
+        if (autoScroll) {
+            autoScroll = false
+            return
+        }
+        when (tapAction(x, width, settings.tapZones, settings.tapZoneWidth)) {
+            TapAction.MENU -> uiVisible = !uiVisible
+            TapAction.NEXT -> turn(true)
+            TapAction.PREVIOUS -> turn(false)
+        }
+    }
+
+    // Жесты живут дольше одной перекомпозиции — им нужны всегда свежие функции
+    val turnNow by rememberUpdatedState<(Boolean) -> Unit> { forward -> turn(forward) }
+    val tapNow by rememberUpdatedState<(Float, Float) -> Unit> { x, width -> handleTap(x, width) }
+    val brightnessNow by rememberUpdatedState(settings.brightness ?: DEFAULT_BRIGHTNESS)
+    val lineHeightPx = with(LocalDensity.current) { (settings.fontSize * settings.lineHeight).sp.toPx() }
+    val lineHeightNow by rememberUpdatedState(lineHeightPx)
+    val speedNow by rememberUpdatedState(settings.autoScrollSpeed)
+
+    LaunchedEffect(settings.keepScreenOn) { ScreenControls.setKeepScreenOn(settings.keepScreenOn) }
+    LaunchedEffect(settings.orientation) { ScreenControls.setOrientation(settings.orientation) }
+    LaunchedEffect(settings.brightness) { ScreenControls.setBrightness(settings.brightness) }
+    DisposableEffect(Unit) {
+        onDispose {
+            ScreenControls.setKeepScreenOn(false)
+            ScreenControls.setOrientation(OrientationLock.AUTO)
+            ScreenControls.setBrightness(null)
+        }
+    }
+    val volumePaging = settings.volumeKeys && ScreenControls.supportsVolumeKeys
+    DisposableEffect(volumePaging) {
+        if (volumePaging) VolumeKeys.handler = { forward -> turnNow(forward) }
+        onDispose { if (volumePaging) VolumeKeys.handler = null }
+    }
+
+    // Автопрокрутка: плавный сдвиг по кадрам; в конце страницы — следующая страница, в конце книги — остановка
+    LaunchedEffect(autoScroll, pagedDisplay, pager) {
+        if (!autoScroll) return@LaunchedEffect
+        var lastNanos = withFrameNanos { it }
+        var carry = 0f
+        while (true) {
+            val now = withFrameNanos { it }
+            carry += autoScrollDelta(speedNow, lineHeightNow, (now - lastNanos) / 1_000_000L)
+            lastNanos = now
+            val whole = carry.toInt()
+            if (whole < 1) continue
+            carry -= whole
+            if (listState.scrollBy(whole.toFloat()) == 0f) {
+                if (pagedDisplay && page < pager.size - 1) page += 1 else autoScroll = false
+            }
+        }
+    }
+
+    // Анимация листания и полное обновление экрана e-ink каждые N страниц
+    val turnAnim = remember { Animatable(1f) }
+    var turnDirection by remember { mutableStateOf(1) }
+    var turns by remember { mutableStateOf(0) }
+    var refreshPhase by remember { mutableStateOf(0) }
+    var shownPage by remember { mutableStateOf(page) }
+    LaunchedEffect(page) {
+        if (page == shownPage) return@LaunchedEffect
+        turnDirection = if (page > shownPage) 1 else -1
+        shownPage = page
+        turns++
+        if (animate && pagedDisplay) {
+            turnAnim.snapTo(0f)
+            turnAnim.animateTo(1f, tween(PAGE_TURN_MS))
+        } else {
+            turnAnim.snapTo(1f)
+        }
+        if (settings.eInk && needsFullRefresh(turns, settings.eInkRefreshPages)) {
+            try {
+                refreshPhase = 1
+                delay(EINK_FLASH_MS)
+                refreshPhase = 2
+                delay(EINK_FLASH_MS)
+            } finally {
+                refreshPhase = 0
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(paper.background)) {
         CompositionLocalProvider(LocalTextToolbar provides textToolbar) {
         key(selectionEpoch) { SelectionContainer {
@@ -491,7 +637,49 @@ fun ReaderView(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { uiVisible = !uiVisible }
+                .graphicsLayer {
+                    alpha = turnAnim.value
+                    translationX = (1f - turnAnim.value) * turnDirection * PAGE_TURN_SHIFT_DP.dp.toPx()
+                }
+                // Щипок двумя пальцами меняет размер шрифта; перехватывается раньше списка, чтобы тот не прокручивался
+                .pointerInput(settings.pinchZoom) {
+                    if (!settings.pinchZoom) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        var zoom = 1f
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.count { it.pressed } >= 2) {
+                                zoom *= event.calculateZoom()
+                                event.changes.forEach { it.consume() }
+                            }
+                        } while (event.changes.any { it.pressed })
+                        if (abs(zoom - 1f) > PINCH_MIN_CHANGE) {
+                            AppGraph.readerSettings.update { it.copy(fontSize = pinchFontSize(it.fontSize, zoom)) }
+                        }
+                    }
+                }
+                // Горизонтальный свайп листает; жест, который взял список или выделение текста, не считается
+                .pointerInput(settings.swipePaging) {
+                    if (!settings.swipePaging) return@pointerInput
+                    val minDistance = SWIPE_MIN_DP.dp.toPx()
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+                        var consumed = false
+                        var multiTouch = false
+                        var end = down.position
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Final)
+                            if (event.changes.size > 1) multiTouch = true
+                            if (event.changes.any { it.isConsumed }) consumed = true
+                            event.changes.firstOrNull { it.id == down.id }?.let { end = it.position }
+                        } while (event.changes.any { it.pressed })
+                        if (!consumed && !multiTouch) {
+                            swipeAction(end.x - down.position.x, end.y - down.position.y, minDistance)?.let { turnNow(it == TapAction.NEXT) }
+                        }
+                    }
+                }
+                .pointerInput(Unit) { detectTapGestures { offset -> tapNow(offset.x, size.width.toFloat()) } }
         ) {
             items(itemCount, key = { firstIndex + it }) { local ->
                 val index = firstIndex + local
@@ -505,6 +693,7 @@ fun ReaderView(
                         highlight = speaking?.takeIf { it.block == index },
                         marks = if (translatedBlocks == null) marksByBlock[index].orEmpty() else emptyList(),
                         onTap = if (isMine) ({ AppGraph.readAloud.jumpToBlock(index) }) else null,
+                        onMarkTap = { id -> bookAnnotations.firstOrNull { it.id == id }?.let { noteEdit = it } },
                         modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = 24.dp)
                     )
                 }
@@ -514,6 +703,31 @@ fun ReaderView(
             }
         }
         } }
+        }
+
+        // Яркость: тянем вверх или вниз у левого края
+        if (settings.brightnessGesture) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .width(BRIGHTNESS_STRIP_DP.dp)
+                    .pointerInput(Unit) {
+                        var live = DEFAULT_BRIGHTNESS
+                        val save = { AppGraph.readerSettings.update { it.copy(brightness = live) } }
+                        detectVerticalDragGestures(
+                            onDragStart = { live = brightnessNow },
+                            onDragEnd = { save() },
+                            onDragCancel = { save() },
+                            onVerticalDrag = { change, dy ->
+                                change.consume()
+                                live = brightnessAfterDrag(live, dy, size.height.toFloat())
+                                ScreenControls.setBrightness(live)
+                                notice = "Яркость ${(live * 100).toInt()}%"
+                            }
+                        )
+                    }
+            )
         }
 
         if (toolbarState.visible) {
@@ -535,8 +749,8 @@ fun ReaderView(
 
         AnimatedVisibility(
             visible = uiVisible,
-            enter = slideInVertically { -it } + fadeIn(),
-            exit = slideOutVertically { -it } + fadeOut(),
+            enter = if (animate) slideInVertically { -it } + fadeIn() else EnterTransition.None,
+            exit = if (animate) slideOutVertically { -it } + fadeOut() else ExitTransition.None,
             modifier = Modifier.align(Alignment.TopCenter)
         ) {
             Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp) {
@@ -603,6 +817,10 @@ fun ReaderView(
                                     text = { Text(if (settings.paged) "Читать прокруткой" else "Читать по страницам") },
                                     onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text(if (autoScroll) "Остановить автопрокрутку" else "Автопрокрутка") },
+                                    onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
+                                )
                                 DropdownMenuItem(text = { Text("Шрифт и фон") }, onClick = { showMenu = false; showSettings = true })
                                 if (entry != null) {
                                     DropdownMenuItem(
@@ -655,7 +873,11 @@ fun ReaderView(
                     onNextPage = { chapterNavigation?.onNext?.invoke() }
                 )
             }
-            AnimatedVisibility(visible = uiVisible) {
+            AnimatedVisibility(
+                visible = uiVisible,
+                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+            ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)
@@ -670,7 +892,11 @@ fun ReaderView(
             if (isMine) {
                 PlayerBar(state = player, title = chapterTitle ?: book.title, onVoiceSettings = { showVoice = true })
             } else {
-                AnimatedVisibility(visible = uiVisible) {
+                AnimatedVisibility(
+                    visible = uiVisible,
+                    enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+                    exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+                ) {
                     PageBar(
                         page = page,
                         pageCount = pager.size,
@@ -681,6 +907,11 @@ fun ReaderView(
                     )
                 }
             }
+        }
+
+        // Полное обновление e-ink: короткая чёрная, затем белая вспышка
+        if (refreshPhase != 0) {
+            Box(Modifier.fillMaxSize().background(if (refreshPhase == 1) Color.Black else Color.White))
         }
     }
 
@@ -744,9 +975,10 @@ fun ReaderView(
         NoteDialog(
             quote = anchor.quote,
             initial = "",
+            initialColor = AnnotationColor.YELLOW,
             onDismiss = { noteDraft = null },
-            onSave = { text ->
-                entry?.let { AppGraph.annotations.add(it, anchor, text) }
+            onSave = { text, color ->
+                entry?.let { AppGraph.annotations.add(it, anchor, text, color) }
                 noteDraft = null
                 notice = "Заметка сохранена"
             }
@@ -756,9 +988,15 @@ fun ReaderView(
         NoteDialog(
             quote = annotation.quote,
             initial = annotation.note,
+            initialColor = annotation.color,
             onDismiss = { noteEdit = null },
-            onSave = { text ->
+            onSave = { text, color ->
                 AppGraph.annotations.updateNote(annotation.id, text)
+                if (color != annotation.color) AppGraph.annotations.updateColor(annotation.id, color)
+                noteEdit = null
+            },
+            onDelete = {
+                AppGraph.annotations.remove(annotation.id)
                 noteEdit = null
             }
         )
@@ -795,12 +1033,9 @@ fun ReaderView(
     )
 }
 
-/** Цвет подсветки сохранённых цитат и заметок. */
-private val MARK_COLOR = Color(0x66FFD54F)
-
-/** Диапазоны символов по блокам, на которые приходятся цитаты и заметки в текущем разборе книги. */
-private fun annotationMarks(book: Book, annotations: List<Annotation>): Map<Int, List<IntRange>> {
-    val result = HashMap<Int, MutableList<IntRange>>()
+/** Подсвеченные места по блокам: куда приходятся цитаты и заметки в текущем разборе книги. */
+private fun annotationMarks(book: Book, annotations: List<Annotation>): Map<Int, List<TextMark>> {
+    val result = HashMap<Int, MutableList<TextMark>>()
     for (annotation in annotations) {
         val at = AnchorResolver.resolve(annotation.anchor, book.blocks, book.chapters)
         if (!at.exact) continue
@@ -808,7 +1043,7 @@ private fun annotationMarks(book: Book, annotations: List<Annotation>): Map<Int,
             val length = book.blocks.getOrNull(index)?.text?.length ?: continue
             val from = if (index == at.block) at.start else 0
             val to = if (index == at.endBlock) at.end else length
-            if (to > from) result.getOrPut(index) { ArrayList() }.add(from until to)
+            if (to > from) result.getOrPut(index) { ArrayList() }.add(TextMark(from until to, annotation.color, annotation.id))
         }
     }
     return result
@@ -816,6 +1051,19 @@ private fun annotationMarks(book: Book, annotations: List<Annotation>): Map<Int,
 
 private const val AI_WAIT_FOR_TRANSLATION_MS = 60_000L
 private const val AUTO_NEXT_DELAY_MS = 2_500L
+
+/** Листание зоной или кнопкой прокручивает почти экран: последняя строка остаётся на виду. */
+private const val SCREEN_SCROLL_FRACTION = 0.9f
+private const val PAGE_TURN_MS = 240
+private const val PAGE_TURN_SHIFT_DP = 40
+private const val EINK_FLASH_MS = 120L
+private const val PINCH_MIN_CHANGE = 0.08f
+private const val SWIPE_MIN_DP = 72
+private const val BRIGHTNESS_STRIP_DP = 28
+private const val DEFAULT_BRIGHTNESS = 0.5f
+/** Дольше этого нажатие на подсветку — выделение текста, а не открытие заметки. */
+private const val MARK_TAP_MAX_MS = 400L
+private const val LIST_BULLET = "•  "
 
 /** Полоса состояния перевода под верхней панелью: прогресс страницы или ошибка с повтором. */
 @Composable
@@ -895,8 +1143,9 @@ private fun BlockText(
     settings: ReaderSettings,
     paper: PaperColors,
     highlight: SpeechSegment?,
-    marks: List<IntRange>,
+    marks: List<TextMark>,
     onTap: (() -> Unit)?,
+    onMarkTap: (String) -> Unit,
     modifier: Modifier
 ) {
     if (block.type == BlockType.IMAGE) {
@@ -923,9 +1172,12 @@ private fun BlockText(
         else -> 0.dp
     }
     val bottomPadding = if (block.type == BlockType.HEADING) 10.dp else (base * 0.7f).dp
-    val text = buildBlockText(block, highlight, highlightColor, marks, MARK_COLOR)
+    val text = buildBlockText(block, highlight, highlightColor, marks)
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val bulletLength = if (block.type == BlockType.LIST_ITEM) LIST_BULLET.length else 0
     Text(
-        text = if (block.type == BlockType.LIST_ITEM) AnnotatedString("•  ") + text else text,
+        text = if (block.type == BlockType.LIST_ITEM) AnnotatedString(LIST_BULLET) + text else text,
+        onTextLayout = { layout = it },
         style = style.copy(
             color = if (block.type == BlockType.QUOTE) paper.secondary else paper.text,
             textAlign = if (settings.justify && block.type == BlockType.PARAGRAPH) TextAlign.Justify else TextAlign.Start
@@ -942,6 +1194,21 @@ private fun BlockText(
                 }
             )
             .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
+            // Нажатие на подсвеченное место открывает заметку; стоит последним, чтобы сработать раньше остальных нажатий
+            .then(
+                if (marks.isEmpty()) Modifier else Modifier.pointerInput(marks, bulletLength) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val up = waitForUpOrCancellation() ?: return@awaitEachGesture
+                        if (up.uptimeMillis - down.uptimeMillis > MARK_TAP_MAX_MS) return@awaitEachGesture
+                        val offset = layout?.getOffsetForPosition(up.position)?.minus(bulletLength) ?: return@awaitEachGesture
+                        marks.markAt(offset)?.let {
+                            up.consume()
+                            onMarkTap(it.annotationId)
+                        }
+                    }
+                }
+            )
     )
 }
 
@@ -949,8 +1216,7 @@ private fun buildBlockText(
     block: Block,
     highlight: SpeechSegment?,
     highlightColor: Color,
-    marks: List<IntRange>,
-    markColor: Color
+    marks: List<TextMark>
 ): AnnotatedString = buildAnnotatedString {
     append(block.text)
     val length = block.text.length
@@ -965,9 +1231,9 @@ private fun buildBlockText(
         addStyle(style, s, e)
     }
     for (mark in marks) {
-        val s = mark.first.coerceIn(0, length)
-        val e = (mark.last + 1).coerceIn(s, length)
-        if (e > s) addStyle(SpanStyle(background = markColor), s, e)
+        val s = mark.range.first.coerceIn(0, length)
+        val e = (mark.range.last + 1).coerceIn(s, length)
+        if (e > s) addStyle(SpanStyle(background = Color(mark.color.argb)), s, e)
     }
     if (highlight != null) {
         val s = highlight.start.coerceIn(0, length)

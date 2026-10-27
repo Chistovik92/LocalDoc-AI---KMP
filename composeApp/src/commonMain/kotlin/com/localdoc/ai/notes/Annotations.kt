@@ -12,6 +12,16 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlin.random.Random
 
+/** Цвет подсветки цитаты: [argb] — полупрозрачный фон поверх текста. */
+@Serializable
+enum class AnnotationColor(val label: String, val argb: Long) {
+    YELLOW("Жёлтый", 0x66FFD54F),
+    GREEN("Зелёный", 0x6681C784),
+    BLUE("Синий", 0x6664B5F6),
+    PINK("Розовый", 0x66F48FB1),
+    ORANGE("Оранжевый", 0x66FFB74D)
+}
+
 /**
  * Цитата (выделение) в книге с необязательной заметкой. Место хранится как [TextAnchor] — оно
  * переживает смену шрифта, размера страницы и повторный разбор книги.
@@ -27,7 +37,8 @@ data class Annotation(
     val note: String = "",
     val createdAt: Long = 0,
     /** Адрес страницы для заметок в веб-главах. */
-    val url: String = ""
+    val url: String = "",
+    val color: AnnotationColor = AnnotationColor.YELLOW
 ) {
     val quote: String get() = anchor.quote
     val chapter: String get() = anchor.chapter
@@ -66,7 +77,7 @@ class AnnotationRepository(load: () -> String?, save: (String) -> Unit) {
     fun forEntry(entryId: String): List<Annotation> =
         store.items.value.filter { it.entryId == entryId }.sortedWith(compareBy({ it.anchor.block }, { it.anchor.start }))
 
-    fun add(entry: BookEntry, anchor: TextAnchor, note: String = ""): Annotation {
+    fun add(entry: BookEntry, anchor: TextAnchor, note: String = "", color: AnnotationColor = AnnotationColor.YELLOW): Annotation {
         val annotation = Annotation(
             id = Random.nextLong().toULong().toString(16),
             entryId = entry.id,
@@ -75,7 +86,8 @@ class AnnotationRepository(load: () -> String?, save: (String) -> Unit) {
             anchor = anchor,
             note = note.trim(),
             createdAt = nowMillis(),
-            url = if (entry.format == BookFormat.WEB) entry.source else ""
+            url = if (entry.format == BookFormat.WEB) entry.source else "",
+            color = color
         )
         store.set(listOf(annotation) + store.items.value)
         return annotation
@@ -83,6 +95,9 @@ class AnnotationRepository(load: () -> String?, save: (String) -> Unit) {
 
     fun updateNote(id: String, note: String) =
         store.set(store.items.value.map { if (it.id == id) it.copy(note = note.trim()) else it })
+
+    fun updateColor(id: String, color: AnnotationColor) =
+        store.set(store.items.value.map { if (it.id == id) it.copy(color = color) else it })
 
     fun remove(id: String) = store.set(store.items.value.filterNot { it.id == id })
 
