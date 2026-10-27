@@ -95,9 +95,11 @@ fun NotesSection(onOpen: (Annotation) -> Unit) {
         NoteDialog(
             quote = annotation.quote,
             initial = annotation.note,
+            initialColor = annotation.color,
             onDismiss = { edit = null },
-            onSave = { text ->
+            onSave = { text, color ->
                 AppGraph.annotations.updateNote(annotation.id, text)
+                if (color != annotation.color) AppGraph.annotations.updateColor(annotation.id, color)
                 edit = null
             }
         )
