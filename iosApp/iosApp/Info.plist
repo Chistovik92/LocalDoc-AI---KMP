@@ -41,6 +41,11 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.localdoc.ai.novelupdates</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

@@ -6,6 +6,8 @@ struct LocalDocAIApp: App {
     init() {
         // Кнопки виджета (App Intents, iOS 17+) управляют плеером озвучки в процессе приложения
         PlayerBridge.handler = { MainViewControllerKt.playerCommand(name: $0) }
+        // Фоновая проверка новых глав: задачу нужно зарегистрировать до окончания запуска
+        MainViewControllerKt.registerBackgroundTasks()
     }
 
     var body: some Scene {
