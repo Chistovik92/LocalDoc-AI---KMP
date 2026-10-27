@@ -25,7 +25,6 @@ import com.localdoc.ai.notes.DictionaryRepository
 import com.localdoc.ai.search.FullTextIndex
 import com.localdoc.ai.stats.ReadingRecorder
 import com.localdoc.ai.stats.ReadingStats
-import com.localdoc.ai.backup.BackupFormat
 import com.localdoc.ai.search.LibrarySearch
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
