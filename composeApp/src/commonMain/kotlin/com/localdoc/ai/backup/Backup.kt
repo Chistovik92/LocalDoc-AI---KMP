@@ -236,11 +236,6 @@ class BackupService(
         StorageMigrations(storage).run()
     }
 
-    private companion object {
-        /** Самая старая читаемая версия формата. */
-        const val MIN_VERSION = 1
-    }
-
     private fun libraryEntries(raw: String?): List<BookEntry> =
         raw?.let { runCatching { json.decodeFromString(entries, it) }.getOrNull() }.orEmpty()
 
@@ -253,6 +248,9 @@ class BackupService(
     }
 
     private companion object {
+        /** Самая старая читаемая версия формата. */
+        const val MIN_VERSION = 1
+
         /** Копии PDF крупнее в архив не кладутся (он собирается в памяти); такая книга после восстановления открывается текстом. */
         const val MAX_PDF_COPY_BYTES = 64 * 1024 * 1024
     }
