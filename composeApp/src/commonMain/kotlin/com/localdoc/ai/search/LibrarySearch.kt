@@ -26,7 +26,9 @@ class LibrarySearch(
      * Приводит индекс в соответствие с библиотекой и каталогом: новые и изменённые книги индексируются, удалённые
      * стираются. Книга с неизменной подписью не читается с диска. Возвращает число обновлённых документов.
      */
-    suspend fun sync(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): Int {
+    suspend fun sync(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): Int = index.batch { syncAll(onProgress) }
+
+    private suspend fun syncAll(onProgress: (done: Int, total: Int) -> Unit): Int {
         val entries = books()
         val wanted = entries.associateBy { libDoc(it.id) }
         index.indexedDocs().filter { it.startsWith(LIB_PREFIX) && it !in wanted }.forEach(index::remove)
