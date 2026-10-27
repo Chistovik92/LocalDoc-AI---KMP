@@ -198,6 +198,11 @@ class SyncEngine(
         val result = LinkedHashMap<String, SyncRecord>()
         for ((id, data) in current) {
             val b = base[id]
+            // Запись ждёт применения (книги не было или сбой): значение на устройстве — не правка пользователя
+            if (b != null && id in deferred && !fresh) {
+                result[id] = b
+                continue
+            }
             result[id] = if (!fresh && b != null && !b.deleted && b.data == data) b else SyncRecord(id, now, device, false, data)
         }
         for ((id, b) in base) {
@@ -237,6 +242,7 @@ class SyncEngine(
             } catch (e: Exception) {
                 failed += c.kind
                 upserts.keys.forEach { deferred += prefix + it }
+                removes.forEach { deferred += prefix + it }
             }
         }
         return Applied(deferred, failed, changed)

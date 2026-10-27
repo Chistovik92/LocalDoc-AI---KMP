@@ -22,12 +22,14 @@ import androidx.compose.ui.unit.dp
 import com.localdoc.ai.backup.BackupScheduleSettings
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.net.asTransport
+import com.localdoc.ai.platform.IoDispatcher
 import com.localdoc.ai.platform.RawHttp
 import com.localdoc.ai.sync.DivergenceChoice
 import com.localdoc.ai.sync.PasswordCipher
 import com.localdoc.ai.sync.SyncOutcome
 import com.localdoc.ai.sync.WebDavTransport
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val KEY_SYNC_URL = "sync_webdav_url"
 private const val KEY_SYNC_USER = "sync_webdav_user"
@@ -60,7 +62,7 @@ fun SyncSection() {
         scope.launch {
             val transport = WebDavTransport(RawHttp().asTransport(), url.trim(), user.trim(), password)
             val outcome = try {
-                AppGraph.syncEngine.sync(transport, PasswordCipher(encryption), choice)
+                withContext(IoDispatcher) { AppGraph.syncEngine.sync(transport, PasswordCipher(encryption), choice) }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

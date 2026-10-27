@@ -269,4 +269,44 @@ class SyncEngineTest {
         cloud.file = RemoteFile(a.cipher.seal(newer.encodeToByteArray()), "1")
         assertEquals(SyncOutcome.TooNew(99), a.sync())
     }
+
+    @Test
+    fun `a book imported later does not overwrite the waiting cloud progress with its default`() = runTest {
+        val (_, a, b) = twoDevices()
+        a.progress.data["bk"] = "7"
+        a.sync()
+        b.progress.unappliable += "bk"
+        b.sync()
+        // книга импортирована: у неё прогресс по умолчанию
+        b.progress.unappliable.clear()
+        b.progress.data["bk"] = "0"
+        b.now += 1000
+        b.sync()
+        assertEquals("7", b.progress.data["bk"])
+        a.now += 5000
+        a.sync()
+        assertEquals("7", a.progress.data["bk"])
+    }
+
+    @Test
+    fun `a failed removal is retried and the record is not resurrected in the cloud`() = runTest {
+        val (_, a, b) = twoDevices()
+        a.marks.data["bk/1"] = "x"
+        a.marks.data["bk/2"] = "y"
+        a.sync()
+        b.sync()
+        a.marks.data.remove("bk/1")
+        a.now += 5000
+        a.sync()
+        b.marks.failApply = true
+        b.now += 6000
+        b.sync()
+        b.marks.failApply = false
+        b.now += 1000
+        b.sync()
+        assertEquals(setOf("bk/2"), b.marks.data.keys)
+        a.now += 9000
+        a.sync()
+        assertEquals(setOf("bk/2"), a.marks.data.keys)
+    }
 }
