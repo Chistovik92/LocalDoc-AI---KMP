@@ -1,6 +1,8 @@
 package com.localdoc.ai.book
 
+import com.localdoc.ai.book.pdf.PdfPages
 import com.localdoc.ai.parser.PdfExtractor
+import com.localdoc.ai.platform.PdfPageRenderer
 import com.localdoc.ai.platform.FileAccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -173,7 +175,35 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
 
     private suspend fun importPdf(pathOrUri: String, title: String): Book {
         val parsed = pdfExtractor.extract(pathOrUri)
-        return PdfTextAdapter.toBook(parsed.title.substringBeforeLast('.').ifBlank { title }, parsed.content, pathOrUri)
+        val book = PdfTextAdapter.toBook(parsed.title.substringBeforeLast('.').ifBlank { title }, parsed.content, pathOrUri)
+        return withPageImages(book, pathOrUri)
+    }
+
+    /**
+     * Копия PDF в хранилище приложения (по ней страницы рисуются картинками, а доступ к исходному файлу
+     * не нужен) и обложка — первая страница. Любой сбой оставляет книгу в режиме «текст».
+     */
+    private suspend fun withPageImages(book: Book, pathOrUri: String): Book {
+        val name = PdfPages.fileNameFor(pathOrUri)
+        try {
+            val size = files.copyToAppFile(pathOrUri, name)
+            if (size > PdfPages.MAX_COPY_BYTES) {
+                files.deleteAppFile(name)
+                return book
+            }
+            val withFile = book.copy(pdfFile = name)
+            val renderer = PdfPageRenderer(files.appFilePath(name))
+            return try {
+                withContext(Dispatchers.Default) { PdfPages.withCover(withFile, renderer) }
+            } finally {
+                renderer.close()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            files.deleteAppFile(name)
+            return book
+        }
     }
 
     companion object {
