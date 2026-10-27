@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -45,6 +46,38 @@ struct ActionButton: View {
     }
 }
 
+/// Круглая кнопка плеера: iOS 17+ — App Intent (управляет озвучкой, не открывая приложение).
+@available(iOS 17.0, *)
+struct PlayerButton<I: AppIntent>: View {
+    let intent: I
+    let systemImage: String
+    var prominent = false
+
+    var body: some View {
+        Button(intent: intent) {
+            Image(systemName: systemImage)
+                .font(.system(size: prominent ? 22 : 18, weight: .semibold))
+                .frame(width: prominent ? 52 : 44, height: prominent ? 52 : 44)
+                .background(prominent ? googleBlue : Color.secondary.opacity(0.15))
+                .foregroundColor(prominent ? .white : .primary)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Управление плеером в виджете: назад, пауза/продолжить, вперёд.
+@available(iOS 17.0, *)
+struct PlayerControls: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            PlayerButton(intent: PreviousSentenceIntent(), systemImage: "backward.fill")
+            PlayerButton(intent: TogglePlaybackIntent(), systemImage: "playpause.fill", prominent: true)
+            PlayerButton(intent: NextSentenceIntent(), systemImage: "forward.fill")
+        }
+    }
+}
+
 private func deepLink(_ path: String) -> URL {
     URL(string: "localdoc://\(path)") ?? URL(fileURLWithPath: "/")
 }
@@ -66,8 +99,17 @@ struct LocalDocWidgetView: View {
                     .foregroundColor(.secondary)
             }
             Spacer(minLength: 0)
+            if #available(iOS 17.0, *), family == .systemSmall {
+                // Маленький виджет целиком: только плеер
+                PlayerControls()
+            }
             HStack(spacing: family == .systemSmall ? 8 : 16) {
-                ActionButton(title: "Слушать", systemImage: "play.fill", url: deepLink("play"), prominent: true)
+                if #available(iOS 17.0, *) {
+                    // iOS 17+: «Слушать» заменяют кнопки плеера (в маленьком виджете они выше)
+                    if family != .systemSmall { PlayerControls() }
+                } else {
+                    ActionButton(title: "Слушать", systemImage: "play.fill", url: deepLink("play"), prominent: true)
+                }
                 if family != .systemSmall {
                     ActionButton(title: "Книга", systemImage: "folder", url: deepLink("open-file"))
                     ActionButton(title: "Ссылка", systemImage: "link", url: deepLink("open-url"))
@@ -75,8 +117,8 @@ struct LocalDocWidgetView: View {
                 }
             }
         }
-        // В маленьком виджете Link не работает — нажатие на виджет запускает чтение вслух
-        .widgetURL(deepLink(family == .systemSmall ? "play" : "continue"))
+        // В маленьком виджете Link не работает — нажатие на виджет (вне кнопок) открывает приложение на последнем месте
+        .widgetURL(deepLink("continue"))
         .widgetBackgroundCompat()
     }
 }

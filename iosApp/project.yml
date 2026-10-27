@@ -80,9 +80,12 @@ targets:
     platform: iOS
     sources:
       - path: iosWidget
+      # Интенты виджета должны быть известны и приложению: AudioPlaybackIntent выполняется в его процессе
+      - path: iosApp/iosApp/PlayerIntents.swift
     dependencies:
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
+      - sdk: AppIntents.framework
     settings:
       base:
         INFOPLIST_FILE: iosWidget/Info.plist

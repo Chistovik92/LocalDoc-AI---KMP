@@ -23,3 +23,16 @@ fun handleOpenUrl(url: String) {
             AppGraph.acceptIncoming(IncomingDoc(IncomingDoc.IncomingType.URL, url))
     }
 }
+
+/**
+ * Вызов из App Intents виджета (iOS 17+): команды плеера озвучки — toggle | next | previous.
+ * Если плеер не открыт, «toggle» запускает чтение так же, как кнопка «Слушать» виджета.
+ */
+fun playerCommand(name: String) {
+    val player = AppGraph.readAloud
+    when (name) {
+        "toggle" -> if (player.state.value.active) player.toggle() else AppGraph.handleDeepLink("localdoc://play")
+        "next" -> player.nextSentence()
+        "previous" -> player.previousSentence()
+    }
+}

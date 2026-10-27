@@ -3,6 +3,11 @@ import ComposeApp
 
 @main
 struct LocalDocAIApp: App {
+    init() {
+        // Кнопки виджета (App Intents, iOS 17+) управляют плеером озвучки в процессе приложения
+        PlayerBridge.handler = { MainViewControllerKt.playerCommand(name: $0) }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
