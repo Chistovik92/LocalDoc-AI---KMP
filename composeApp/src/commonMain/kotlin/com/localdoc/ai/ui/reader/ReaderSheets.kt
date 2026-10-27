@@ -112,6 +112,7 @@ fun PlayerBar(state: ReadAloudState, title: String, onVoiceSettings: () -> Unit)
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                SleepTimerButton()
                 IconButton(onClick = onVoiceSettings) { Icon(Icons.Default.RecordVoiceOver, contentDescription = "Голос") }
             }
             if (state.total > 0) {

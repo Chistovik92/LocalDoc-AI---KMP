@@ -37,6 +37,11 @@ class SpeechRouter(
         builtin.setPitch(pitch)
     }
 
+    override fun setVolume(volume: Float) {
+        system.setVolume(volume)
+        builtin.setVolume(volume)
+    }
+
     override fun prepare(onReady: () -> Unit) = active.prepare(onReady)
 
     /**

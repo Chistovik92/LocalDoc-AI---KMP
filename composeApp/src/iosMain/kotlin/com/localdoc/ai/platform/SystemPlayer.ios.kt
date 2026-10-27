@@ -50,7 +50,8 @@ actual object SystemPlayer {
             var wasActive = false
             player.state.collect { state ->
                 val center = MPNowPlayingInfoCenter.defaultCenter()
-                if (!state.active) {
+                // Таймер сна остановил озвучку: отпускаем аудиосессию, чтобы другие приложения могли играть
+                if (!state.active || state.sleepStopped) {
                     center.nowPlayingInfo = null
                     if (wasActive) session.setActive(false, error = null)
                 } else {
@@ -64,7 +65,7 @@ actual object SystemPlayer {
                         MPNowPlayingInfoPropertyElapsedPlaybackTime to NSNumber(double = state.position.toDouble())
                     )
                 }
-                wasActive = state.active
+                wasActive = state.active && !state.sleepStopped
             }
         }
     }

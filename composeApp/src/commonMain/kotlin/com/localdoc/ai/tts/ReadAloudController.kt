@@ -28,6 +28,8 @@ data class ReadAloudState(
     val page: Int = 0,
     val pageCount: Int = 0,
     val stoppedAt: ReadAloudStop? = null,
+    /** Озвучку остановил таймер сна: позиция сохранена, фоновый сервис плеера больше не нужен. */
+    val sleepStopped: Boolean = false,
     val error: String? = null
 )
 
@@ -93,6 +95,9 @@ class ReadAloudController(
 
     private var title = ""
 
+    /** Таймер сна «до конца главы»: на границе главы голос не объявляет «Конец главы» и озвучка замолкает сама. */
+    var quietChapterEnd = false
+
     fun start(key: String, blocks: List<Block>, chapters: List<Chapter>, fromBlock: Int, title: String = "", pager: BookPager? = null) =
         start(key, StaticPageSource(blocks, pager ?: BookPager.build(blocks, chapters)), chapters, fromBlock, title)
 
@@ -129,6 +134,27 @@ class ReadAloudController(
         engine.stop()
         consecutiveFailures = 0
         speakCurrent()
+    }
+
+    /** Громкость озвучки 0..1 (затухание таймера сна). */
+    fun setVolume(volume: Float) = engine.setVolume(volume.coerceIn(0f, 1f))
+
+    /** Сколько предложений осталось до конца текущей главы в уже подготовленном окне; null — граница не видна. */
+    fun sentencesLeftInChapter(): Int? {
+        if (segments.isEmpty() || index !in segments.indices) return null
+        val current = segments[index]
+        val boundary = chapterStarts.firstOrNull { it > current.block } ?: return null
+        val next = segments.indexOfFirst { it.block >= boundary }
+        return if (next >= 0) next - index else null
+    }
+
+    /** Остановка по таймеру сна: пауза на месте с пометкой для интерфейса и фонового сервиса. */
+    fun sleepStop() {
+        if (segments.isEmpty()) return
+        session++
+        engine.stop()
+        engine.setVolume(1f)
+        publish(playing = false, sleepStopped = true)
     }
 
     fun pause() {
@@ -314,6 +340,12 @@ class ReadAloudController(
     /** Предупреждение голосом и остановка: дальше пользователь решает сам. */
     private fun finishWith(reason: ReadAloudStop, announcement: String) {
         session++
+        if (quietChapterEnd) {
+            // Таймер сна: тихая остановка, без голоса и без автоперехода к следующей главе
+            engine.setVolume(1f)
+            publish(playing = false, sleepStopped = true)
+            return
+        }
         publish(playing = false, stoppedAt = reason)
         engine.speak(announcement) { }
     }
@@ -377,7 +409,7 @@ class ReadAloudController(
             false
         }
 
-    private fun publish(playing: Boolean, stoppedAt: ReadAloudStop? = null, error: String? = null) {
+    private fun publish(playing: Boolean, stoppedAt: ReadAloudStop? = null, error: String? = null, sleepStopped: Boolean = false) {
         val onSecond = secondPage >= 0 && index >= firstLen
         _state.value = ReadAloudState(
             active = segments.isNotEmpty(),
@@ -389,6 +421,7 @@ class ReadAloudController(
             page = if (onSecond) secondPage else firstPage,
             pageCount = source?.pager?.size ?: 0,
             stoppedAt = stoppedAt,
+            sleepStopped = sleepStopped,
             error = error
         )
     }

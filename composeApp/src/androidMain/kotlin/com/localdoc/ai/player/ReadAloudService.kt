@@ -54,7 +54,8 @@ class ReadAloudService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification(AppGraph.readAloud.state.value), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         scope.launch {
             AppGraph.readAloud.state.collect { state ->
-                if (!state.active) {
+                // Таймер сна остановил озвучку: сервис и уведомление не нужны, позиция остаётся в приложении
+                if (!state.active || state.sleepStopped) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 } else {

@@ -15,14 +15,16 @@ actual object SystemPlayer {
         started = true
         val context = AppContextHolder.appContext
         AppGraph.appScope.launch {
-            var wasActive = false
+            var wasLive = false
             combine(AppGraph.readAloud.state, AppGraph.library.entries) { state, entries -> state to entries.firstOrNull()?.title }
                 .collect { (state, lastBook) ->
                     // Сервис запускается из приложения на переднем плане (нажатие «Слушать»)
-                    if (state.active && !wasActive) {
+                    // После остановки таймером сна сервис не работает: запускаем снова, когда чтение возобновилось
+                    val live = state.active && !state.sleepStopped
+                    if (live && !wasLive) {
                         runCatching { context.startForegroundService(Intent(context, ReadAloudService::class.java)) }
                     }
-                    wasActive = state.active
+                    wasLive = live
                     ReaderWidgetProvider.updateAll(context, state, lastBook)
                 }
         }
