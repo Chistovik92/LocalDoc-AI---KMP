@@ -55,7 +55,7 @@ object BackupFormat {
      */
     val KV_KEYS = listOf(
         KEY_LIBRARY, "bookmarks_v1", "annotations_v1", "dictionary_v1",
-        "reader_settings", "voice_settings", "translation_settings"
+        "reader_settings", "book_reader_overrides", "voice_settings", "translation_settings"
     )
 
     private val SAFE_NAME = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*$")

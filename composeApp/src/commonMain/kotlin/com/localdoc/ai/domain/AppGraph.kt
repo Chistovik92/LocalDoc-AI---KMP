@@ -99,7 +99,15 @@ object AppGraph {
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
     val library: LibraryRepository by lazy { LibraryRepository(kv, files) { id -> appScope.launch(indexDispatcher) { search.invalidate(id) } } }
 
+    val fonts: com.localdoc.ai.book.FontLibrary by lazy { com.localdoc.ai.book.FontLibrary(files) }
+
     val readerSettings = PersistedSetting(kv, "reader_settings", ReaderSettings.serializer(), ReaderSettings())
+    /** Настройки отдельных книг поверх общих: ключ — `docKey` читалки. */
+    val bookOverrides = PersistedSetting(
+        kv, "book_reader_overrides",
+        kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.serializer<String>(), BookOverride.serializer()),
+        emptyMap()
+    )
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
     val translationSettings = PersistedSetting(kv, "translation_settings", TranslationSettings.serializer(), TranslationSettings())
 
