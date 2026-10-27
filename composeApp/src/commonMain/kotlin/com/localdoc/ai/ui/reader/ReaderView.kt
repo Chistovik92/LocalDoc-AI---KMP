@@ -659,22 +659,29 @@ fun ReaderView(
                         }
                     }
                 }
-                // Горизонтальный свайп листает; жест, который взял список или выделение текста, не считается
+                // Горизонтальный свайп листает. Как только движение явно горизонтальное (и это не выделение текста
+                // долгим нажатием), жест забирается раньше детектора нажатий, чтобы отпускание не стало тапом
                 .pointerInput(settings.swipePaging) {
                     if (!settings.swipePaging) return@pointerInput
                     val minDistance = SWIPE_MIN_DP.dp.toPx()
+                    val slop = viewConfiguration.touchSlop
                     awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
-                        var consumed = false
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        var claimed = false
                         var multiTouch = false
                         var end = down.position
                         do {
-                            val event = awaitPointerEvent(PointerEventPass.Final)
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
                             if (event.changes.size > 1) multiTouch = true
-                            if (event.changes.any { it.isConsumed }) consumed = true
-                            event.changes.firstOrNull { it.id == down.id }?.let { end = it.position }
+                            val tracked = event.changes.firstOrNull { it.id == down.id }
+                            if (tracked != null) end = tracked.position
+                            val dx = end.x - down.position.x
+                            val dy = end.y - down.position.y
+                            val early = (tracked?.uptimeMillis ?: 0L) - down.uptimeMillis < MARK_TAP_MAX_MS
+                            if (!claimed && !multiTouch && early && abs(dx) > slop && abs(dx) > abs(dy) * 2f) claimed = true
+                            if (claimed) event.changes.forEach { it.consume() }
                         } while (event.changes.any { it.pressed })
-                        if (!consumed && !multiTouch) {
+                        if (claimed && !multiTouch) {
                             swipeAction(end.x - down.position.x, end.y - down.position.y, minDistance)?.let { turnNow(it == TapAction.NEXT) }
                         }
                     }
