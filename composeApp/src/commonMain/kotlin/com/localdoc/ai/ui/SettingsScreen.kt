@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Delete
@@ -61,6 +62,7 @@ enum class SettingsSection(val title: String, val description: String, val icon:
     VOICE("Озвучка и голоса", "Скорость, голоса Piper, системные синтезаторы", Icons.Default.RecordVoiceOver),
     TRANSLATION("Перевод", "Язык перевода и оригинала, автоперевод", Icons.Default.Translate),
     READER("Чтение и оформление", "Шрифт, фон, режим «по страницам», размер страницы", Icons.Default.FormatSize),
+    STATS("Статистика чтения", "Время, скорость и серия по дням", Icons.Default.BarChart),
     BOOKMARKS("Закладки", "Сохранённые места в книгах и веб-страницах", Icons.Default.Bookmarks),
     NOTES("Цитаты и заметки", "Выделенные места с заметками, выгрузка в Markdown и EPUB", Icons.Default.EditNote),
     DICTIONARY("Словарь", "Слова из книг с переводом — личный список", Icons.Default.Translate),
@@ -106,6 +108,7 @@ fun SettingsScreen(
                         SettingsSection.VOICE -> VoiceSettingsContent()
                         SettingsSection.TRANSLATION -> TranslationSettingsContent()
                         SettingsSection.READER -> ReaderSettingsContent()
+                        SettingsSection.STATS -> StatsSection()
                         SettingsSection.UPDATES -> UpdatesSection()
                         SettingsSection.SITES -> SitesSection()
                         SettingsSection.STORAGE -> StorageSection()

@@ -52,6 +52,7 @@ object BackupFormat {
     const val MIME = "application/zip"
 
     const val KEY_LIBRARY = "library_v1"
+    const val KEY_READING_STATS = "reading_stats_v1"
 
     /**
      * Что сохраняется из настроек: библиотека с прогрессом чтения, закладки, цитаты и заметки, словарь и
@@ -60,7 +61,9 @@ object BackupFormat {
      */
     val KV_KEYS = listOf(
         KEY_LIBRARY, "bookmarks_v1", "annotations_v1", "dictionary_v1",
-        "reader_settings", "book_reader_overrides", "voice_settings", "translation_settings"
+        "reader_settings", "book_reader_overrides", "voice_settings", "translation_settings",
+        // Необязательная запись: в копиях без неё статистики просто нет, а старые версии приложения её пропускают
+        KEY_READING_STATS
     )
 
     private val SAFE_NAME = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*$")

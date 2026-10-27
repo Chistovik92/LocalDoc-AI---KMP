@@ -131,6 +131,8 @@ fun PlayerBar(state: ReadAloudState, title: String, onVoiceSettings: () -> Unit)
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                SleepTimerButton()
+                com.localdoc.ai.platform.AudioRouteButton()
                 IconButton(onClick = onVoiceSettings) { Icon(Icons.Default.RecordVoiceOver, contentDescription = "Голос") }
             }
             if (state.total > 0) {
@@ -436,6 +438,8 @@ internal fun VoiceSettingsContent() {
         LabeledSlider("Высота голоса", "×${(voice.pitch * 10).toInt() / 10.0}", voice.pitch, 0.5f..1.6f) { v -> AppGraph.updateVoice { it.copy(pitch = v) } }
 
         BuiltinVoicesSection()
+
+        VoiceControlSection()
 
         SectionLabel("Системный синтезатор")
         // Выбор системного движка — и способ вернуться к нему со встроенного голоса (на iOS тоже)

@@ -31,6 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -177,6 +178,8 @@ fun App() {
         // Восстанавливаем модель, загруженную до перезапуска; тихо проверяем обновления
         LaunchedEffect(Unit) {
             SystemPlayer.start()
+            AppGraph.voiceControl
+            AppGraph.readingStats // подключает учёт озвучки к статистике чтения
             AppGraph.updates.check(silent = true)
             withContext(IoDispatcher) { AppGraph.scheduledBackup.runIfDue() }
             AppGraph.restoreLastModel()
@@ -236,6 +239,8 @@ fun App() {
         } else if (reading != null) {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
+            // Закрытая читалка не должна засчитываться как чтение: интервал закрывается, накопленное сохраняется
+            DisposableEffect(reading.entryId) { onDispose { AppGraph.readingStats.onPause() } }
             Box(Modifier.fillMaxSize()) {
             // PDF с копией файла открывается страницами-картинками; режим «текст» — по кнопке в панели
             var pdfAsText by remember(reading.entryId) { mutableStateOf(false) }
@@ -245,7 +250,11 @@ fun App() {
                 PdfPagesScreen(
                     book = reading.book,
                     startBlock = currentBlock,
-                    onProgress = { currentBlock = it; AppGraph.library.saveProgress(reading.entryId, it) },
+                    onProgress = {
+                        currentBlock = it
+                        AppGraph.library.saveProgress(reading.entryId, it)
+                        AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
+                    },
                     onBack = { openBook = null },
                     onShowText = { pdfAsText = true }
                 )
@@ -254,7 +263,11 @@ fun App() {
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
                 startBlock = currentBlock,
-                onProgress = { currentBlock = it; AppGraph.library.saveProgress(reading.entryId, it) },
+                onProgress = {
+                    currentBlock = it
+                    AppGraph.library.saveProgress(reading.entryId, it)
+                    AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
+                },
                 onChaptersChanged = { chapters ->
                     scope.launch {
                         AppGraph.library.replaceChapters(reading.entryId, chapters)

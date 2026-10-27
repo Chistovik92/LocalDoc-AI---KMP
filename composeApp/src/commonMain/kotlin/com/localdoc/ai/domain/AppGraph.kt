@@ -23,6 +23,8 @@ import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.notes.AnnotationRepository
 import com.localdoc.ai.notes.DictionaryRepository
 import com.localdoc.ai.search.FullTextIndex
+import com.localdoc.ai.stats.ReadingRecorder
+import com.localdoc.ai.stats.ReadingStats
 import com.localdoc.ai.search.LibrarySearch
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
@@ -58,11 +60,16 @@ import com.localdoc.ai.platform.SecureStore
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
 import com.localdoc.ai.platform.PlatformActions
+import com.localdoc.ai.platform.localUtcOffsetMillis
 import com.localdoc.ai.rag.HashingEmbedder
 import com.localdoc.ai.rag.RagRepository
 import com.localdoc.ai.rag.VectorStore
 import com.localdoc.ai.tts.PiperSpeechEngine
 import com.localdoc.ai.tts.ReadAloudController
+import com.localdoc.ai.tts.SleepTimerController
+import com.localdoc.ai.voice.VoiceControl
+import com.localdoc.ai.voice.VoiceControlSettings
+import com.localdoc.ai.voice.createPhraseRecognizer
 import com.localdoc.ai.tts.Speaker
 import com.localdoc.ai.tts.SpeechRouter
 import com.localdoc.ai.tts.VoicePackManager
@@ -151,6 +158,19 @@ object AppGraph {
     )
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
     val translationSettings = PersistedSetting(kv, "translation_settings", TranslationSettings.serializer(), TranslationSettings())
+
+    /** Статистика чтения: время, слова и скорость по дням; хранится локально и входит в резервную копию. */
+    val readingStatsSetting = PersistedSetting(kv, BackupFormat.KEY_READING_STATS, ReadingStats.serializer(), ReadingStats())
+
+    /** Принимает события чтения и озвучки; озвучка подключается при первом обращении. */
+    val readingStats: ReadingRecorder by lazy {
+        ReadingRecorder(readingStatsSetting::update, offsetMs = ::localUtcOffsetMillis).also(::feedStatsFromReadAloud)
+    }
+
+    fun resetReadingStats() {
+        readingStats.flush()
+        readingStatsSetting.update { ReadingStats() }
+    }
 
     /** Закладки в книгах и на веб-страницах. */
     val bookmarks: BookmarkRepository = BookmarkRepository({ kv.get(KEY_BOOKMARKS) }, { kv.put(KEY_BOOKMARKS, it) })
@@ -249,6 +269,7 @@ object AppGraph {
             dictionary.reload()
             readerSettings.reload()
             voiceSettings.reload()
+            readingStatsSetting.reload()
             appScope.launch { applyVoiceSettings() }
             translationSettings.reload()
             appScope.launch(indexDispatcher) { searchIndex.clear() }
@@ -338,6 +359,16 @@ object AppGraph {
 
     /** Плеер чтения вслух — общий для книг и веб-страниц. */
     val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope) }
+
+    val voiceControlSettings = PersistedSetting(kv, "voice_control_v1", VoiceControlSettings.serializer(), VoiceControlSettings())
+
+    /** Голосовое управление чтением: «дальше», «назад», «пауза»; слушает только при открытом плеере и включённой настройке. */
+    val voiceControl: VoiceControl by lazy {
+        VoiceControl(readAloud, voiceControlSettings, createPhraseRecognizer(), appScope).also { it.start() }
+    }
+
+    /** Таймер сна озвучки: остановка через N минут или в конце главы, с плавным затуханием. */
+    val sleepTimer: SleepTimerController by lazy { SleepTimerController(readAloud, appScope) }
 
     /** Скачивание книг целиком и «Сохранить как…»: оглавление, главы и картинки собираются автоматически. */
     val fileSaver: FileSaver by lazy { FileSaver() }

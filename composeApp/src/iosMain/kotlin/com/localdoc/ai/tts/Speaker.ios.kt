@@ -24,6 +24,7 @@ actual class Speaker actual constructor() : SpeechEngine {
     private var languageTag: String? = null
     private var rate = 1f
     private var pitch = 1f
+    private var volume = 1f
 
     // Делегат держим сильной ссылкой: свойство delegate у синтезатора — weak
     private val delegate = SynthDelegate { utterance -> onUtteranceFinished(utterance) }
@@ -52,6 +53,8 @@ actual class Speaker actual constructor() : SpeechEngine {
         // Базовая скорость системы × множитель пользователя
         utterance.rate = (AVSpeechUtteranceDefaultSpeechRate * rate).coerceIn(0.1f, 1f)
         utterance.pitchMultiplier = pitch.coerceIn(0.5f, 2f)
+        // Громкость реплики: затухание таймера сна идёт по предложениям
+        utterance.volume = volume
         // speakUtterance ставит в очередь — прежнюю реплику прерываем, чтобы голоса не накладывались
         if (synthesizer.speaking) synthesizer.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate)
         current = utterance
@@ -63,6 +66,10 @@ actual class Speaker actual constructor() : SpeechEngine {
         current = null
         currentCallback = null
         synthesizer.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate)
+    }
+
+    override fun setVolume(volume: Float) {
+        this.volume = volume.coerceIn(0f, 1f)
     }
 
     override fun setRate(rate: Float) {

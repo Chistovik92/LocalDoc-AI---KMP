@@ -21,6 +21,10 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    // Голосовое управление чтением: микрофон запрашивается только при включении функции
+    private val microphonePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { AndroidIntents.onMicrophoneResult(it) }
+
     private val pdfPickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             AndroidIntents.onPdfPicked(uri?.toString())
@@ -41,6 +45,7 @@ class MainActivity : ComponentActivity() {
         CurrentActivity.set(this)
         AndroidIntents.registerPdfPicker(pdfPickerLauncher)
         AndroidIntents.registerSaver(saveLauncher)
+        AndroidIntents.registerMicrophone(microphonePermission)
         AndroidIntents.registerFolderPicker(folderLauncher)
 
         handleIntent(intent)
