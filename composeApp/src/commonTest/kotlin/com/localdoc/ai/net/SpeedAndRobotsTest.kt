@@ -123,7 +123,7 @@ class SpeedAndRobotsTest {
         }
         val throttle = HostThrottle(speed = { DownloadSpeed.FAST }, now = { now }, random = { 0.5 }, sleep = { now += it })
         lateinit var http: WebHttp
-        http = WebHttp(transport, CookieJar(MemoryStorage()) { 1_000_000_000_000L }, throttle, RobotsPolicy({ http.get(it) }, now = { now }))
+        http = WebHttp(transport, CookieJar(MemoryStorage()) { 1_000_000_000_000L }, throttle, RobotsPolicy({ http.getUnthrottled(it) }, now = { now }))
         repeat(3) { http.get("https://novel.example/ch$it") }
         val gaps = times.zipWithNext { a, b -> b - a }
         assertTrue(gaps.all { it >= 20_000L }, "паузы: $gaps")
@@ -134,7 +134,7 @@ class SpeedAndRobotsTest {
     fun `a missing robots file does not block automatic checks`() = runTest {
         val transport = FakeTransport { req -> if (req.url.endsWith("/robots.txt")) page("nope", status = 404) else page("ok") }
         lateinit var http: WebHttp
-        http = WebHttp(transport, CookieJar(MemoryStorage()) { 1_000_000_000_000L }, HostThrottle(intervalMs = 0, sleep = {}), RobotsPolicy({ http.get(it) }))
+        http = WebHttp(transport, CookieJar(MemoryStorage()) { 1_000_000_000_000L }, HostThrottle(intervalMs = 0, sleep = {}), RobotsPolicy({ http.getUnthrottled(it) }))
         assertTrue(http.allowedByRobots("https://novel.example/book/1"))
     }
 
@@ -142,7 +142,7 @@ class SpeedAndRobotsTest {
     fun `a disallowed path is refused for automatic checks`() = runTest {
         val transport = FakeTransport { req -> if (req.url.endsWith("/robots.txt")) page("User-agent: *\nDisallow: /book/") else page("ok") }
         lateinit var http: WebHttp
-        http = WebHttp(transport, CookieJar(MemoryStorage()) { 1_000_000_000_000L }, HostThrottle(intervalMs = 0, sleep = {}), RobotsPolicy({ http.get(it) }))
+        http = WebHttp(transport, CookieJar(MemoryStorage()) { 1_000_000_000_000L }, HostThrottle(intervalMs = 0, sleep = {}), RobotsPolicy({ http.getUnthrottled(it) }))
         assertFalse(http.allowedByRobots("https://novel.example/book/1"))
         assertTrue(http.allowedByRobots("https://novel.example/other"))
     }

@@ -90,6 +90,8 @@ fun App() {
         var settingsSection by remember { mutableStateOf<SettingsSection?>(null) }
         var showCatalog by remember { mutableStateOf(false) }
         val snackbar = remember { SnackbarHostState() }
+        // Расписание автообновления новелл пересчитывается при каждом запуске (на случай сброса планировщика системой)
+        LaunchedEffect(Unit) { AppGraph.autoUpdate.reschedule() }
         val scope = rememberCoroutineScope()
         val filePicker = remember { FilePicker() }
         val incoming by AppGraph.incoming.collectAsState()

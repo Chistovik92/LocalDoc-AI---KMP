@@ -28,6 +28,17 @@ import com.localdoc.ai.platform.DeviceScanner
 import com.localdoc.ai.platform.ScannedFile
 import com.localdoc.ai.platform.FileSaver
 import com.localdoc.ai.net.CookieJar
+import com.localdoc.ai.net.DownloadSpeed
+import com.localdoc.ai.net.HostThrottle
+import com.localdoc.ai.net.RobotsPolicy
+import com.localdoc.ai.novel.AutoUpdateService
+import com.localdoc.ai.novel.AutoUpdateSettings
+import com.localdoc.ai.novel.ChapterDiff
+import com.localdoc.ai.novel.NovelTracker
+import com.localdoc.ai.novel.NovelUpdateChecker
+import com.localdoc.ai.opds.OpdsCatalogStore
+import com.localdoc.ai.opds.OpdsClient
+import com.localdoc.ai.platform.BackgroundUpdates
 import com.localdoc.ai.net.SiteAuth
 import com.localdoc.ai.net.SiteVault
 import com.localdoc.ai.net.WebHttp
@@ -89,7 +100,16 @@ object AppGraph {
     /** Защищённое хранилище (Keystore / Keychain): пароли сайтов и cookie сессий. */
     val secure: SecureStore by lazy { SecureStore() }
     val cookieJar: CookieJar by lazy { CookieJar(secure.asStorage()) }
-    val webHttp: WebHttp by lazy { WebHttp(RawHttp().asTransport(), cookieJar) }
+    /** «Скорость скачивания»: пауза между запросами к одному сайту (по умолчанию — осторожно). */
+    val downloadSpeed = PersistedSetting(kv, "download_speed", DownloadSpeed.serializer(), DownloadSpeed.CAUTIOUS)
+    val webHttp: WebHttp by lazy {
+        WebHttp(
+            RawHttp().asTransport(),
+            cookieJar,
+            HostThrottle(speed = { downloadSpeed.value.value }),
+            RobotsPolicy({ url -> webHttp.getUnthrottled(url) })
+        )
+    }
     val siteVault: SiteVault by lazy { SiteVault(secure.asStorage(), cookieJar) }
     val siteAuth: SiteAuth by lazy { SiteAuth(webHttp, siteVault) }
     val images: ImageLoader by lazy { ImageLoader(files, kv, { webHttp }) }
@@ -271,8 +291,60 @@ object AppGraph {
             parser = webParser,
             images = images,
             saver = fileSaver,
-            resolveToc = { _, page -> webSession.resolveTableOfContents(WebDocument(page.book, "", page.links, 0)) }
+            resolveToc = { _, page -> webSession.resolveTableOfContents(WebDocument(page.book, "", page.links, 0)) },
+            onNovelDownloaded = { title, result ->
+                val tocUrl = result.tocUrl
+                if (tocUrl != null) {
+                    novelTracker.register(NovelDownloader.folderId(tocUrl), title, tocUrl, result.chapterUrls.map(ChapterDiff::normalizeUrl))
+                    // Скачаны все главы списка: ожидавшие докачки считаются полученными
+                    novelTracker.markDownloaded(NovelDownloader.folderId(tocUrl), result.chapterUrls.map(ChapterDiff::normalizeUrl))
+                }
+            }
         )
+    }
+
+    // --- Каталоги OPDS ---
+    val opdsCatalogs: OpdsCatalogStore = OpdsCatalogStore({ kv.get(KEY_OPDS) }, { kv.put(KEY_OPDS, it) })
+    val opds: OpdsClient by lazy { OpdsClient(webHttp) }
+
+    /** Добавляет в библиотеку книгу, скачанную из каталога OPDS (EPUB, FB2, текстовые форматы). */
+    suspend fun importDownloaded(file: DownloadedFile, sourceUrl: String) {
+        val format = com.localdoc.ai.book.FormatDetector.resolve(file.name, file.bytes)
+        val book = withContext(Dispatchers.Default) {
+            BookImporter.parseBytes(file.bytes, format, file.name.substringBeforeLast('.'), sourceUrl)
+        }
+        library.add(book)
+    }
+
+    // --- Автообновление новелл ---
+    val autoUpdateSettings = PersistedSetting(kv, "auto_update_settings", AutoUpdateSettings.serializer(), AutoUpdateSettings())
+    val novelTracker: NovelTracker = NovelTracker({ kv.get(KEY_TRACKED_NOVELS) }, { kv.put(KEY_TRACKED_NOVELS, it) })
+
+    val novelChecker: NovelUpdateChecker by lazy {
+        NovelUpdateChecker(novelTracker, chapterSource, allowed = { webHttp.allowedByRobots(it) })
+    }
+
+    val autoUpdate: AutoUpdateService by lazy {
+        AutoUpdateService(
+            settings = { autoUpdateSettings.value.value },
+            checker = novelChecker,
+            lastRun = { kv.get(KEY_AUTO_UPDATE_LAST)?.toLongOrNull() },
+            saveLastRun = { kv.put(KEY_AUTO_UPDATE_LAST, it.toString()) },
+            network = { BackgroundUpdates.currentNetwork() },
+            tzOffsetMinutes = { BackgroundUpdates.timeZoneOffsetMinutes() },
+            now = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
+            schedule = { at, unmetered -> BackgroundUpdates.schedule(at, unmetered) },
+            cancel = { BackgroundUpdates.cancel() },
+            notify = { title, text -> BackgroundUpdates.notifyNewChapters(title, text) }
+        )
+    }
+
+    /** Меняет настройки автообновления и сразу пересчитывает расписание. */
+    fun updateAutoUpdate(transform: (AutoUpdateSettings) -> AutoUpdateSettings) {
+        val wasEnabled = autoUpdateSettings.value.value.enabled
+        autoUpdateSettings.update(transform)
+        if (!wasEnabled && autoUpdateSettings.value.value.enabled) BackgroundUpdates.requestNotificationPermission()
+        autoUpdate.reschedule()
     }
 
     /** Каталог книг на устройстве: сканирование, полки, подборки. */
@@ -454,4 +526,7 @@ object AppGraph {
     private const val KEY_ANNOTATIONS = "annotations_v1"
     private const val KEY_DICTIONARY = "dictionary_v1"
     private const val KEY_SEARCH_INDEX = "search_index_v1"
+    private const val KEY_OPDS = "opds_catalogs_v1"
+    private const val KEY_TRACKED_NOVELS = "tracked_novels_v1"
+    private const val KEY_AUTO_UPDATE_LAST = "auto_update_last_run"
 }

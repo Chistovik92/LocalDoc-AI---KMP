@@ -48,7 +48,9 @@ class BookDownloadManager(
     private val parser: WebArticleParser,
     private val images: ImageLoader,
     private val saver: FileSaver,
-    private val resolveToc: suspend (tocUrl: String?, page: WebPage) -> List<PageLink>
+    private val resolveToc: suspend (tocUrl: String?, page: WebPage) -> List<PageLink>,
+    /** Новелла скачана целиком по оглавлению: автообновление берёт её под наблюдение. */
+    private val onNovelDownloaded: (title: String, result: NovelResult) -> Unit = { _, _ -> }
 ) {
     private val _job = MutableStateFlow<DownloadJob?>(null)
     val job: StateFlow<DownloadJob?> = _job.asStateFlow()
@@ -67,6 +69,7 @@ class BookDownloadManager(
             val tocUrl = savedToc ?: page.book.web?.toc
             val toc = runCatching { resolveToc(tocUrl, page) }.getOrDefault(emptyList())
             val result = downloader.run(entry.source, tocUrl, toc) { update(it) }
+            onNovelDownloaded(result.book.title, result)
             val note = if (result.missing > 0) "Не удалось скачать глав: ${result.missing}. " else ""
             finish(result.book, format, addToLibrary, result.original?.let { it.name to it.bytes }, note)
         }

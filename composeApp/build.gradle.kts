@@ -69,6 +69,8 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core)
+            // Фоновая проверка новых глав по расписанию
+            implementation(libs.androidx.work)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.pdfbox.android)

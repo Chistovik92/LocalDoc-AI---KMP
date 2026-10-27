@@ -3,6 +3,11 @@ import ComposeApp
 
 @main
 struct LocalDocAIApp: App {
+    init() {
+        // Фоновая проверка новых глав: задачу нужно зарегистрировать до окончания запуска
+        MainViewControllerKt.registerBackgroundTasks()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
