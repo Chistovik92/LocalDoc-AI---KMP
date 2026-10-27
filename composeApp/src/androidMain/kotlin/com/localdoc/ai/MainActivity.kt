@@ -3,6 +3,7 @@ package com.localdoc.ai
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.localdoc.ai.platform.AndroidIntents
 import com.localdoc.ai.platform.AppContextHolder
 import com.localdoc.ai.platform.CreateDocumentContract
+import com.localdoc.ai.platform.CurrentActivity
+import com.localdoc.ai.platform.VolumeKeys
 import com.localdoc.ai.ui.App
 
 class MainActivity : ComponentActivity() {
@@ -39,6 +42,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         AppContextHolder.init(applicationContext)
+        CurrentActivity.set(this)
         AndroidIntents.registerPdfPicker(pdfPickerLauncher)
         AndroidIntents.registerSaver(saveLauncher)
         AndroidIntents.registerMicrophone(microphonePermission)
@@ -54,6 +58,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             App()
         }
+    }
+
+    override fun onDestroy() {
+        CurrentActivity.clear(this)
+        super.onDestroy()
+    }
+
+    // Читалка может отдать кнопки громкости на листание
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val forward = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+        if ((forward || keyCode == KeyEvent.KEYCODE_VOLUME_UP) && VolumeKeys.onKey(forward, event.repeatCount > 0)) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP) && VolumeKeys.handler != null) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun onNewIntent(intent: Intent) {
