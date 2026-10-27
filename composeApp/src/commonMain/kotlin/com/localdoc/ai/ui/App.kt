@@ -236,6 +236,12 @@ fun App() {
                 docKey = bookKey(reading.entryId),
                 startBlock = reading.startBlock,
                 onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
+                onChaptersChanged = { chapters ->
+                    scope.launch {
+                        AppGraph.library.replaceChapters(reading.entryId, chapters)
+                            ?.let { openBook = OpenBook(reading.entryId, it, reading.startBlock) }
+                    }
+                },
                 onBack = { openBook = null },
                 onOpenAssistant = { openBook = null; tab = Tab.Assistant },
                 onOpenModels = ::openModels

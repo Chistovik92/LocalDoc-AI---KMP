@@ -29,7 +29,9 @@ data class ReaderSettings(
     val paged: Boolean = false,
     val pageSize: PageSize = PageSize.MEDIUM,
     /** Веб-новеллы: после озвучки или прокрутки до конца главы сама открывается следующая и чтение продолжается. */
-    val autoNext: Boolean = false
+    val autoNext: Boolean = false,
+    /** Слова, по которым в тексте ищутся начала глав («Глава, Часть, Пролог…»); пусто — стандартный список. */
+    val chapterWords: String = ""
 )
 
 /** Голос, закреплённый за языком: движок (null — системный по умолчанию) и id голоса. */

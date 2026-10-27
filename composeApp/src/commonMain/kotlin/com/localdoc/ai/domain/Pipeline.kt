@@ -98,6 +98,13 @@ class SmartPipeline(
         return engine.generateStream(buildPrompt(system, user), maxTokens = 160)
     }
 
+    /** Короткий ответ модели на разовый запрос — для служебных задач вроде разбиения книги на главы. */
+    suspend fun complete(system: String, user: String, maxTokens: Int): String {
+        val answer = StringBuilder()
+        engine.generateStream(buildPrompt(system, user), maxTokens).collect { answer.append(it) }
+        return stripThinking(answer.toString()).trim()
+    }
+
     /** Простой чат без документа. */
     fun chat(message: String, maxTokens: Int = 1536): Flow<String> =
         engine.generateStream(buildPrompt(SYSTEM_PROMPT, message), maxTokens)

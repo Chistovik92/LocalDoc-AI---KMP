@@ -194,6 +194,12 @@ object AppGraph {
         SmartPipeline(engine, ragRepository) { activeSpec?.template ?: com.localdoc.ai.model.ChatTemplate.CHATML }
     }
 
+    /** Загруженная модель в роли помощника, разбивающего книгу на главы. */
+    val chapterModel = com.localdoc.ai.book.ChapterModel { system, user, maxTokens ->
+        check(engine.isLoaded()) { "Модель не загружена: выберите её в Настройки → Модели" }
+        pipeline.complete(system, user, maxTokens)
+    }
+
     /**
      * Скоуп уровня приложения: генерация не должна обрываться при смене вкладки
      * (rememberCoroutineScope экрана отменяется, когда экран уходит из композиции).

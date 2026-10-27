@@ -9,7 +9,7 @@ import kotlin.io.encoding.Base64
 object PlainTextParser {
     fun parse(text: String, title: String): Book {
         val blocks = splitParagraphs(text).map { Block(BlockType.PARAGRAPH, it) }
-        return Book(title = title, format = BookFormat.TEXT, blocks = blocks, chapters = detectTextChapters(blocks))
+        return Book(title = title, format = BookFormat.TEXT, blocks = blocks, chapters = detectChapters(blocks))
     }
 
     internal fun splitParagraphs(text: String): List<String> {
@@ -23,12 +23,7 @@ object PlainTextParser {
     // Управляющие символы (NUL и др.) — признак бинарного мусора; в тексте книги им не место
     private val CONTROL_CHARS = Regex("[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]")
 
-    private val CHAPTER_LINE = Regex("^(глава|часть|chapter|part|пролог|эпилог|prologue|epilogue)\\b.{0,80}$", RegexOption.IGNORE_CASE)
-
-    internal fun detectChapters(blocks: List<Block>): List<Chapter> = detectTextChapters(blocks)
-
-    private fun detectTextChapters(blocks: List<Block>): List<Chapter> =
-        blocks.mapIndexedNotNull { i, b -> if (b.text.length <= 90 && CHAPTER_LINE.matches(b.text)) Chapter(b.text, i) else null }
+    internal fun detectChapters(blocks: List<Block>): List<Chapter> = ChapterDetector.detect(blocks)
 }
 
 /** PDF: текст постранично (маркеры «--- [Страница N] ---»), переносы строк превращаются в абзацы. */
