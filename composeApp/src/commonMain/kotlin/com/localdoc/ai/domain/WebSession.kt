@@ -257,7 +257,10 @@ class WebSession(
         // Ссылки страницы ГЛАВЫ («Назад», «Далее», ближайшие главы) оглавлением не считаются — иначе скачивание
         // пошло бы только по ним; без оглавления книга идёт от первой главы по ссылкам «Назад» и «Далее»
         return fromPage.ifEmpty {
-            if (doc.links.isNotEmpty() && !looksLikeChapter(doc.book)) chapterLikeLinks(doc.links, doc.book.source) else emptyList()
+            // Страница книги с адресом вида /book/123 — не глава: её список глав остаётся оглавлением
+            if (doc.links.isNotEmpty() && !NovelTitles.looksLikeChapter(doc.book.title, doc.book.source)) {
+                chapterLikeLinks(doc.links, doc.book.source)
+            } else emptyList()
         }
     }
 

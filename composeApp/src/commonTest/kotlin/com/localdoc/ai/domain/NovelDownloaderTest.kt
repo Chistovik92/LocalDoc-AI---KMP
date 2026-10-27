@@ -214,6 +214,21 @@ class NovelDownloaderTest {
     }
 
     @Test
+    fun `a very long way back still leaves room for the starting chapter and the ones after it`() = runTest {
+        val site = FakeSite(3100).also { it.withNextLinks = true; it.withPrevLinks = true }
+        val result = downloader(site).run("https://site.example/ch/3050", null, emptyList()) {}
+        val numbers = result.book.chapters.map { NovelTitles.number(it.title) }
+        assertTrue(3050 in numbers, "стартовая глава в книге")
+        assertEquals(3100, numbers.last(), "дошли до последней главы")
+    }
+
+    @Test
+    fun `a book page with a numeric address is not taken for a chapter`() {
+        assertEquals(false, NovelTitles.looksLikeChapter("Моя новелла", "https://site.example/book/123"))
+        assertEquals(true, NovelTitles.looksLikeChapter("Моя новелла", "https://site.example/book/123/chapter-5"))
+    }
+
+    @Test
     fun `a cycle in the back links does not hang the download`() = runTest {
         val looping = object : ChapterSource {
             val site = FakeSite(3).also { it.withNextLinks = true }

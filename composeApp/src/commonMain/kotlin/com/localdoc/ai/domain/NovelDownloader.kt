@@ -218,7 +218,8 @@ class NovelDownloader(
         val earlier = ArrayList<PageLink>()
         val seen = hashSetOf(start.book.source)
         var current = start
-        while (earlier.size < MAX_CHAIN) {
+        // Половина лимита цепочки — на путь назад: остальное достаётся самой стартовой главе и главам после неё
+        while (earlier.size < MAX_CHAIN / 2) {
             coroutineContext.ensureActive()
             val prevUrl = current.book.web?.prev ?: break
             if (prevUrl == current.book.web?.toc || !seen.add(prevUrl)) break
