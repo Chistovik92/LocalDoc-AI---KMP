@@ -21,9 +21,12 @@ class ReadingRecorder(
     private var cachedBook: Book? = null
     private var cachedWords: IntArray = IntArray(0)
 
-    /** Читатель (или озвучка) дошёл до блока [block] книги [book]. */
-    fun onPosition(bookId: String, book: Book, block: Int) {
-        val words = wordsBefore(book, block)
+    /**
+     * Читатель (или озвучка) дошёл до блока [block] книги [book]; [charOffset] — смещение внутри блока
+     * (начало озвучиваемого предложения), чтобы слова считались по предложениям, а не по целым абзацам.
+     */
+    fun onPosition(bookId: String, book: Book, block: Int, charOffset: Int = 0) {
+        val words = wordsBefore(book, block) + wordsInside(book, block, charOffset)
         val now = clock()
         tracker.onActivity(bookId, words, now)?.let { pending.add(it) }
         if (now - lastFlush >= flushEveryMs) flush()
@@ -41,6 +44,12 @@ class ReadingRecorder(
         val batch = pending.toList()
         pending.clear()
         update { stats -> batch.fold(stats) { acc, delta -> acc.add(delta) } }
+    }
+
+    private fun wordsInside(book: Book, block: Int, charOffset: Int): Int {
+        if (charOffset <= 0) return 0
+        val text = book.blocks.getOrNull(block)?.text ?: return 0
+        return countWords(text.substring(0, charOffset.coerceAtMost(text.length)))
     }
 
     /** Слов в книге до блока [block]; индекс считается один раз на книгу. */

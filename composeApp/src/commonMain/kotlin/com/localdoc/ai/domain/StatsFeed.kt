@@ -19,7 +19,7 @@ internal fun AppGraph.feedStatsFromReadAloud(recorder: ReadingRecorder) {
                 return@collect
             }
             if (loaded?.first != id) loaded = library.load(id)?.let { id to it }
-            loaded?.let { recorder.onPosition(id, it.second, block) }
+            loaded?.let { recorder.onPosition(id, it.second, block, state.segment?.start ?: 0) }
         }
     }
 }

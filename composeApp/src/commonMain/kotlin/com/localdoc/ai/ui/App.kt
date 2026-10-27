@@ -31,6 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -232,6 +233,8 @@ fun App() {
         } else if (reading != null) {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
+            // Закрытая читалка не должна засчитываться как чтение: интервал закрывается, накопленное сохраняется
+            DisposableEffect(reading.entryId) { onDispose { AppGraph.readingStats.onPause() } }
             Box(Modifier.fillMaxSize()) {
             ReaderView(
                 book = reading.book,

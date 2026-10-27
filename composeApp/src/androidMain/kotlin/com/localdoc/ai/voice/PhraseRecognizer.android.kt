@@ -103,7 +103,8 @@ private class AndroidPhraseRecognizer : PhraseRecognizer {
             restart(RESTART_MS)
         }
 
-        override fun onPartialResults(partialResults: Bundle?) = deliver(partialResults)
+        // Промежуточные результаты не исполняются: «назад» может оказаться началом «назад абзац»
+        override fun onPartialResults(partialResults: Bundle?) = Unit
 
         override fun onError(error: Int) {
             when (error) {

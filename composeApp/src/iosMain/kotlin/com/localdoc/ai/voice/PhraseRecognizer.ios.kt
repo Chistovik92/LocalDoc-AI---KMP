@@ -39,6 +39,7 @@ private class IosPhraseRecognizer : PhraseRecognizer {
     private var request: SFSpeechAudioBufferRecognitionRequest? = null
     private var task: SFSpeechRecognitionTask? = null
     private var running = false
+    private var latestPartial: String? = null
     private var onPhrase: (String) -> Unit = {}
     private var onError: (String) -> Unit = {}
 
@@ -101,7 +102,9 @@ private class IosPhraseRecognizer : PhraseRecognizer {
         }
         task = recognizer.recognitionTaskWithRequest(req) { result, error ->
             dispatch_async(dispatch_get_main_queue()) {
-                result?.bestTranscription?.formattedString?.takeIf { it.isNotBlank() }?.let(onPhrase)
+                result?.bestTranscription?.formattedString?.takeIf { it.isNotBlank() }?.let { text ->
+                    if (result.isFinal()) deliverFinal(text) else deliverWhenStable(text)
+                }
                 // Сеанс закончился (пауза в речи, лимит времени) — открываем новый, пока функция включена
                 if (error != null || result?.isFinal() == true) {
                     end()
@@ -112,7 +115,21 @@ private class IosPhraseRecognizer : PhraseRecognizer {
         }
     }
 
+    /** Промежуточный текст исполняется, только если не менялся [STABLE_NS]: «назад» не должно срабатывать до «назад абзац». */
+    private fun deliverWhenStable(text: String) {
+        latestPartial = text
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, STABLE_NS), dispatch_get_main_queue()) {
+            if (latestPartial == text) deliverFinal(text)
+        }
+    }
+
+    private fun deliverFinal(text: String) {
+        latestPartial = null
+        onPhrase(text)
+    }
+
     private fun end() {
+        latestPartial = null
         task?.cancel()
         task = null
         request?.endAudio()
@@ -125,5 +142,6 @@ private class IosPhraseRecognizer : PhraseRecognizer {
 
     private companion object {
         const val RESTART_NS = 700_000_000L
+        const val STABLE_NS = 700_000_000L
     }
 }

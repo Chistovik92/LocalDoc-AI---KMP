@@ -228,4 +228,20 @@ class ReadingRecorderTest {
         recorder.flush()
         assertEquals(0, writes)
     }
+
+    @Test
+    fun `sentence offsets inside a paragraph keep word progress in step with time`() {
+        var stats = ReadingStats()
+        var now = 0L
+        val recorder = ReadingRecorder({ f -> stats = f(stats) }, { now }, { 0L }, flushEveryMs = 1)
+        val text = "раз два три. четыре пять шесть. семь восемь девять."
+        val b = book(text)
+        recorder.onPosition("a", b, 0, 0)
+        now += 6_000
+        recorder.onPosition("a", b, 0, text.indexOf("четыре"))
+        now += 6_000
+        recorder.onPosition("a", b, 0, text.indexOf("семь"))
+        recorder.flush()
+        assertEquals(6, stats.days.values.sumOf { it.words })
+    }
 }
