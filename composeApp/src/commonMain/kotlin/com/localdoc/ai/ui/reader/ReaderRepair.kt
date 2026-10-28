@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.book.Book
+import com.localdoc.ai.book.BookFormat
 import com.localdoc.ai.book.RepairChange
 import com.localdoc.ai.book.RepairKind
 import com.localdoc.ai.book.RepairResult
@@ -89,8 +90,10 @@ internal fun RepairSheet(
             message = null
             try {
                 result = withContext(Dispatchers.Default) {
-                    if (useModel) TextRepairPlanner(AppGraph.chapterModel).plan(book.blocks) { progress = it }
-                    else TextRepair.repair(book.blocks)
+                    val starts = book.chapters.map { it.startBlock }.toSet()
+                    val pdf = book.format == BookFormat.PDF
+                    if (useModel) TextRepairPlanner(AppGraph.chapterModel).plan(book.blocks, starts, pdf) { progress = it }
+                    else TextRepair.repair(book.blocks, keep = starts, breakBefore = if (pdf) starts else emptySet())
                 }
             } catch (e: CancellationException) {
                 message = getString(Res.string.stopped)

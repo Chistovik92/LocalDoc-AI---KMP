@@ -190,6 +190,22 @@ class TextRepairTest {
     }
 
     @Test
+    fun `bare number chapter headings are kept`() {
+        val blocks = listOf(p("1"), p("Текст первой главы."), p("2"), p("Текст второй главы."), p("3"), p("Текст третьей главы."))
+        val book = Book(title = "T", format = BookFormat.TEXT, blocks = blocks, chapters = listOf(Chapter("1", 0), Chapter("2", 2), Chapter("3", 4)))
+        assertEquals(blocks, TextRepair.repairBook(book).blocks)
+    }
+
+    @Test
+    fun `pdf pages are not glued together`() {
+        val blocks = listOf(p("Предложение начинается на первой"), p("странице и продолжается на второй."))
+        val book = Book(title = "T", format = BookFormat.PDF, blocks = blocks, chapters = listOf(Chapter("Страница 1", 0), Chapter("Страница 2", 1)))
+        val fixed = TextRepair.repairBook(book)
+        assertEquals(2, fixed.blocks.size)
+        assertEquals(listOf(0, 1), fixed.chapters.map { it.startBlock })
+    }
+
+    @Test
     fun `clean text is returned untouched`() {
         val clean = listOf(p("Первый абзац."), p("Второй абзац."), Block(BlockType.CODE, "val  x =  1"))
         val result = TextRepair.repair(clean)

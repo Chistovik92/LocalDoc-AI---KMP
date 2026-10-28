@@ -73,19 +73,23 @@ object TextRepair {
     private val NOT_A_SENTENCE_END = setOf("prof", "mrs", "mr", "dr", "etc", "fig", "inc", "ltd", "vol", "ave", "рис", "стр", "проф", "акад")
     private val DOMAINS = setOf("com", "org", "net", "ru", "uk", "de", "es", "io", "info", "edu", "gov", "su", "ua", "app", "dev", "рф")
 
-    /** Блоки после программного исправления. */
-    fun repair(blocks: List<Block>): RepairResult {
+    /**
+     * Блоки после программного исправления. [keep] — блоки, которые нельзя удалять (начала глав: «1», «2»… бывают
+     * заголовками); [breakBefore] — блоки, перед которыми склейка запрещена (границы физических страниц PDF).
+     */
+    fun repair(blocks: List<Block>, keep: Set<Int> = emptySet(), breakBefore: Set<Int> = emptySet()): RepairResult {
         val changes = ArrayList<RepairChange>()
         var items = blocks.mapIndexed { i, b -> Item(b, listOf(i)) }
-        items = dropNoise(items, changes)
-        items = mergeCuts(items, changes)
+        items = dropNoise(items, changes, keep)
+        items = mergeCuts(items, changes, breakBefore)
         items = fixInline(items, changes)
         return finish(blocks.size, items, changes)
     }
 
     /** Исправление всей книги: блоки и оглавление; книга без правок возвращается как есть. */
     fun repairBook(book: Book): Book {
-        val result = repair(book.blocks)
+        val starts = book.chapters.map { it.startBlock }.toSet()
+        val result = repair(book.blocks, keep = starts, breakBefore = if (book.format == BookFormat.PDF) starts else emptySet())
         if (result.changes.isEmpty()) return book
         return book.copy(blocks = result.blocks, chapters = remapChapters(book.chapters, result))
     }
@@ -151,8 +155,9 @@ object TextRepair {
 
     // ---- колонтитулы и номера страниц ----
 
-    private fun dropNoise(items: List<Item>, changes: MutableList<RepairChange>): List<Item> {
-        val drop = pageNumbers(items) + runningHeaders(items)
+    private fun dropNoise(items: List<Item>, changes: MutableList<RepairChange>, keep: Set<Int>): List<Item> {
+        val protectedItems = items.indices.filter { i -> items[i].origins.any { it in keep } }.toSet()
+        val drop = (pageNumbers(items) + runningHeaders(items)) - protectedItems
         if (drop.isEmpty()) return items
         drop.sorted().forEach { i -> changes.add(RepairChange(RepairKind.REMOVE, items[i].origins.firstOrNull() ?: 0, items[i].block.text, "")) }
         return items.filterIndexed { i, _ -> i !in drop }
@@ -211,12 +216,12 @@ object TextRepair {
         return cuts > items.size * UNPUNCTUATED_SHARE && average > UNPUNCTUATED_LINE
     }
 
-    private fun mergeCuts(items: List<Item>, changes: MutableList<RepairChange>): List<Item> {
+    private fun mergeCuts(items: List<Item>, changes: MutableList<RepairChange>, breakBefore: Set<Int>): List<Item> {
         if (looksUnpunctuated(items)) return items
         val out = ArrayList<Item>()
         for (item in items) {
             val last = out.lastOrNull()
-            if (last != null && cutAt(last.block, item.block) && last.block.text.length + item.block.text.length <= MAX_JOINED) out[out.lastIndex] = joinItems(last, item, changes, last.origins.firstOrNull() ?: 0)
+            if (last != null && item.origins.none { it in breakBefore } && cutAt(last.block, item.block) && last.block.text.length + item.block.text.length <= MAX_JOINED) out[out.lastIndex] = joinItems(last, item, changes, last.origins.firstOrNull() ?: 0)
             else out.add(item)
         }
         return out

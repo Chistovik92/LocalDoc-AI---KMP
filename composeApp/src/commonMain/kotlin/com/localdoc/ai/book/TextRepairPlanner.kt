@@ -23,8 +23,8 @@ class TextRepairPlanner(private val model: ChapterModel, private val settings: S
     )
 
     /** Программное исправление плюс подсказки модели; [onProgress] получает долю от 0 до 1. */
-    suspend fun plan(blocks: List<Block>, onProgress: (Float) -> Unit = {}): RepairResult {
-        val automatic = TextRepair.repair(blocks)
+    suspend fun plan(blocks: List<Block>, chapterStarts: Set<Int> = emptySet(), isPdf: Boolean = false, onProgress: (Float) -> Unit = {}): RepairResult {
+        val automatic = TextRepair.repair(blocks, keep = chapterStarts, breakBefore = if (isPdf) chapterStarts else emptySet())
         val fixed = automatic.blocks
         val suspects = TextRepair.suspects(fixed)
         val giants = TextRepair.longParagraphs(fixed)
