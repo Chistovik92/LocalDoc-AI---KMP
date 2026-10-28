@@ -94,7 +94,7 @@ private class ChapterRef(val title: String, val url: String)
  *  1. сайт отдаёт книгу готовым файлом (EPUB, FB2…) — находим ссылку на странице, в оглавлении или
  *     в объявленных альтернативах и скачиваем штатно;
  *  2. иначе запрашиваем страницу ОГЛАВЛЕНИЯ (со всеми её частями) и загружаем главы по списку;
- *  3. только если оглавления нет — идём по ссылкам «Далее» от текущей главы.
+ *  3. только если оглавления нет — идём по ссылкам «Назад» до первой главы, затем по «Далее» до последней.
  * Каждая загруженная глава сразу пишется в папку `novels/<id>/`, поэтому после обрыва или отмены
  * скачивание продолжается с того места, где остановилось. Реклама из текста убирается.
  */
@@ -116,7 +116,11 @@ class NovelDownloader(
 
         progress(DownloadProgress(DownloadPhase.TOC))
         val toc = knownToc.ifEmpty { tocUrl?.let { source.tableOfContents(it) }.orEmpty() }.distinctBy { it.url }
-        val chapters = if (toc.size >= MIN_TOC) orderChapters(toc) else walkNextLinks(start, progress)
+        val prefetched = HashMap<String, Book>()
+        // Ссылки со страницы главы («Назад», «Далее», ближайшие главы) — не оглавление: настоящее начинается с первой главы
+        val ordered = if (toc.size >= MIN_TOC) orderChapters(toc) else emptyList()
+        val usable = ordered.isNotEmpty() && (tocUrl != null || startsAtFirstChapter(ordered))
+        val chapters = if (usable) ordered else walkNextLinks(start, progress, prefetched)
         if (chapters.isEmpty()) throw NovelDownloadException("Не удалось найти главы: у страницы нет оглавления и ссылки «Далее»")
 
         val title = tocPage?.book?.title?.trim()?.takeIf { it.isNotEmpty() } ?: NovelTitles.guess(start.book.title, start.book.source)
@@ -124,7 +128,7 @@ class NovelDownloader(
         val meta = NovelMeta(title, tocUrl.orEmpty(), chapters.map { ChapterRef(it.text, it.url) })
         files.write(folder + "meta.json", json.encodeToString(NovelMeta.serializer(), meta).encodeToByteArray())
 
-        val loaded = fetchChapters(folder, chapters, start, progress)
+        val loaded = fetchChapters(folder, chapters, start, progress, prefetched)
         progress(DownloadProgress(DownloadPhase.BUILDING, chapters.size, chapters.size))
         val result = assemble(title, tocUrl ?: startUrl, tocPage ?: start, chapters, loaded)
         if (tocUrl == null || toc.size < MIN_TOC) return result
@@ -180,14 +184,18 @@ class NovelDownloader(
         return if (first != null && last != null && first > last) toc.reversed() else toc
     }
 
-    /** Запасной путь без оглавления: по ссылкам «Далее» от текущей главы. */
-    private suspend fun walkNextLinks(start: WebPage, progress: (DownloadProgress) -> Unit): List<PageLink> {
-        val result = ArrayList<PageLink>()
-        val seen = HashSet<String>()
+    /**
+     * Запасной путь без оглавления: сначала назад по ссылкам «Назад» до первой главы, затем вперёд по «Далее»:
+     * книга скачивается с самой первой главы, с какой бы страницы ни началось скачивание.
+     */
+    private suspend fun walkNextLinks(start: WebPage, progress: (DownloadProgress) -> Unit, prefetched: MutableMap<String, Book>): List<PageLink> {
+        val result = ArrayList<PageLink>(walkBack(start, progress, prefetched).asReversed())
+        val seen = result.mapTo(HashSet()) { it.url }
         var page: WebPage? = start
         while (page != null && seen.add(page.book.source) && result.size < MAX_CHAIN) {
             coroutineContext.ensureActive()
             result.add(PageLink(page.book.title, page.book.source))
+            prefetched[page.book.source] = page.book
             progress(DownloadProgress(DownloadPhase.TOC, result.size, 0, "Ищем следующие главы"))
             val next = page.book.web?.next ?: break
             page = try {
@@ -202,7 +210,52 @@ class NovelDownloader(
         return result
     }
 
-    private suspend fun fetchChapters(folder: String, chapters: List<PageLink>, start: WebPage, progress: (DownloadProgress) -> Unit): Map<Int, Book?> {
+    /**
+     * Предыдущие главы от [start] к самой первой (ближайшая — первой в списке). «Назад» у первой главы часто ведёт на
+     * страницу книги: такая страница главой не считается, а предыдущая глава должна указывать «Далее» обратно на текущую.
+     */
+    private suspend fun walkBack(start: WebPage, progress: (DownloadProgress) -> Unit, prefetched: MutableMap<String, Book>): List<PageLink> {
+        val earlier = ArrayList<PageLink>()
+        val seen = hashSetOf(start.book.source)
+        var current = start
+        // Половина лимита цепочки — на путь назад: остальное достаётся самой стартовой главе и главам после неё
+        while (earlier.size < MAX_CHAIN / 2) {
+            coroutineContext.ensureActive()
+            val prevUrl = current.book.web?.prev ?: break
+            if (prevUrl == current.book.web?.toc || !seen.add(prevUrl)) break
+            val page = try {
+                source.load(prevUrl)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            } ?: break
+            pause()
+            val pointsBack = page.book.web?.next?.let { sameAddress(it, current.book.source) } ?: true
+            if (!NovelTitles.looksLikeChapter(page.book.title, page.book.source) || !pointsBack) break
+            earlier.add(PageLink(page.book.title, page.book.source))
+            prefetched[page.book.source] = page.book
+            progress(DownloadProgress(DownloadPhase.TOC, earlier.size, 0, "Ищем предыдущие главы"))
+            current = page
+        }
+        return earlier
+    }
+
+    /** Настоящее оглавление начинается с первой главы; список «Глава 2, Глава 4» со страницы главы — нет. */
+    private fun startsAtFirstChapter(chapters: List<PageLink>): Boolean {
+        val first = NovelTitles.number(chapters.first().text) ?: return true
+        return first <= 1
+    }
+
+    private fun sameAddress(a: String, b: String) = a.substringBefore('#').trimEnd('/') == b.substringBefore('#').trimEnd('/')
+
+    private suspend fun fetchChapters(
+        folder: String,
+        chapters: List<PageLink>,
+        start: WebPage,
+        progress: (DownloadProgress) -> Unit,
+        prefetched: Map<String, Book>
+    ): Map<Int, Book?> {
         val loaded = HashMap<Int, Book?>()
         var consecutiveFailures = 0
         // Уже скачанное в прошлый раз берём с диска — это и есть докачка
@@ -219,7 +272,7 @@ class NovelDownloader(
         for (batch in pending.chunked(BATCH)) {
             coroutineContext.ensureActive()
             val results = coroutineScope {
-                batch.map { i -> async { i to fetchOne(chapters[i], start) } }.awaitAll()
+                batch.map { i -> async { i to fetchOne(chapters[i], start, prefetched) } }.awaitAll()
             }
             for ((i, outcome) in results) {
                 when (outcome) {
@@ -255,8 +308,10 @@ class NovelDownloader(
         class Failed(val reason: String) : ChapterOutcome
     }
 
-    private suspend fun fetchOne(link: PageLink, start: WebPage): ChapterOutcome {
+    /** Главы, уже открытые при обходе ссылок, повторно не запрашиваются: сайт не нагружается лишний раз. */
+    private suspend fun fetchOne(link: PageLink, start: WebPage, prefetched: Map<String, Book>): ChapterOutcome {
         if (link.url == start.book.source) return ChapterOutcome.Ok(start.book)
+        prefetched[link.url]?.let { return ChapterOutcome.Ok(it) }
         var lastError = "нет ответа"
         repeat(ATTEMPTS) { attempt ->
             try {
@@ -340,6 +395,13 @@ object NovelTitles {
     private val NUMBER = Regex("\\d+")
 
     fun number(text: String): Int? = NUMBER.find(text)?.value?.toIntOrNull()
+
+    private val CHAPTER_IN_TITLE = Regex("(глава|chapter|часть|том|эпизод|\\bгл\\.?\\s*\\d)", RegexOption.IGNORE_CASE)
+    private val CHAPTER_IN_URL = Regex("(chapter|glava|ch|gl|part|chap)[-_/]?\\d+", RegexOption.IGNORE_CASE)
+
+    /** Страница похожа на главу, а не на описание книги или оглавление: по названию страницы или адресу. */
+    fun looksLikeChapter(title: String, url: String): Boolean =
+        CHAPTER_IN_TITLE.containsMatchIn(title) || CHAPTER_IN_URL.containsMatchIn(url.substringAfter("://").substringAfter('/'))
 
     fun guess(pageTitle: String, url: String): String {
         val cleaned = pageTitle.replace(CHAPTER_TAIL, "").trim().ifBlank { pageTitle.trim() }
