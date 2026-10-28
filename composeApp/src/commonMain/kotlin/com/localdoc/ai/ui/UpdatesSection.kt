@@ -3,6 +3,12 @@
 package com.localdoc.ai.ui
 
 import com.localdoc.ai.resources.auto_update_of_novels
+import com.localdoc.ai.resources.cert_allow_any
+import com.localdoc.ai.resources.cert_allow_any_hint
+import com.localdoc.ai.resources.cert_forget
+import com.localdoc.ai.resources.cert_no_trusted_sites
+import com.localdoc.ai.resources.cert_section
+import com.localdoc.ai.resources.cert_trusted_sites
 import com.localdoc.ai.resources.check_for_new_chapters
 import com.localdoc.ai.resources.check_now
 import com.localdoc.ai.resources.checking
@@ -90,6 +96,7 @@ private val DAY_LABELS = listOf(1 to Res.string.mon, 2 to Res.string.tue, 3 to R
 @Composable
 fun UpdatesSection() {
     SpeedCard()
+    CertificatesCard()
     AutoUpdateCard()
     TrackedNovelsCard()
 }
@@ -112,6 +119,29 @@ private fun SpeedCard() {
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(speedLabel(option)), style = MaterialTheme.typography.titleSmall)
                     Text(stringResource(speedHint(option)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+/** «Безопасность соединения»: открывать ли сайты с непроверенным сертификатом без вопросов и список сайтов, которым доверие уже дано. */
+@Composable
+private fun CertificatesCard() {
+    val trust by AppGraph.certificateTrust.state.collectAsState()
+    SectionCard(stringResource(Res.string.cert_section)) {
+        SwitchRow(stringResource(Res.string.cert_allow_any), stringResource(Res.string.cert_allow_any_hint), trust.allowAny) {
+            AppGraph.certificateTrust.setAllowAny(it)
+        }
+        Text(stringResource(Res.string.cert_trusted_sites), style = MaterialTheme.typography.titleSmall)
+        if (trust.sites.isEmpty()) {
+            Text(stringResource(Res.string.cert_no_trusted_sites), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        trust.sites.keys.sorted().forEach { site ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(site, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                TextButton(onClick = { AppGraph.certificateTrust.forget(site) }) {
+                    Text(stringResource(Res.string.cert_forget), maxLines = 1, softWrap = false)
                 }
             }
         }

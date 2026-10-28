@@ -15,7 +15,8 @@ commonsCompress = "1.27.1"
 androidxWork = "2.10.0"
 # PBKDF2 + AES-GCM для шифрования синхронизации (JCA на Android, CryptoKit/CommonCrypto на iOS)
 cryptography = "0.6.0"
-onnxruntime = "1.20.0"
+# 1.22+: нативные библиотеки выровнены на 16 КБ (устройства Android 15+ с 16-КБ страницами; в 1.20 JNI-библиотека — на 4 КБ)
+onnxruntime = "1.22.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

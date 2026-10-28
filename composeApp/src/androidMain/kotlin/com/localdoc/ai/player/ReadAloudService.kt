@@ -14,6 +14,7 @@ import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.net.Uri
 import android.os.IBinder
+import androidx.core.app.ServiceCompat
 import com.localdoc.ai.MainActivity
 import com.localdoc.ai.R
 import com.localdoc.ai.domain.AppGraph
@@ -51,7 +52,11 @@ class ReadAloudService : Service() {
             })
             isActive = true
         }
-        startForeground(NOTIFICATION_ID, buildNotification(AppGraph.readAloud.state.value), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        // Тип сервиса передаётся только с Android 10 (API 29); на Android 8–9 ServiceCompat вызывает вариант без типа
+        ServiceCompat.startForeground(
+            this, NOTIFICATION_ID, buildNotification(AppGraph.readAloud.state.value),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        )
         scope.launch {
             AppGraph.readAloud.state.collect { state ->
                 // Таймер сна остановил озвучку: сервис и уведомление не нужны, позиция остаётся в приложении

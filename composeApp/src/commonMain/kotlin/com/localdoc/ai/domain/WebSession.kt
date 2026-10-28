@@ -10,6 +10,8 @@ import com.localdoc.ai.net.SiteAuth
 import com.localdoc.ai.net.SiteVault
 import com.localdoc.ai.parser.LoginRequiredException
 import com.localdoc.ai.parser.WebArticleParser
+import com.localdoc.ai.platform.CertificateProblem
+import com.localdoc.ai.platform.UntrustedCertificateException
 import com.localdoc.ai.tts.ReadAloudController
 import com.localdoc.ai.tts.ReadAloudStop
 import kotlinx.coroutines.CancellationException
@@ -35,6 +37,9 @@ data class LoginRequest(
     val message: String? = null
 )
 
+/** Сертификат сайта не прошёл проверку: что показать в окне «Доверять этому сайту?». */
+data class CertificateRequest(val pageUrl: String, val host: String, val fingerprint: String, val problem: CertificateProblem)
+
 /**
  * Состояние вкладки «Веб»: загрузка страниц, переходы по главам веб-новелл и оглавление.
  * Если на странице нет явных маркеров «Далее / Оглавление», ссылку выбирает локальная модель.
@@ -50,7 +55,9 @@ class WebSession(
     private val scope: CoroutineScope,
     private val auth: () -> SiteAuth,
     private val vault: () -> SiteVault,
-    private val autoNext: () -> Boolean = { false }
+    private val autoNext: () -> Boolean = { false },
+    /** Запоминает согласие пользователя на сертификат сайта (сайт, отпечаток SHA-256). */
+    private val trustCertificate: (String, String) -> Unit = { _, _ -> }
 ) {
     private val _document = MutableStateFlow<WebDocument?>(null)
     val document: StateFlow<WebDocument?> = _document.asStateFlow()
@@ -73,7 +80,22 @@ class WebSession(
     private val _loginBusy = MutableStateFlow(false)
     val loginBusy: StateFlow<Boolean> = _loginBusy.asStateFlow()
 
+    private val _certificateRequest = MutableStateFlow<CertificateRequest?>(null)
+    val certificateRequest: StateFlow<CertificateRequest?> = _certificateRequest.asStateFlow()
+
     private var job: Job? = null
+
+    /** Пользователь согласился доверять сертификату сайта: согласие запоминается, страница открывается заново. */
+    fun acceptCertificate() {
+        val request = _certificateRequest.value ?: return
+        _certificateRequest.value = null
+        trustCertificate(request.host, request.fingerprint)
+        open(request.pageUrl)
+    }
+
+    fun dismissCertificate() {
+        _certificateRequest.value = null
+    }
 
     fun docKey(doc: WebDocument) = "web:${doc.entryId}"
 
@@ -123,6 +145,8 @@ class WebSession(
                 }
             } catch (e: LoginRequiredException) {
                 handleLoginRequired(url, e, allowRelogin)
+            } catch (e: UntrustedCertificateException) {
+                _certificateRequest.value = CertificateRequest(url, e.host, e.fingerprint, e.problem)
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
                 _error.value = "Не удалось открыть страницу: ${t.message ?: t::class.simpleName}"

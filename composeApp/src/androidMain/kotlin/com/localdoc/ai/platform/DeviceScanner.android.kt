@@ -1,6 +1,8 @@
 package com.localdoc.ai.platform
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -21,12 +23,19 @@ actual class DeviceScanner actual constructor() {
 
     private val context get() = AppContextHolder.appContext
 
-    actual val supportsWholeDevice: Boolean = true
+    /** Android 10: файлы вне приложения закрыты (scoped storage), а «Доступ ко всем файлам» появился только в 11 — остаётся выбор папки. */
+    actual val supportsWholeDevice: Boolean = Build.VERSION.SDK_INT != Build.VERSION_CODES.Q
 
     actual fun hasAllFilesAccess(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager()
+        else context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
 
     actual fun requestAllFilesAccess() {
+        // Android 8–9: обычное разрешение на чтение хранилища
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            AndroidIntents.launchPermission(Manifest.permission.READ_EXTERNAL_STORAGE) { }
+            return
+        }
         val specific = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {

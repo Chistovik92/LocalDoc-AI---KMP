@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Сканирование всего устройства в поисках книг: разрешение выдаёт сам пользователь в настройках («Доступ ко всем файлам») -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- Android 8–9: то же сканирование делает обычное разрешение на чтение хранилища (с Android 10 его заменяют выбор папки и «Доступ ко всем файлам») -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <!-- Android 11+: без этого список сторонних TTS-движков (RHVoice, sherpa-onnx…) пуст -->
     <queries>

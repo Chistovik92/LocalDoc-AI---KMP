@@ -5,6 +5,20 @@ package com.localdoc.ai.platform
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.suspendCancellableCoroutine
+import com.localdoc.ai.net.WebHttp
+import platform.Foundation.CFBridgingRelease
+import platform.Foundation.NSURLAuthenticationChallenge
+import platform.Foundation.NSURLAuthenticationMethodServerTrust
+import platform.Foundation.NSURLCredential
+import platform.Foundation.NSURLSessionAuthChallengeCancelAuthenticationChallenge
+import platform.Foundation.NSURLSessionAuthChallengeDisposition
+import platform.Foundation.NSURLSessionAuthChallengePerformDefaultHandling
+import platform.Foundation.NSURLSessionAuthChallengeUseCredential
+import platform.Foundation.credentialForTrust
+import platform.Security.SecCertificateCopyData
+import platform.Security.SecTrustEvaluateWithError
+import platform.Security.SecTrustGetCertificateAtIndex
+import platform.Security.SecTrustRef
 import platform.Foundation.HTTPBody
 import platform.Foundation.HTTPMethod
 import platform.Foundation.HTTPShouldHandleCookies
@@ -60,12 +74,16 @@ actual class RawHttp actual constructor() {
 
             var sessionRef: NSURLSession? = null
             var finished = false
-            val delegate = CollectingDelegate(maxBytes) { http, body, tooLarge, error ->
+            val delegate = CollectingDelegate(maxBytes, request.trustedCertificates, request.trustAnyCertificate) { http, body, tooLarge, error, untrusted ->
                 sessionRef?.finishTasksAndInvalidate()
                 if (finished) return@CollectingDelegate
                 finished = true
                 when {
                     tooLarge -> cont.resumeWithException(ResponseTooLargeException(maxBytes))
+                    // Сертификат не прошёл проверку: пользователю предлагается довериться ему
+                    untrusted != null -> cont.resumeWithException(
+                        UntrustedCertificateException(WebHttp.hostOf(request.url), untrusted, CertificateProblem.OTHER)
+                    )
                     http == null -> cont.resumeWithException(IllegalStateException(error ?: "Нет ответа от сервера"))
                     else -> {
                         val fields = http.allHeaderFields
@@ -105,12 +123,54 @@ actual class RawHttp actual constructor() {
  */
 private class CollectingDelegate(
     private val maxBytes: Long,
-    private val onFinish: (NSHTTPURLResponse?, NSData, Boolean, String?) -> Unit
+    /** Отпечатки SHA-256 сертификатов, которым пользователь доверил этот сайт. */
+    private val trustedCertificates: Set<String>,
+    /** Галочка «открывать сайты с любым сертификатом». */
+    private val trustAnyCertificate: Boolean,
+    private val onFinish: (NSHTTPURLResponse?, NSData, Boolean, String?, String?) -> Unit
 ) : NSObject(), NSURLSessionDataDelegateProtocol {
 
     private var response: NSHTTPURLResponse? = null
     private val buffer = NSMutableData()
     private var tooLarge = false
+
+    /** Отпечаток сертификата, отклонённого системой и не одобренного пользователем. */
+    private var untrustedFingerprint: String? = null
+
+    /**
+     * Проверка сертификата сайта: системная; при отказе принимается сертификат, которому пользователь доверил сайт
+     * (по отпечатку), либо любой — при включённой галочке. Иначе соединение обрывается, а отпечаток уходит в [onFinish].
+     */
+    override fun URLSession(
+        session: NSURLSession,
+        didReceiveChallenge: NSURLAuthenticationChallenge,
+        completionHandler: (NSURLSessionAuthChallengeDisposition, NSURLCredential?) -> Unit
+    ) {
+        val space = didReceiveChallenge.protectionSpace
+        val trust = space.serverTrust
+        if (space.authenticationMethod != NSURLAuthenticationMethodServerTrust || trust == null) {
+            completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, null)
+            return
+        }
+        if (SecTrustEvaluateWithError(trust, null)) {
+            completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, null)
+            return
+        }
+        val fingerprint = leafFingerprint(trust)
+        if (trustAnyCertificate || (fingerprint != null && fingerprint in trustedCertificates)) {
+            completionHandler(NSURLSessionAuthChallengeUseCredential, NSURLCredential.credentialForTrust(trust))
+            return
+        }
+        untrustedFingerprint = fingerprint
+        completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, null)
+    }
+
+    private fun leafFingerprint(trust: SecTrustRef): String? {
+        val certificate = SecTrustGetCertificateAtIndex(trust, 0) ?: return null
+        val data = SecCertificateCopyData(certificate) ?: return null
+        val bytes = (CFBridgingRelease(data) as? NSData)?.toByteArray() ?: return null
+        return sha256Hex(bytes)
+    }
 
     override fun URLSession(
         session: NSURLSession,
@@ -148,6 +208,6 @@ private class CollectingDelegate(
     }
 
     override fun URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError: NSError?) {
-        onFinish(response, buffer, tooLarge, didCompleteWithError?.localizedDescription)
+        onFinish(response, buffer, tooLarge, didCompleteWithError?.localizedDescription, untrustedFingerprint)
     }
 }
