@@ -323,7 +323,6 @@
     <string name="auto_advance_to_the_next_chapter">Auto-advance to the next chapter (web novels)</string>
     <string name="reading_mode">Reading mode</string>
     <string name="page_by_page_instead_of_scrolling">Page by page (instead of scrolling)</string>
-    <string name="speech_translation_and_ai_work_page">Speech, translation and AI work page by page in any mode — a large book won’t freeze.</string>
     <string name="k_chars">%1$s · %2$s k chars</string>
     <string name="tap_zones">Tap zones</string>
     <string name="side_zone_width">Side zone width</string>
@@ -653,4 +652,9 @@
     <string name="speed_normal_hint">About 4 seconds between chapters, rests less often</string>
     <string name="speed_fast">Fast</string>
     <string name="speed_fast_hint">About 2 seconds between chapters; the site may restrict access — use it for your own servers</string>
+    <string name="page_short">p. %1$s</string>
+    <string name="page_of_total">%1$s of %2$s</string>
+    <string name="screen_page_explanation">A page is as much text as fits on the screen with the chosen font, spacing and margins.</string>
+    <string name="speech_chunk_title">Chunk for speech and translation</string>
+    <string name="speech_chunk_hint">Speech, translation and AI work in chunks of text in any mode — a large book won’t freeze.</string>
 </resources>

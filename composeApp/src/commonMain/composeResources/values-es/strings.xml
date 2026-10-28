@@ -323,7 +323,6 @@
     <string name="auto_advance_to_the_next_chapter">Pasar solo al siguiente capítulo (novelas web)</string>
     <string name="reading_mode">Modo de lectura</string>
     <string name="page_by_page_instead_of_scrolling">Página a página (en lugar de desplazar)</string>
-    <string name="speech_translation_and_ai_work_page">La narración, la traducción y la IA funcionan por páginas en cualquier modo: un libro grande no se bloquea.</string>
     <string name="k_chars">%1$s · %2$s mil caract.</string>
     <string name="tap_zones">Zonas táctiles</string>
     <string name="side_zone_width">Ancho de las zonas laterales</string>
@@ -655,4 +654,9 @@
     <string name="speed_normal_hint">Unos 4 segundos entre capítulos, descansos menos frecuentes</string>
     <string name="speed_fast">Rápido</string>
     <string name="speed_fast_hint">Unos 2 segundos entre capítulos; el sitio puede restringir el acceso: úsalo con tus propios servidores</string>
+    <string name="page_short">pág. %1$s</string>
+    <string name="page_of_total">%1$s de %2$s</string>
+    <string name="screen_page_explanation">Una página es el texto que cabe en pantalla con la fuente, el interlineado y los márgenes elegidos.</string>
+    <string name="speech_chunk_title">Porción para narración y traducción</string>
+    <string name="speech_chunk_hint">La narración, la traducción y la IA funcionan por porciones de texto en cualquier modo: un libro grande no se bloquea.</string>
 </resources>

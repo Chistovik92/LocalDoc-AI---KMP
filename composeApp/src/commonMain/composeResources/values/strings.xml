@@ -323,7 +323,6 @@
     <string name="auto_advance_to_the_next_chapter">Автопереход к следующей главе (веб-новеллы)</string>
     <string name="reading_mode">Режим чтения</string>
     <string name="page_by_page_instead_of_scrolling">Постранично (вместо прокрутки)</string>
-    <string name="speech_translation_and_ai_work_page">Озвучка, перевод и ИИ работают по страницам в любом режиме — большая книга не зависает.</string>
     <string name="k_chars">%1$s · %2$s тыс. зн.</string>
     <string name="tap_zones">Зоны касания</string>
     <string name="side_zone_width">Ширина боковых зон</string>
@@ -657,4 +656,9 @@
     <string name="speed_normal_hint">Около 4 секунд между главами, отдых реже</string>
     <string name="speed_fast">Быстро</string>
     <string name="speed_fast_hint">Около 2 секунд между главами; сайт может ограничить доступ — включайте для своих серверов</string>
+    <string name="page_short">стр. %1$s</string>
+    <string name="page_of_total">%1$s из %2$s</string>
+    <string name="screen_page_explanation">Страница — столько текста, сколько помещается на экран при выбранных шрифте, интервале и полях.</string>
+    <string name="speech_chunk_title">Порция для озвучки и перевода</string>
+    <string name="speech_chunk_hint">Озвучка, перевод и ИИ работают порциями текста в любом режиме — большая книга не зависает.</string>
 </resources>

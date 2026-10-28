@@ -2,6 +2,9 @@
 
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.speech_chunk_hint
+import com.localdoc.ai.resources.speech_chunk_title
+import com.localdoc.ai.resources.screen_page_explanation
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.a_lightweight_open_synthesizer_for_100
@@ -67,7 +70,6 @@ import com.localdoc.ai.resources.side_zone_width
 import com.localdoc.ai.resources.smart_justification_hyphenation_spaces_stret
 import com.localdoc.ai.resources.speech
 import com.localdoc.ai.resources.speech_rate
-import com.localdoc.ai.resources.speech_translation_and_ai_work_page
 import com.localdoc.ai.resources.stop_2
 import com.localdoc.ai.resources.swipe_left_and_right_to_turn
 import com.localdoc.ai.resources.system_default
@@ -381,7 +383,13 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
         SectionLabel(stringResource(Res.string.reading_mode))
         SwitchRow(stringResource(Res.string.page_by_page_instead_of_scrolling), settings.paged) { v -> update { it.copy(paged = v) } }
         Text(
-            stringResource(Res.string.speech_translation_and_ai_work_page),
+            stringResource(Res.string.screen_page_explanation),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SectionLabel(stringResource(Res.string.speech_chunk_title))
+        Text(
+            stringResource(Res.string.speech_chunk_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

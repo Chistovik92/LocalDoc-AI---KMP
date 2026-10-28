@@ -323,7 +323,6 @@
     <string name="auto_advance_to_the_next_chapter">Automatisch zum nächsten Kapitel (Web-Romane)</string>
     <string name="reading_mode">Lesemodus</string>
     <string name="page_by_page_instead_of_scrolling">Seitenweise (statt Scrollen)</string>
-    <string name="speech_translation_and_ai_work_page">Sprachausgabe, Übersetzung und KI arbeiten in jedem Modus seitenweise – ein großes Buch hängt nicht.</string>
     <string name="k_chars">%1$s · %2$s Tsd. Zeichen</string>
     <string name="tap_zones">Tippzonen</string>
     <string name="side_zone_width">Breite der Seitenzonen</string>
@@ -653,4 +652,9 @@
     <string name="speed_normal_hint">Etwa 4 Sekunden zwischen Kapiteln, seltener Pausen</string>
     <string name="speed_fast">Schnell</string>
     <string name="speed_fast_hint">Etwa 2 Sekunden zwischen Kapiteln; die Website kann den Zugriff einschränken – nutze es für eigene Server</string>
+    <string name="page_short">S. %1$s</string>
+    <string name="page_of_total">%1$s von %2$s</string>
+    <string name="screen_page_explanation">Eine Seite ist so viel Text, wie bei der gewählten Schrift, dem Zeilenabstand und den Rändern auf den Bildschirm passt.</string>
+    <string name="speech_chunk_title">Abschnitt für Sprachausgabe und Übersetzung</string>
+    <string name="speech_chunk_hint">Sprachausgabe, Übersetzung und KI arbeiten in jedem Modus in Textabschnitten – ein großes Buch hängt nicht.</string>
 </resources>

@@ -323,7 +323,6 @@
     <string name="auto_advance_to_the_next_chapter">Автоперехід до наступного розділу (веб-новели)</string>
     <string name="reading_mode">Режим читання</string>
     <string name="page_by_page_instead_of_scrolling">Посторінково (замість прокручування)</string>
-    <string name="speech_translation_and_ai_work_page">Озвучування, переклад і ШІ працюють за сторінками в будь-якому режимі — велика книга не зависає.</string>
     <string name="k_chars">%1$s · %2$s тис. зн.</string>
     <string name="tap_zones">Зони дотику</string>
     <string name="side_zone_width">Ширина бічних зон</string>
@@ -657,4 +656,9 @@
     <string name="speed_normal_hint">Близько 4 секунд між розділами, відпочинок рідше</string>
     <string name="speed_fast">Швидко</string>
     <string name="speed_fast_hint">Близько 2 секунд між розділами; сайт може обмежити доступ — вмикайте для своїх серверів</string>
+    <string name="page_short">стор. %1$s</string>
+    <string name="page_of_total">%1$s з %2$s</string>
+    <string name="screen_page_explanation">Сторінка — стільки тексту, скільки вміщується на екран за вибраних шрифту, інтервалу й полів.</string>
+    <string name="speech_chunk_title">Порція для озвучування й перекладу</string>
+    <string name="speech_chunk_hint">Озвучування, переклад і ШІ працюють порціями тексту в будь-якому режимі — велика книга не зависає.</string>
 </resources>

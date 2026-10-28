@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.page_short
 import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.a_word_or_phrase_from_the
 import com.localdoc.ai.resources.add_bookmark
@@ -204,6 +205,8 @@ import androidx.compose.ui.unit.sp
 import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.book.Book
+import com.localdoc.ai.book.PagePos
+import androidx.compose.ui.unit.IntSize
 import com.localdoc.ai.book.SpanStyleType
 import com.localdoc.ai.notes.AnchorResolver
 import com.localdoc.ai.notes.Annotation
@@ -302,7 +305,9 @@ fun ReaderView(
     val translating = docKey in translatingDocs
     val target = Languages.byCode(translationSettings.targetLanguage)
     // Перевод показывается постранично в любом режиме: так он не мешает прокрутке и озвучке
-    val pagedDisplay = settings.paged || translating
+    // «Постранично» — страницы по размеру экрана; перевод остаётся на порциях прежнего вида (BookPager)
+    val screenMode = settings.paged && !translating
+    val pagedDisplay = translating
     // Позиция переживает смену размера страницы: новая разбивка открывается на том же блоке
     var anchorBlock by remember { mutableStateOf(startBlock) }
     var page by remember(pager) { mutableStateOf(pager.pageOfBlock(anchorBlock)) }
@@ -314,6 +319,19 @@ fun ReaderView(
         initialFirstVisibleItemIndex = (startBlock - firstIndex).coerceIn(0, (itemCount - 1).coerceAtLeast(0))
     )
     var pendingLocal by remember { mutableStateOf<Int?>(null) }
+    // Экранные страницы: место чтения «блок + смещение», раскладка считается в фоне и кэшируется
+    var areaSize by remember { mutableStateOf(IntSize.Zero) }
+    var screenPos by remember { mutableStateOf(PagePos(startBlock.coerceIn(0, lastBlock), 0)) }
+    val screenState = rememberScreenLayout(book, docKey, settings, areaSize, screenMode) { screenPos }
+    val screenLayout = screenState.layout
+    val screenRef = if (screenMode) screenLayout.locate(screenPos) else null
+    val screenPage = screenRef?.let { screenLayout.page(it) }
+    val shownStart = if (screenMode) (screenPage?.start?.block ?: screenPos.block) else pageInfo.startBlock
+    val shownEnd = if (screenMode) (screenPage?.let { it.end.block + if (it.end.offset > 0) 1 else 0 } ?: (shownStart + 1)) else pageInfo.endBlock
+    val screenLabel = screenRef?.let { ref ->
+        val (ordinal, exact) = screenLayout.ordinal(ref)
+        pageLabel(ordinal, exact, screenLayout.total, screenLayout.isComplete)
+    }
 
     val player by AppGraph.readAloud.state.collectAsState()
     val isMine = AppGraph.readAloud.documentKey == docKey && player.active
@@ -344,10 +362,11 @@ fun ReaderView(
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
 
-    val currentBlock by remember(firstIndex) { derivedStateOf { (firstIndex + listState.firstVisibleItemIndex).coerceAtMost(lastBlock) } }
+    val listBlock by remember(firstIndex) { derivedStateOf { (firstIndex + listState.firstVisibleItemIndex).coerceAtMost(lastBlock) } }
+    val currentBlock = if (screenMode) shownStart.coerceAtMost(lastBlock) else listBlock
     val chapterIndex = book.chapterIndexAt(currentBlock)
     val chapterTitle = book.chapters.getOrNull(chapterIndex)?.title
-    val percent = (pager.progressOfPage(page) * 100).toInt()
+    val percent = if (screenMode) currentBlock * 100 / lastBlock.coerceAtLeast(1) else (pager.progressOfPage(page) * 100).toInt()
 
     val entryId = docKey.substringAfter(':')
     val entry = AppGraph.library.entry(entryId)
@@ -357,7 +376,7 @@ fun ReaderView(
     val marksByBlock = remember(book, bookAnnotations) { annotationMarks(book, bookAnnotations) }
     // Закладка стоит там, куда её якорь указывает в текущем разборе книги, а не на сохранённом номере блока
     val resolvedBookmarks = remember(bookmarks, book) { bookmarks.filter { it.entryId == entryId }.associateWith { it.resolveBlock(book) } }
-    val pageBookmark = resolvedBookmarks.entries.firstOrNull { it.value in pageInfo.startBlock until pageInfo.endBlock }?.key
+    val pageBookmark = resolvedBookmarks.entries.firstOrNull { it.value in shownStart until shownEnd }?.key
 
     val sourceCode = translationSettings.sourceLanguage
     val layout = settings.pageSize.chars
@@ -374,19 +393,28 @@ fun ReaderView(
         translatedBlocks?.getOrNull(global - pageInfo.startBlock) ?: book.blocks[global]
 
     // Сохранение прогресса без записи на каждый кадр прокрутки
-    LaunchedEffect(listState, docKey, firstIndex) {
-        snapshotFlow { firstIndex + listState.firstVisibleItemIndex }
+    LaunchedEffect(listState, docKey, firstIndex, screenMode) {
+        snapshotFlow { if (screenMode) screenPos.block else firstIndex + listState.firstVisibleItemIndex }
             .distinctUntilChanged()
             .debounce(600)
             .collectLatest { onProgress(it.coerceAtMost(lastBlock)) }
     }
 
     // В режиме прокрутки страница — это страница под первым видимым блоком
-    LaunchedEffect(pagedDisplay, pager) {
-        if (pagedDisplay) return@LaunchedEffect
+    LaunchedEffect(pagedDisplay, pager, screenMode) {
+        if (pagedDisplay || screenMode) return@LaunchedEffect
         snapshotFlow { pager.pageOfBlock(listState.firstVisibleItemIndex) }
             .distinctUntilChanged()
             .collect { page = it }
+    }
+
+    // Порция для озвучки, перевода и ИИ следует за экранной страницей
+    LaunchedEffect(screenMode, screenPos) { if (screenMode) page = pager.pageOfBlock(screenPos.block) }
+    var wasScreen by remember { mutableStateOf(screenMode) }
+    LaunchedEffect(screenMode) {
+        if (screenMode && !wasScreen) screenPos = PagePos(listBlock.coerceIn(0, lastBlock), 0)
+        if (!screenMode && wasScreen) listState.scrollToItem((screenPos.block - firstIndex).coerceIn(0, (itemCount - 1).coerceAtLeast(0)))
+        wasScreen = screenMode
     }
 
     // Смена страницы / режима: новая страница начинается сверху (или с нужного блока после перехода)
@@ -439,6 +467,7 @@ fun ReaderView(
 
     // Следим за читаемым предложением: если абзац ушёл за экран — докручиваем
     LaunchedEffect(speaking?.block, settings.followSpeech, page) {
+        if (screenMode) return@LaunchedEffect
         val block = speaking?.block ?: return@LaunchedEffect
         if (!settings.followSpeech) return@LaunchedEffect
         val local = block - firstIndex
@@ -446,6 +475,17 @@ fun ReaderView(
         val visible = listState.layoutInfo.visibleItemsInfo
         val fullyVisible = visible.dropLast(1).any { it.index == local }
         if (!fullyVisible) listState.animateScrollToItem(local)
+    }
+
+    // Экранный режим: предложение вышло за страницу — страница переворачивается сама (на ту, где оно кончается)
+    LaunchedEffect(speaking?.block, speaking?.start, speaking?.end, settings.followSpeech, screenMode, screenLayout, screenPos) {
+        if (!screenMode || !settings.followSpeech) return@LaunchedEffect
+        val sentence = speaking ?: return@LaunchedEffect
+        val current = screenPage ?: return@LaunchedEffect
+        val first = PagePos(sentence.block, sentence.start)
+        val last = PagePos(sentence.block, (sentence.end - 1).coerceAtLeast(sentence.start))
+        if (first in current && last in current) return@LaunchedEffect
+        screenLayout.locate(if (first < current.start) first else last)?.let { screenPos = screenLayout.page(it).start }
     }
 
     // Ассистент и ИИ-суфлёр получают текущую страницу, а не весь текст книги
@@ -481,6 +521,11 @@ fun ReaderView(
 
     fun goToBlock(block: Int) {
         val b = block.coerceIn(0, lastBlock)
+        if (screenMode) {
+            screenPos = PagePos(b, 0)
+            if (isMine) AppGraph.readAloud.jumpToBlock(b)
+            return
+        }
         val targetPage = pager.pageOfBlock(b)
         if (pagedDisplay) pendingLocal = b - pager.page(targetPage).startBlock
         page = targetPage
@@ -488,11 +533,17 @@ fun ReaderView(
         if (isMine) AppGraph.readAloud.jumpToBlock(b)
     }
 
-    fun seekPage(index: Int) = goToBlock(pager.page(index.coerceIn(0, (pager.size - 1).coerceAtLeast(0))).startBlock)
+    fun seekPage(index: Int) {
+        if (screenMode) {
+            screenLayout.refAtOrdinal(index)?.let { screenPos = screenLayout.page(it).start }
+            return
+        }
+        goToBlock(pager.page(index.coerceIn(0, (pager.size - 1).coerceAtLeast(0))).startBlock)
+    }
 
     /** Место выделенного текста в книге: сначала рядом с читаемым местом, затем по всей книге. */
     fun locateSelection(selected: String): TextAnchor? {
-        val near = if (pagedDisplay) pageInfo.startBlock until pageInfo.endBlock
+        val near = if (screenMode || pagedDisplay) shownStart until shownEnd
         else (currentBlock - 5).coerceAtLeast(0)..(currentBlock + 60).coerceAtMost(lastBlock)
         return TextAnchor.locate(book.blocks, book.chapters, selected, near)
             ?: TextAnchor.locate(book.blocks, book.chapters, selected, 0..lastBlock)
@@ -597,6 +648,16 @@ fun ReaderView(
 
     fun turn(forward: Boolean) {
         scope.launch {
+            if (screenMode) {
+                val ref = screenRef ?: return@launch
+                val target = if (forward) screenLayout.next(ref) else screenLayout.previous(ref)
+                when {
+                    target != null -> screenPos = screenLayout.page(target).start
+                    forward && chapterNavigation?.hasNext == true && !screenLayout.hasMoreAfter(ref) -> chapterNavigation.onNext()
+                    !forward && chapterNavigation?.hasPrevious == true && ref.segment == 0 && ref.index == 0 -> chapterNavigation.onPrevious()
+                }
+                return@launch
+            }
             val canScroll = if (forward) listState.canScrollForward else listState.canScrollBackward
             when (pageTurn(forward, canScroll, pagedDisplay, page, pager.size)) {
                 PageTurn.SCROLL -> {
@@ -650,7 +711,7 @@ fun ReaderView(
 
     // Автопрокрутка: плавный сдвиг по кадрам; в конце страницы — следующая страница, в конце книги — остановка
     LaunchedEffect(autoScroll, pagedDisplay, pager) {
-        if (!autoScroll) return@LaunchedEffect
+        if (!autoScroll || screenMode) return@LaunchedEffect
         var lastNanos = withFrameNanos { it }
         var carry = 0f
         while (true) {
@@ -671,13 +732,15 @@ fun ReaderView(
     var turnDirection by remember { mutableStateOf(1) }
     var turns by remember { mutableStateOf(0) }
     var refreshPhase by remember { mutableStateOf(0) }
-    var shownPage by remember { mutableStateOf(page) }
-    LaunchedEffect(page) {
-        if (page == shownPage) return@LaunchedEffect
-        turnDirection = if (page > shownPage) 1 else -1
-        shownPage = page
+    // Ключ листания: у экранной страницы это место чтения (порядок не зависит от уточнения числа страниц)
+    val turnKey: Long = if (screenMode) screenPos.block * TURN_KEY_BLOCK + screenPos.offset else page.toLong()
+    var shownPage by remember { mutableStateOf(turnKey) }
+    LaunchedEffect(turnKey) {
+        if (turnKey == shownPage) return@LaunchedEffect
+        turnDirection = if (turnKey > shownPage) 1 else -1
+        shownPage = turnKey
         turns++
-        if (animate && pagedDisplay) {
+        if (animate && (pagedDisplay || screenMode)) {
             turnAnim.snapTo(0f)
             turnAnim.animateTo(1f, tween(PAGE_TURN_MS))
         } else {
@@ -697,35 +760,18 @@ fun ReaderView(
 
     fun toggleBookmarkHere() {
         val bookmarked = entry ?: return
-        val block = if (pagedDisplay) pageInfo.startBlock else currentBlock
+        val block = if (pagedDisplay || screenMode) shownStart else currentBlock
         AppGraph.bookmarks.toggle(
-            bookmarked, pageInfo.startBlock until pageInfo.endBlock, block,
+            bookmarked, shownStart until shownEnd, block,
             book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty(),
             TextAnchor.ofBlock(book.blocks, book.chapters, block),
             blockOf = { it.resolveBlock(book) }
         )
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize().background(paper.background).readerHotkeys { hotkey ->
-            when (hotkey) {
-                ReaderHotkey.NEXT -> turn(true)
-                ReaderHotkey.PREVIOUS -> turn(false)
-                ReaderHotkey.CONTENTS -> showToc = true
-                ReaderHotkey.BOOKMARK -> toggleBookmarkHere()
-                ReaderHotkey.PLAY_PAUSE -> AppGraph.readAloud.toggle()
-            }
-        }
-    ) {
-        CompositionLocalProvider(LocalTextToolbar provides textToolbar) {
-        key(selectionEpoch) { SelectionContainer {
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(top = 88.dp, bottom = 240.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .graphicsLayer {
+    // Жесты и анимация листания общие для прокрутки и экранных страниц
+    val readerGestures: Modifier = Modifier
+        .graphicsLayer {
                     alpha = turnAnim.value
                     translationX = (1f - turnAnim.value) * turnDirection * PAGE_TURN_SHIFT_DP.dp.toPx()
                 }
@@ -775,6 +821,44 @@ fun ReaderView(
                     }
                 }
                 .pointerInput(Unit) { detectTapGestures { offset -> tapNow(offset.x, size.width.toFloat()) } }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(paper.background).readerHotkeys { hotkey ->
+            when (hotkey) {
+                ReaderHotkey.NEXT -> turn(true)
+                ReaderHotkey.PREVIOUS -> turn(false)
+                ReaderHotkey.CONTENTS -> showToc = true
+                ReaderHotkey.BOOKMARK -> toggleBookmarkHere()
+                ReaderHotkey.PLAY_PAUSE -> AppGraph.readAloud.toggle()
+            }
+        }
+    ) {
+        CompositionLocalProvider(LocalTextToolbar provides textToolbar) {
+        key(selectionEpoch) { SelectionContainer {
+        if (screenMode) {
+            ScreenPageContent(
+                page = screenPage,
+                computing = screenState.computing,
+                book = book,
+                entryId = entryId,
+                settings = settings,
+                paper = paper,
+                speaking = speaking,
+                marksByBlock = marksByBlock,
+                label = screenLabel,
+                bottomInset = applyNavigationBarInsets,
+                onAreaSize = { areaSize = it },
+                onBlockTap = if (isMine) ({ block -> AppGraph.readAloud.jumpToBlock(block) }) else null,
+                onMarkTap = { id -> bookAnnotations.firstOrNull { it.id == id }?.let { noteEdit = it } },
+                modifier = readerGestures
+            )
+        } else LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(top = 88.dp, bottom = 240.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .then(readerGestures)
         ) {
             items(itemCount, key = { firstIndex + it }) { local ->
                 val index = firstIndex + local
@@ -862,7 +946,7 @@ fun ReaderView(
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
                             Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                listOfNotNull(chapterTitle, stringResource(Res.string.p, page + 1, pager.size), "$percent%").joinToString(" · "),
+                                listOfNotNull(chapterTitle, stringResource(Res.string.page_short, if (screenMode) screenLabel ?: "…" else "${page + 1}/${pager.size}"), "$percent%").joinToString(" · "),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -904,10 +988,12 @@ fun ReaderView(
                                     text = { Text(if (settings.paged) stringResource(Res.string.read_by_scrolling) else stringResource(Res.string.read_page_by_page)) },
                                     onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll)) },
-                                    onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
-                                )
+                                if (!screenMode) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll)) },
+                                        onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
+                                    )
+                                }
                                 DropdownMenuItem(text = { Text(stringResource(Res.string.font_and_background)) }, onClick = { showMenu = false; showSettings = true })
                                 if (entry != null) {
                                     DropdownMenuItem(
@@ -985,9 +1071,9 @@ fun ReaderView(
                     exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
                 ) {
                     PageBar(
-                        page = page,
-                        pageCount = pager.size,
-                        showPageButtons = pagedDisplay,
+                        page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
+                        pageCount = if (screenMode) screenLayout.total else pager.size,
+                        showPageButtons = pagedDisplay || screenMode,
                         onSeek = ::seekPage,
                         onListen = ::listen,
                         onAskAi = { showAi = true }
@@ -1141,6 +1227,7 @@ private const val AUTO_NEXT_DELAY_MS = 2_500L
 
 /** Листание зоной или кнопкой прокручивает почти экран: последняя строка остаётся на виду. */
 private const val SCREEN_SCROLL_FRACTION = 0.9f
+private const val TURN_KEY_BLOCK = 1_000_000L
 private const val PAGE_TURN_MS = 240
 private const val PAGE_TURN_SHIFT_DP = 40
 private const val EINK_FLASH_MS = 120L
@@ -1150,7 +1237,6 @@ private const val BRIGHTNESS_STRIP_DP = 28
 private const val DEFAULT_BRIGHTNESS = 0.5f
 /** Дольше этого нажатие на подсветку — выделение текста, а не открытие заметки. */
 private const val MARK_TAP_MAX_MS = 400L
-private const val LIST_BULLET = "•  "
 
 /** Полоса состояния перевода под верхней панелью: прогресс страницы или ошибка с повтором. */
 @Composable
@@ -1223,7 +1309,7 @@ private fun ChapterFooter(nav: ChapterNavigation, paper: PaperColors) {
 
 /** Один блок текста с типографикой читалки, Markdown-выделениями и подсветкой предложения. */
 @Composable
-private fun BlockText(
+internal fun BlockText(
     block: Block,
     entryId: String?,
     referer: String?,
@@ -1233,56 +1319,40 @@ private fun BlockText(
     marks: List<TextMark>,
     onTap: (() -> Unit)?,
     onMarkTap: (String) -> Unit,
-    modifier: Modifier
+    modifier: Modifier,
+    /** Блок разрезан страницей: без верхнего (продолжение) или нижнего (перенос) отступа. */
+    continuesPrev: Boolean = false,
+    continuesNext: Boolean = false
 ) {
     if (block.type == BlockType.IMAGE) {
         block.image?.let { BookImage(entryId, it, block.text, referer, modifier.padding(vertical = 8.dp)) }
         return
     }
     val custom by produceState(AppGraph.fonts.cached(settings.fontFile), settings.fontFile) { value = AppGraph.fonts.load(settings.fontFile) }
-    val family = custom ?: if (settings.font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif
-    val weight = FontWeight(settings.fontWeight.coerceIn(100, 900))
-    val spacing = settings.letterSpacing.sp
-    val base = settings.fontSize
+    val family = readerFamily(settings, custom)
     val highlightColor = if (paper.background.luminance() < 0.3f) paper.highlight.copy(alpha = 0.8f) else paper.highlight
-    val style = when (block.type) {
-        BlockType.HEADING -> TextStyle(
-            fontFamily = family,
-            fontSize = (base * if (block.level <= 1) 1.5f else 1.25f).sp,
-            fontWeight = FontWeight((settings.fontWeight + 200).coerceIn(600, 900)),
-            letterSpacing = spacing,
-            lineHeight = (base * 1.9f).sp
-        )
-        BlockType.QUOTE -> TextStyle(fontFamily = family, fontWeight = weight, letterSpacing = spacing, fontSize = base.sp, fontStyle = FontStyle.Italic, lineHeight = (base * settings.lineHeight).sp)
-        BlockType.CODE -> TextStyle(fontFamily = FontFamily.Monospace, fontSize = (base * 0.82f).sp, lineHeight = (base * 1.35f).sp)
-        BlockType.LIST_ITEM, BlockType.PARAGRAPH, BlockType.IMAGE -> TextStyle(fontFamily = family, fontWeight = weight, letterSpacing = spacing, fontSize = base.sp, lineHeight = (base * settings.lineHeight).sp)
-    }
-    val topPadding = when (block.type) {
-        BlockType.HEADING -> if (block.level <= 1) 28.dp else 18.dp
-        BlockType.QUOTE, BlockType.CODE -> 6.dp
-        else -> 0.dp
-    }
-    val bottomPadding = if (block.type == BlockType.HEADING) 10.dp else (base * 0.7f).dp
+    val insets = blockInsets(block, settings)
+    val isCode = block.type == BlockType.CODE
+    // Рамка кода на разрезе страницы открыта: её вертикальный отступ остаётся только у настоящего края
+    val topPadding = if (continuesPrev) 0.dp else (insets.top - if (isCode) CODE_PADDING_DP else 0f).dp
+    val bottomPadding = if (continuesNext) 0.dp else (insets.bottom - if (isCode) CODE_PADDING_DP else 0f).dp
     val text = buildBlockText(block, highlight, highlightColor, marks)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val bulletLength = if (block.type == BlockType.LIST_ITEM) LIST_BULLET.length else 0
     Text(
         text = if (block.type == BlockType.LIST_ITEM) AnnotatedString(LIST_BULLET) + text else text,
         onTextLayout = { layout = it },
-        style = style.copy(
-            color = if (block.type == BlockType.QUOTE) paper.secondary else paper.text,
-            textAlign = if (settings.justify && block.type == BlockType.PARAGRAPH) TextAlign.Justify else TextAlign.Start,
-            lineBreak = if (settings.justify && settings.smartJustify) LineBreak.Paragraph else LineBreak.Unspecified,
-            hyphens = if (settings.justify && settings.smartJustify) Hyphens.Auto else Hyphens.Unspecified
-        ),
+        style = blockTextStyle(block, settings, family, if (block.type == BlockType.QUOTE) paper.secondary else paper.text),
         modifier = modifier
             .fillMaxWidth()
             .padding(top = topPadding, bottom = bottomPadding)
             .then(
                 when (block.type) {
-                    BlockType.CODE -> Modifier.background(paper.secondary.copy(alpha = 0.1f), RoundedCornerShape(8.dp)).padding(12.dp)
-                    BlockType.QUOTE -> Modifier.padding(start = 12.dp)
-                    BlockType.LIST_ITEM -> Modifier.padding(start = (block.level.coerceAtMost(4) * 16).dp)
+                    BlockType.CODE -> Modifier.background(paper.secondary.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = CODE_PADDING_DP.dp)
+                        .padding(top = if (continuesPrev) 0.dp else CODE_PADDING_DP.dp, bottom = if (continuesNext) 0.dp else CODE_PADDING_DP.dp)
+                    BlockType.QUOTE -> Modifier.padding(start = QUOTE_INDENT_DP.dp)
+                    BlockType.LIST_ITEM -> Modifier.padding(start = insets.start.dp)
                     else -> Modifier
                 }
             )
@@ -1305,7 +1375,7 @@ private fun BlockText(
     )
 }
 
-private fun buildBlockText(
+internal fun buildBlockText(
     block: Block,
     highlight: SpeechSegment?,
     highlightColor: Color,
