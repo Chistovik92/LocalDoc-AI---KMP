@@ -119,7 +119,8 @@ jobs:
 
       - name: Сборка приложения для устройства (arm64, без подписи)
         run: |
-          ./gradlew :composeApp:linkReleaseFrameworkIosArm64 --stacktrace
+          # Без параллельных задач: пик памяти компилятора Kotlin/Native (оптимизация release) на 7-ГБ раннере иначе даёт OutOfMemoryError
+          ./gradlew :composeApp:linkReleaseFrameworkIosArm64 --no-parallel --stacktrace
           cd iosApp
           xcodegen generate
           xcodebuild -project LocalDocAI.xcodeproj \

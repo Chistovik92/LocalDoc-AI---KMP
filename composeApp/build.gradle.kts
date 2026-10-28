@@ -124,17 +124,16 @@ val releaseSigning = loadReleaseSigning()
 
 android {
     namespace = "com.localdoc.ai"
-    // API 37 (Android 17) AGP 8.7 не собирает (платформа SDK называется «android-37.0»): приложение работает на Android 17
-    // через обратную совместимость (targetSdk 35); сборка против 37 — после обновления AGP
-    compileSdk = 36
+    // Сборка против API 37 (Android 17); targetSdk остаётся 35 — поведение приложения на новых версиях Android не меняется
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.localdoc.ai"
         // Android 8.0 (API 26) … Android 17 (API 37)
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "2.1.1"
+        versionCode = 17
+        versionName = "2.1.2"
 
         ndk {
             // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах).
