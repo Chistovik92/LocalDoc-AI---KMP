@@ -17,9 +17,16 @@ import com.localdoc.ai.ui.App
 
 class MainActivity : ComponentActivity() {
 
+    // Язык интерфейса, выбранный в настройках, не зависит от системного
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(com.localdoc.ai.platform.AppLocale.wrap(newBase))
+
     // Android 13+: разрешение на уведомление-плеер в шторке (без него озвучка работает, но без шторки)
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    // Голосовое управление чтением: микрофон запрашивается только при включении функции
+    private val microphonePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { AndroidIntents.onMicrophoneResult(it) }
 
     private val pdfPickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -41,6 +48,7 @@ class MainActivity : ComponentActivity() {
         CurrentActivity.set(this)
         AndroidIntents.registerPdfPicker(pdfPickerLauncher)
         AndroidIntents.registerSaver(saveLauncher)
+        AndroidIntents.registerMicrophone(microphonePermission)
         AndroidIntents.registerFolderPicker(folderLauncher)
 
         handleIntent(intent)

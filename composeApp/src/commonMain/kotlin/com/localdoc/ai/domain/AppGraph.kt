@@ -1,6 +1,14 @@
 package com.localdoc.ai.domain
 
 import com.localdoc.ai.backup.BackupService
+import com.localdoc.ai.backup.ScheduledBackup
+import com.localdoc.ai.storage.KvAccess
+import com.localdoc.ai.storage.StorageMigrations
+import com.localdoc.ai.sync.BookLinkedCollection
+import com.localdoc.ai.sync.ProgressCollection
+import com.localdoc.ai.sync.ShelfCollection
+import com.localdoc.ai.sync.SyncEngine
+import com.localdoc.ai.backup.BackupFormat
 import com.localdoc.ai.backup.BackupStorage
 import com.localdoc.ai.backup.RestoreResult
 import com.localdoc.ai.book.BookImporter
@@ -15,6 +23,8 @@ import com.localdoc.ai.model.ModelSpec
 import com.localdoc.ai.notes.AnnotationRepository
 import com.localdoc.ai.notes.DictionaryRepository
 import com.localdoc.ai.search.FullTextIndex
+import com.localdoc.ai.stats.ReadingRecorder
+import com.localdoc.ai.stats.ReadingStats
 import com.localdoc.ai.search.LibrarySearch
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.parser.PdfExtractor
@@ -28,6 +38,17 @@ import com.localdoc.ai.platform.DeviceScanner
 import com.localdoc.ai.platform.ScannedFile
 import com.localdoc.ai.platform.FileSaver
 import com.localdoc.ai.net.CookieJar
+import com.localdoc.ai.net.DownloadSpeed
+import com.localdoc.ai.net.HostThrottle
+import com.localdoc.ai.net.RobotsPolicy
+import com.localdoc.ai.novel.AutoUpdateService
+import com.localdoc.ai.novel.AutoUpdateSettings
+import com.localdoc.ai.novel.ChapterDiff
+import com.localdoc.ai.novel.NovelTracker
+import com.localdoc.ai.novel.NovelUpdateChecker
+import com.localdoc.ai.opds.OpdsCatalogStore
+import com.localdoc.ai.opds.OpdsClient
+import com.localdoc.ai.platform.BackgroundUpdates
 import com.localdoc.ai.net.SiteAuth
 import com.localdoc.ai.net.SiteVault
 import com.localdoc.ai.net.WebHttp
@@ -39,11 +60,16 @@ import com.localdoc.ai.platform.SecureStore
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
 import com.localdoc.ai.platform.PlatformActions
+import com.localdoc.ai.platform.localUtcOffsetMillis
 import com.localdoc.ai.rag.HashingEmbedder
 import com.localdoc.ai.rag.RagRepository
 import com.localdoc.ai.rag.VectorStore
 import com.localdoc.ai.tts.PiperSpeechEngine
 import com.localdoc.ai.tts.ReadAloudController
+import com.localdoc.ai.tts.SleepTimerController
+import com.localdoc.ai.voice.VoiceControl
+import com.localdoc.ai.voice.VoiceControlSettings
+import com.localdoc.ai.voice.createPhraseRecognizer
 import com.localdoc.ai.tts.Speaker
 import com.localdoc.ai.tts.SpeechRouter
 import com.localdoc.ai.tts.VoicePackManager
@@ -84,12 +110,34 @@ enum class AppAction { CONTINUE_READING, OPEN_FILE, OPEN_URL, TOGGLE_PLAYBACK }
 object AppGraph {
 
     val kv: KeyValueStore = KeyValueStore()
+
+    /** Доступ к KV для миграций, копий и синхронизации. */
+    private val kvAccess = object : KvAccess {
+        override fun getValue(key: String) = kv.get(key)
+        override fun putValue(key: String, value: String) = kv.put(key, value)
+        override fun removeValue(key: String) = kv.remove(key)
+    }
+
+    // Миграции хранилища идут раньше любого чтения данных репозиториями ниже
+    init {
+        StorageMigrations(kvAccess).run()
+    }
+
     val engine: LlamaEngine = LlamaEngine()
     val downloader: ModelDownloader = ModelDownloader()
     /** Защищённое хранилище (Keystore / Keychain): пароли сайтов и cookie сессий. */
     val secure: SecureStore by lazy { SecureStore() }
     val cookieJar: CookieJar by lazy { CookieJar(secure.asStorage()) }
-    val webHttp: WebHttp by lazy { WebHttp(RawHttp().asTransport(), cookieJar) }
+    /** «Скорость скачивания»: пауза между запросами к одному сайту (по умолчанию — осторожно). */
+    val downloadSpeed = PersistedSetting(kv, "download_speed", DownloadSpeed.serializer(), DownloadSpeed.CAUTIOUS)
+    val webHttp: WebHttp by lazy {
+        WebHttp(
+            RawHttp().asTransport(),
+            cookieJar,
+            HostThrottle(speed = { downloadSpeed.value.value }),
+            RobotsPolicy({ url -> webHttp.getUnthrottled(url) })
+        )
+    }
     val siteVault: SiteVault by lazy { SiteVault(secure.asStorage(), cookieJar) }
     val siteAuth: SiteAuth by lazy { SiteAuth(webHttp, siteVault) }
     val images: ImageLoader by lazy { ImageLoader(files, kv, { webHttp }) }
@@ -99,9 +147,31 @@ object AppGraph {
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
     val library: LibraryRepository by lazy { LibraryRepository(kv, files) { id -> appScope.launch(indexDispatcher) { search.invalidate(id) } } }
 
+    val fonts: com.localdoc.ai.book.FontLibrary by lazy { com.localdoc.ai.book.FontLibrary(files) }
+
     val readerSettings = PersistedSetting(kv, "reader_settings", ReaderSettings.serializer(), ReaderSettings())
+    /** Настройки отдельных книг поверх общих: ключ — `docKey` читалки. */
+    val bookOverrides = PersistedSetting(
+        kv, "book_reader_overrides",
+        kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.serializer<String>(), BookOverride.serializer()),
+        emptyMap()
+    )
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
     val translationSettings = PersistedSetting(kv, "translation_settings", TranslationSettings.serializer(), TranslationSettings())
+    val accessibilitySettings = PersistedSetting(kv, "accessibility_settings", AccessibilitySettings.serializer(), AccessibilitySettings())
+
+    /** Статистика чтения: время, слова и скорость по дням; хранится локально и входит в резервную копию. */
+    val readingStatsSetting = PersistedSetting(kv, BackupFormat.KEY_READING_STATS, ReadingStats.serializer(), ReadingStats())
+
+    /** Принимает события чтения и озвучки; озвучка подключается при первом обращении. */
+    val readingStats: ReadingRecorder by lazy {
+        ReadingRecorder(readingStatsSetting::update, offsetMs = ::localUtcOffsetMillis).also(::feedStatsFromReadAloud)
+    }
+
+    fun resetReadingStats() {
+        readingStats.flush()
+        readingStatsSetting.update { ReadingStats() }
+    }
 
     /** Закладки в книгах и на веб-страницах. */
     val bookmarks: BookmarkRepository = BookmarkRepository({ kv.get(KEY_BOOKMARKS) }, { kv.put(KEY_BOOKMARKS, it) })
@@ -166,6 +236,30 @@ object AppGraph {
     /** Резервная копия библиотеки и настроек одним файлом (без паролей сайтов). */
     val backup: BackupService by lazy { BackupService(backupStorage, PlatformActions.appVersion) }
 
+    /** Копия по расписанию: проверяется при запуске приложения. */
+    val scheduledBackup: ScheduledBackup by lazy { ScheduledBackup(kvAccess, backupStorage, backup) }
+
+    /** Синхронизация прогресса, закладок, цитат и подборок (зашифрованный файл в облаке; пароли сайтов не входят). */
+    val syncEngine: SyncEngine by lazy {
+        SyncEngine(
+            collections = listOf(
+                ProgressCollection(backupStorage),
+                BookLinkedCollection.bookmarks(backupStorage),
+                BookLinkedCollection.annotations(backupStorage),
+                ShelfCollection({ catalog.shelves.value }, catalog::replaceShelves, { catalog.items.value }, { library.entries.value })
+            ),
+            loadState = { kv.get(KEY_SYNC_STATE) },
+            saveState = { kv.put(KEY_SYNC_STATE, it) },
+            // Перед первой записью синхронизации в данные устройства — копия на случай, если что-то пойдёт не так
+            safetyCopy = { files.writeAppFile("presync-backup.${BackupFormat.EXTENSION}", backup.create()) },
+            onApplied = { kinds ->
+                if ("progress" in kinds) library.reload()
+                if ("bookmark" in kinds) bookmarks.reload()
+                if ("annotation" in kinds) annotations.reload()
+            }
+        )
+    }
+
     /** Восстанавливает данные из копии и обновляет всё, что держит их в памяти. */
     fun restoreBackup(bytes: ByteArray): RestoreResult {
         val result = backup.restore(bytes)
@@ -175,7 +269,9 @@ object AppGraph {
             annotations.reload()
             dictionary.reload()
             readerSettings.reload()
+            bookOverrides.reload()
             voiceSettings.reload()
+            readingStatsSetting.reload()
             appScope.launch { applyVoiceSettings() }
             translationSettings.reload()
             appScope.launch(indexDispatcher) { searchIndex.clear() }
@@ -187,8 +283,26 @@ object AppGraph {
     /** Документы (ключи вида «book:id» / «web:id»), у которых сейчас включён перевод. */
     val translating = MutableStateFlow<Set<String>>(emptySet())
 
+    /** Модель эмбеддингов multilingual-e5-small: скачивается по запросу, без неё работает хеширование. */
+    val semanticModel: com.localdoc.ai.rag.SemanticModelManager by lazy {
+        com.localdoc.ai.rag.SemanticModelManager(
+            files = com.localdoc.ai.rag.DownloaderFiles(ModelDownloader("embeddings", ".bin")),
+            storage = com.localdoc.ai.rag.KeyValueRagStorage(kv),
+            runtime = com.localdoc.ai.rag.E5Runtime,
+            fileSha256 = { path -> com.localdoc.ai.rag.fileSha256(path) },
+            totalMemoryMb = { com.localdoc.ai.rag.totalDeviceMemoryMb() },
+            runtimeAvailable = com.localdoc.ai.rag.onnxRuntimeAvailable,
+            scope = appScope,
+            io = Dispatchers.Default
+        )
+    }
+
     private val ragRepository: RagRepository by lazy {
-        RagRepository(VectorStore(kv), HashingEmbedder())
+        RagRepository(
+            store = VectorStore(kv),
+            embedderSource = { semanticModel.embedder() },
+            onEmbedderFailure = { semanticModel.onEmbedderFailure(it) }
+        )
     }
     val pipeline: SmartPipeline by lazy {
         SmartPipeline(engine, ragRepository) { activeSpec?.template ?: com.localdoc.ai.model.ChatTemplate.CHATML }
@@ -248,6 +362,16 @@ object AppGraph {
     /** Плеер чтения вслух — общий для книг и веб-страниц. */
     val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope) }
 
+    val voiceControlSettings = PersistedSetting(kv, "voice_control_v1", VoiceControlSettings.serializer(), VoiceControlSettings())
+
+    /** Голосовое управление чтением: «дальше», «назад», «пауза»; слушает только при открытом плеере и включённой настройке. */
+    val voiceControl: VoiceControl by lazy {
+        VoiceControl(readAloud, voiceControlSettings, createPhraseRecognizer(), appScope).also { it.start() }
+    }
+
+    /** Таймер сна озвучки: остановка через N минут или в конце главы, с плавным затуханием. */
+    val sleepTimer: SleepTimerController by lazy { SleepTimerController(readAloud, appScope) }
+
     /** Скачивание книг целиком и «Сохранить как…»: оглавление, главы и картинки собираются автоматически. */
     val fileSaver: FileSaver by lazy { FileSaver() }
 
@@ -271,8 +395,60 @@ object AppGraph {
             parser = webParser,
             images = images,
             saver = fileSaver,
-            resolveToc = { _, page -> webSession.resolveTableOfContents(WebDocument(page.book, "", page.links, 0)) }
+            resolveToc = { _, page -> webSession.resolveTableOfContents(WebDocument(page.book, "", page.links, 0)) },
+            onNovelDownloaded = { title, result ->
+                val tocUrl = result.tocUrl
+                if (tocUrl != null) {
+                    novelTracker.register(NovelDownloader.folderId(tocUrl), title, tocUrl, result.chapterUrls.map(ChapterDiff::normalizeUrl))
+                    // Ожидавшими перестают быть только реально скачанные главы; недоступные остаются в списке
+                    novelTracker.markDownloaded(NovelDownloader.folderId(tocUrl), result.downloadedUrls.map(ChapterDiff::normalizeUrl))
+                }
+            }
         )
+    }
+
+    // --- Каталоги OPDS ---
+    val opdsCatalogs: OpdsCatalogStore = OpdsCatalogStore({ kv.get(KEY_OPDS) }, { kv.put(KEY_OPDS, it) })
+    val opds: OpdsClient by lazy { OpdsClient(webHttp) }
+
+    /** Добавляет в библиотеку книгу, скачанную из каталога OPDS (EPUB, FB2, текстовые форматы). */
+    suspend fun importDownloaded(file: DownloadedFile, sourceUrl: String) {
+        val format = com.localdoc.ai.book.FormatDetector.resolve(file.name, file.bytes)
+        val book = withContext(Dispatchers.Default) {
+            BookImporter.parseBytes(file.bytes, format, file.name.substringBeforeLast('.'), sourceUrl)
+        }
+        library.add(book)
+    }
+
+    // --- Автообновление новелл ---
+    val autoUpdateSettings = PersistedSetting(kv, "auto_update_settings", AutoUpdateSettings.serializer(), AutoUpdateSettings())
+    val novelTracker: NovelTracker = NovelTracker({ kv.get(KEY_TRACKED_NOVELS) }, { kv.put(KEY_TRACKED_NOVELS, it) })
+
+    val novelChecker: NovelUpdateChecker by lazy {
+        NovelUpdateChecker(novelTracker, chapterSource, allowed = { webHttp.allowedByRobots(it) })
+    }
+
+    val autoUpdate: AutoUpdateService by lazy {
+        AutoUpdateService(
+            settings = { autoUpdateSettings.value.value },
+            checker = novelChecker,
+            lastRun = { kv.get(KEY_AUTO_UPDATE_LAST)?.toLongOrNull() },
+            saveLastRun = { kv.put(KEY_AUTO_UPDATE_LAST, it.toString()) },
+            network = { BackgroundUpdates.currentNetwork() },
+            tzOffsetMinutes = { BackgroundUpdates.timeZoneOffsetMinutes() },
+            now = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
+            schedule = { at, unmetered -> BackgroundUpdates.schedule(at, unmetered) },
+            cancel = { BackgroundUpdates.cancel() },
+            notify = { title, text -> BackgroundUpdates.notifyNewChapters(title, text) }
+        )
+    }
+
+    /** Меняет настройки автообновления и сразу пересчитывает расписание. */
+    fun updateAutoUpdate(transform: (AutoUpdateSettings) -> AutoUpdateSettings) {
+        val wasEnabled = autoUpdateSettings.value.value.enabled
+        autoUpdateSettings.update(transform)
+        if (!wasEnabled && autoUpdateSettings.value.value.enabled) BackgroundUpdates.requestNotificationPermission()
+        autoUpdate.reschedule()
     }
 
     /** Каталог книг на устройстве: сканирование, полки, подборки. */
@@ -454,4 +630,8 @@ object AppGraph {
     private const val KEY_ANNOTATIONS = "annotations_v1"
     private const val KEY_DICTIONARY = "dictionary_v1"
     private const val KEY_SEARCH_INDEX = "search_index_v1"
+    private const val KEY_OPDS = "opds_catalogs_v1"
+    private const val KEY_TRACKED_NOVELS = "tracked_novels_v1"
+    private const val KEY_AUTO_UPDATE_LAST = "auto_update_last_run"
+    private const val KEY_SYNC_STATE = "sync_state_v1"
 }

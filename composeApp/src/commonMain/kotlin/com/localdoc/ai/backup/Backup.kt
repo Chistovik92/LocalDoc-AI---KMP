@@ -5,16 +5,16 @@ import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.book.ZipArchive
 import com.localdoc.ai.book.export.ZipWriter
 import com.localdoc.ai.net.nowMillis
+import com.localdoc.ai.storage.KvAccess
+import com.localdoc.ai.storage.StorageMigrations
+import com.localdoc.ai.storage.StorageSchema
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /** Доступ резервной копии к данным приложения: настройки (KV) и файлы книг. Пароли сайтов сюда не входят. */
-interface BackupStorage {
-    fun getValue(key: String): String?
-    fun putValue(key: String, value: String)
-    fun removeValue(key: String)
+interface BackupStorage : KvAccess {
     fun readFile(name: String): ByteArray?
     fun writeFile(name: String, bytes: ByteArray)
     fun listFiles(prefix: String): List<String>
@@ -31,14 +31,19 @@ data class BackupManifest(
     val createdAt: Long = 0,
     val books: Int = 0,
     val keys: List<String> = emptyList(),
-    val files: List<String> = emptyList()
+    val files: List<String> = emptyList(),
+    /** Версия схемы хранилища ([StorageSchema.CURRENT]) на момент копии; 0 — копия формата 1, до версионирования. */
+    val schema: Int = 0
 )
 
 object BackupFormat {
     const val ID = "localdoc-backup"
 
-    /** Текущая версия формата архива. Увеличивается при несовместимом изменении состава или разметки. */
-    const val VERSION = 1
+    /**
+     * Текущая версия формата архива. Увеличивается при несовместимом изменении состава или разметки.
+     * 1 — ZIP без сжатия; 2 — записи сжаты Deflate, в manifest появилось поле `schema`. Формат описан в docs/BACKUP_FORMAT.md.
+     */
+    const val VERSION = 2
 
     const val MANIFEST = "backup.json"
     const val KV_DIR = "kv/"
@@ -47,6 +52,7 @@ object BackupFormat {
     const val MIME = "application/zip"
 
     const val KEY_LIBRARY = "library_v1"
+    const val KEY_READING_STATS = "reading_stats_v1"
 
     /**
      * Что сохраняется из настроек: библиотека с прогрессом чтения, закладки, цитаты и заметки, словарь и
@@ -55,13 +61,32 @@ object BackupFormat {
      */
     val KV_KEYS = listOf(
         KEY_LIBRARY, "bookmarks_v1", "annotations_v1", "dictionary_v1",
-        "reader_settings", "voice_settings", "translation_settings"
+        "reader_settings", "book_reader_overrides", "voice_settings", "translation_settings",
+        // Необязательная запись: в копиях без неё статистики просто нет, а старые версии приложения её пропускают
+        KEY_READING_STATS
     )
 
     private val SAFE_NAME = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
     /** Имя файла из архива допустимо, только если это простое имя без путей: защита от выхода из папки приложения. */
     fun isSafeName(name: String) = SAFE_NAME.matches(name) && ".." !in name
+
+    /** Недопустимые в имени файла символы: имя шрифта может быть любым «человеческим», но не путём. */
+    private val BAD_FONT_CHARS = charArrayOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
+
+    /**
+     * Файл из архива допустим, если это простое имя, копия PDF (`pdf/имя`) или шрифт (`fonts/имя`):
+     * вложенные пути и «..» по-прежнему запрещены.
+     */
+    fun isSafePath(name: String): Boolean {
+        if (isSafeName(name)) return true
+        val rest = name.substringAfter('/', "")
+        return when (name.substringBefore('/')) {
+            "pdf" -> isSafeName(rest)
+            "fonts" -> rest.isNotBlank() && !rest.startsWith('.') && ".." !in rest && rest.none { it in BAD_FONT_CHARS || it.code < 0x20 }
+            else -> false
+        }
+    }
 
     fun suggestedName(createdAt: Long) = "LocalDoc-копия-${isoDate(createdAt)}.$EXTENSION"
 
@@ -110,13 +135,13 @@ class BackupService(
     /** Архив: manifest, значения настроек (`kv/…`) и файлы книг с картинками (`files/…`). */
     fun create(): ByteArray {
         val library = libraryEntries(storage.getValue(BackupFormat.KEY_LIBRARY))
-        val fileNames = library.flatMap { bookFiles(it.id) }.distinct().filter { storage.readFile(it) != null }
+        val fileNames = (library.flatMap { bookFiles(it.id) } + storage.listFiles("fonts/")).distinct().filter { storage.readFile(it) != null }
         val keys = BackupFormat.KV_KEYS.filter { storage.getValue(it) != null }
         val manifest = BackupManifest(
             version = BackupFormat.VERSION, appVersion = appVersion, createdAt = clock(),
-            books = library.size, keys = keys, files = fileNames
+            books = library.size, keys = keys, files = fileNames, schema = StorageSchema.CURRENT
         )
-        val zip = ZipWriter()
+        val zip = ZipWriter(deflate = true)
         zip.add(BackupFormat.MANIFEST, json.encodeToString(BackupManifest.serializer(), manifest))
         for (key in keys) zip.add(BackupFormat.KV_DIR + key, storage.getValue(key).orEmpty())
         for (name in fileNames) storage.readFile(name)?.let { zip.add(BackupFormat.FILES_DIR + name, it) }
@@ -161,7 +186,7 @@ class BackupService(
         }
         if (manifest == null || manifest.format != BackupFormat.ID) return notBackup
         if (manifest.version > BackupFormat.VERSION) return BackupCheck.TooNew(manifest.version, manifest.appVersion) to null
-        if (manifest.version < 1) return BackupCheck.Invalid("Неизвестная версия формата копии: ${manifest.version}") to null
+        if (manifest.version < MIN_VERSION) return BackupCheck.Invalid("Неизвестная версия формата копии: ${manifest.version}") to null
 
         val problem = validateContents(manifest, archive)
         return if (problem != null) BackupCheck.Invalid(problem) to null else BackupCheck.Ok(manifest) to archive
@@ -196,7 +221,7 @@ class BackupService(
         val restoredFiles = archive.names
             .filter { it.startsWith(BackupFormat.FILES_DIR) }
             .map { it.removePrefix(BackupFormat.FILES_DIR) }
-            .filter(BackupFormat::isSafeName)
+            .filter(BackupFormat::isSafePath)
             .associateWith { requireNotNull(archive.read(BackupFormat.FILES_DIR + it)) }
 
         libraryEntries(storage.getValue(BackupFormat.KEY_LIBRARY)).forEach {
@@ -208,12 +233,30 @@ class BackupService(
             val value = values[key]
             if (value != null) storage.putValue(key, value) else storage.removeValue(key)
         }
+        // Данные копии могут быть старой схемы: отметка схемы относится к устройству, а не к копии, поэтому
+        // сбрасываем её и прогоняем миграции заново (они идемпотентны).
+        storage.removeValue(StorageSchema.KEY)
+        StorageMigrations(storage).run()
     }
 
     private fun libraryEntries(raw: String?): List<BookEntry> =
         raw?.let { runCatching { json.decodeFromString(entries, it) }.getOrNull() }.orEmpty()
 
-    private fun bookFiles(id: String): List<String> = listOf(bookFile(id)) + storage.listFiles(imagePrefix(id))
+    /** Файлы книги: текст, картинки и копия PDF (если она не больше [MAX_PDF_COPY_BYTES]). */
+    private fun bookFiles(id: String): List<String> {
+        val pdf = storage.readFile(bookFile(id))
+            ?.let { runCatching { json.decodeFromString(Book.serializer(), it.decodeToString()).pdfFile }.getOrNull() }
+            ?.takeIf { BackupFormat.isSafePath(it) && (storage.readFile(it)?.size ?: Int.MAX_VALUE) <= MAX_PDF_COPY_BYTES }
+        return listOf(bookFile(id)) + storage.listFiles(imagePrefix(id)) + listOfNotNull(pdf)
+    }
+
+    private companion object {
+        /** Самая старая читаемая версия формата. */
+        const val MIN_VERSION = 1
+
+        /** Копии PDF крупнее в архив не кладутся (он собирается в памяти); такая книга после восстановления открывается текстом. */
+        const val MAX_PDF_COPY_BYTES = 64 * 1024 * 1024
+    }
 
     private fun bookFile(id: String) = "$id.json"
 

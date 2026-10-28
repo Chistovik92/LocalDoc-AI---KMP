@@ -1,5 +1,17 @@
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.ui.semantics.Role
+import com.localdoc.ai.resources.built_in_voices
+import com.localdoc.ai.resources.cancel_download
+import com.localdoc.ai.resources.delete_voice
+import com.localdoc.ai.resources.download_voice
+import com.localdoc.ai.resources.installed_offline
+import com.localdoc.ai.resources.mb
+import com.localdoc.ai.resources.of_mb_2
+import com.localdoc.ai.resources.piper_neural_voices_work_right_inside
+import com.localdoc.ai.resources.unpacking
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -52,10 +64,9 @@ internal fun BuiltinVoicesSection() {
 
     LaunchedEffect(Unit) { AppGraph.voicePacks.refresh() }
 
-    SectionLabel("Встроенные голоса")
+    SectionLabel(stringResource(Res.string.built_in_voices))
     Text(
-        "Нейросетевые голоса Piper работают прямо в приложении — без интернета и сторонних программ. " +
-            "Голос скачивается один раз (около 65 МБ).",
+        stringResource(Res.string.piper_neural_voices_work_right_inside),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -125,16 +136,16 @@ private fun BuiltinVoiceRow(
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 when (state) {
-                    VoicePackState.Installed -> IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Удалить голос") }
+                    VoicePackState.Installed -> IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.delete_voice)) }
                     VoicePackState.Installing -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    is VoicePackState.Downloading -> IconButton(onClick = onCancel) { Icon(Icons.Default.Close, contentDescription = "Отменить загрузку") }
+                    is VoicePackState.Downloading -> IconButton(onClick = onCancel) { Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.cancel_download)) }
                     VoicePackState.NotInstalled, is VoicePackState.Failed ->
-                        IconButton(onClick = onDownload) { Icon(Icons.Default.Download, contentDescription = "Скачать голос") }
+                        IconButton(onClick = onDownload) { Icon(Icons.Default.Download, contentDescription = stringResource(Res.string.download_voice)) }
                 }
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.clickable(enabled = installed, onClick = onSelect)
+        modifier = Modifier.clickable(role = Role.Button, enabled = installed, onClick = onSelect)
     )
 }
 
@@ -142,14 +153,14 @@ private fun BuiltinVoiceRow(
 private fun VoicePackStatus(pack: PiperVoice, state: VoicePackState) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     when (state) {
-        VoicePackState.NotInstalled -> Text("${pack.sizeMb} МБ", color = muted)
-        VoicePackState.Installed -> Text("Установлен · офлайн", color = MaterialTheme.colorScheme.primary)
-        VoicePackState.Installing -> Text("Распаковка…", color = muted)
+        VoicePackState.NotInstalled -> Text(stringResource(Res.string.mb, pack.sizeMb), color = muted)
+        VoicePackState.Installed -> Text(stringResource(Res.string.installed_offline), color = MaterialTheme.colorScheme.primary)
+        VoicePackState.Installing -> Text(stringResource(Res.string.unpacking), color = muted)
         is VoicePackState.Downloading -> {
             val total = state.totalBytes.takeIf { it > 0 } ?: pack.sizeBytes
             val progress = (state.downloadedBytes.toFloat() / total).coerceIn(0f, 1f)
             LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
-            Text("${state.downloadedBytes / MB} из ${total / MB} МБ", color = muted)
+            Text(stringResource(Res.string.of_mb_2, state.downloadedBytes / MB, total / MB), color = muted)
         }
         is VoicePackState.Failed -> Text(state.message, color = MaterialTheme.colorScheme.error)
     }

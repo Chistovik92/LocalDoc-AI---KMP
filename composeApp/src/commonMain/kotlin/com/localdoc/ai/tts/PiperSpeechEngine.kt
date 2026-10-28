@@ -52,6 +52,7 @@ class PiperSpeechEngine(
     private var voiceId: String? = null
     private var rate = 1f
     private var pitch = 1f
+    private var volume = 1f
     private var speaking: Job? = null
     private var prefetching: Job? = null
 
@@ -69,7 +70,7 @@ class PiperSpeechEngine(
         speaking = scope.launch(worker) {
             val result = try {
                 val pcm = synthesize(voice, text, speed)
-                pcm != null && output.play(pcm, pitchNow)
+                pcm != null && output.play(withVolume(pcm), pitchNow)
             } catch (e: CancellationException) {
                 // Прерывание через stop()/новую реплику: колбэк не нужен
                 throw e
@@ -125,6 +126,16 @@ class PiperSpeechEngine(
 
     override fun setPitch(pitch: Float) {
         this.pitch = pitch
+    }
+
+    override fun setVolume(volume: Float) {
+        this.volume = volume.coerceIn(0f, 1f)
+    }
+
+    /** Громкость применяется к копии звука: кэш хранит запись с обычной громкостью. */
+    private fun withVolume(pcm: Pcm): Pcm {
+        val v = volume
+        return if (v >= 1f) pcm else Pcm(FloatArray(pcm.samples.size) { pcm.samples[it] * v }, pcm.sampleRate)
     }
 
     override fun prepare(onReady: () -> Unit) = onReady()

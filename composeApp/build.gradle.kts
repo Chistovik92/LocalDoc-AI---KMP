@@ -59,6 +59,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ksoup)
             implementation(libs.ksoup.network)
+            implementation(libs.cryptography.core)
+            implementation(libs.cryptography.provider.optimal)
         }
 
         commonTest.dependencies {
@@ -69,10 +71,15 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core)
+            // Фоновая проверка новых глав по расписанию
+            implementation(libs.androidx.work)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.pdfbox.android)
             implementation(libs.mlkit.text.recognition)
+            // ONNX Runtime для эмбеддингов multilingual-e5-small; объявлен раньше sherpa-onnx, чтобы при общем
+            // libonnxruntime.so (см. packaging ниже) выбиралась именно эта, более новая сборка
+            implementation(libs.onnxruntime.android)
             // sherpa-onnx: JNI + Kotlin API OfflineTts, onnxruntime слинкован статически
             implementation("com.k2fsa.sherpa:sherpa-onnx-static-link-onnxruntime:${libs.versions.sherpaOnnx.get()}@aar")
             // bzip2 для распаковки голосовых пакетов (tar разбирает общий TarReader)
@@ -123,8 +130,8 @@ android {
         applicationId = "com.localdoc.ai"
         minSdk = 29
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.9.0"
+        versionCode = 12
+        versionName = "2.0.0"
 
         ndk {
             // Современные флагманские устройства (Snapdragon 8 серии / Dimensity)
@@ -143,6 +150,12 @@ android {
                 }
             }
         }
+    }
+
+    packaging {
+        // onnxruntime-android (эмбеддинги) и sherpa-onnx (озвучка) приносят каждый свой libonnxruntime.so:
+        // оставляем один — из onnxruntime-android 1.20; sherpa-onnx слинкован с ONNX Runtime статически
+        jniLibs.pickFirsts += "**/libonnxruntime.so"
     }
 
     signingConfigs {
@@ -184,4 +197,9 @@ android {
         checkReleaseBuilds = false
         abortOnError = false
     }
+}
+
+compose.resources {
+    packageOfResClass = "com.localdoc.ai.resources"
+    generateResClass = always
 }

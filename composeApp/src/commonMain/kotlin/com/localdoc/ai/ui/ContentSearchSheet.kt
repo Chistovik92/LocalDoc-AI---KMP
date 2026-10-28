@@ -1,5 +1,17 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.found_on_this_device
+import com.localdoc.ai.resources.indexing_the_library
+import com.localdoc.ai.resources.nothing_found
+import com.localdoc.ai.resources.nothing_yet_the_index_is_still
+import com.localdoc.ai.resources.search_book_text
+import com.localdoc.ai.resources.search_failed
+import com.localdoc.ai.resources.searching
+import com.localdoc.ai.resources.type_at_least_two_characters_all
+import com.localdoc.ai.resources.word_or_phrase
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -63,31 +75,31 @@ fun ContentSearchSheet(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Поиск не удался"
+            error = e.message ?: getString(Res.string.search_failed)
         }
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 24.dp)) {
-            Text("Поиск по тексту книг", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(Res.string.search_book_text), style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
-                placeholder = { Text("Слово или фраза") },
+                placeholder = { Text(stringResource(Res.string.word_or_phrase)) },
                 modifier = Modifier.fillMaxWidth()
             )
             indexing?.let { progress ->
-                Text("Индексируем библиотеку — ${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(Res.string.indexing_the_library, (progress * 100).toInt()), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             }
         }
         val found = results
         when {
             error != null -> Hint(error.orEmpty())
-            query.trim().length < MIN_QUERY_CHARS -> Hint("Введите хотя бы два символа. Ищутся все слова запроса в одном абзаце, окончания не важны.")
-            found == null -> Hint("Ищем…")
-            found.isEmpty -> Hint(if (building) "Пока ничего — индекс ещё строится" else "Ничего не найдено")
+            query.trim().length < MIN_QUERY_CHARS -> Hint(stringResource(Res.string.type_at_least_two_characters_all))
+            found == null -> Hint(stringResource(Res.string.searching))
+            found.isEmpty -> Hint(if (building) stringResource(Res.string.nothing_yet_the_index_is_still) else stringResource(Res.string.nothing_found))
             else -> LazyColumn(modifier = Modifier.heightIn(max = RESULTS_MAX_HEIGHT.dp).padding(top = 8.dp, bottom = 24.dp)) {
                 items(found.books, key = { "${it.entry.id}:${it.block}" }) { hit ->
                     ListItem(
@@ -100,7 +112,7 @@ fun ContentSearchSheet(
                 if (found.catalog.isNotEmpty()) {
                     item(key = "catalog-header") {
                         Text(
-                            "Найдено на устройстве",
+                            stringResource(Res.string.found_on_this_device),
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                         )

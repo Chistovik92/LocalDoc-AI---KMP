@@ -1,5 +1,64 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.page_short
+import androidx.compose.ui.semantics.Role
+import com.localdoc.ai.resources.a_word_or_phrase_from_the
+import com.localdoc.ai.resources.add_bookmark
+import com.localdoc.ai.resources.ask
+import com.localdoc.ai.resources.auto_advance_on
+import com.localdoc.ai.resources.auto_advance_to_the_next_chapter_2
+import com.localdoc.ai.resources.auto_scroll
+import com.localdoc.ai.resources.back
+import com.localdoc.ai.resources.back_2
+import com.localdoc.ai.resources.bookmarks
+import com.localdoc.ai.resources.briefly_retell_this_passage_in_3
+import com.localdoc.ai.resources.brightness
+import com.localdoc.ai.resources.chapter_start_marked
+import com.localdoc.ai.resources.chapters_and_contents
+import com.localdoc.ai.resources.contents
+import com.localdoc.ai.resources.copied
+import com.localdoc.ai.resources.could_not_get_the_selected_text
+import com.localdoc.ai.resources.download_the_whole_book
+import com.localdoc.ai.resources.end_of_chapter_speech_stopped
+import com.localdoc.ai.resources.explain
+import com.localdoc.ai.resources.explain_a_term
+import com.localdoc.ai.resources.explain_in_plain_words_what_means
+import com.localdoc.ai.resources.find_the_main_points
+import com.localdoc.ai.resources.find_the_main_points_in_this
+import com.localdoc.ai.resources.font_and_background
+import com.localdoc.ai.resources.keep_reading
+import com.localdoc.ai.resources.main_points
+import com.localdoc.ai.resources.more
+import com.localdoc.ai.resources.next
+import com.localdoc.ai.resources.next_chapter
+import com.localdoc.ai.resources.note_saved
+import com.localdoc.ai.resources.p
+import com.localdoc.ai.resources.page_of_2
+import com.localdoc.ai.resources.quote_saved
+import com.localdoc.ai.resources.quotes_and_notes
+import com.localdoc.ai.resources.read_by_scrolling
+import com.localdoc.ai.resources.read_page_by_page
+import com.localdoc.ai.resources.remove_bookmark
+import com.localdoc.ai.resources.repeat
+import com.localdoc.ai.resources.save_as
+import com.localdoc.ai.resources.select_a_single_word_or_a
+import com.localdoc.ai.resources.stop_auto_scroll
+import com.localdoc.ai.resources.summarize_the_page
+import com.localdoc.ai.resources.summary
+import com.localdoc.ai.resources.term
+import com.localdoc.ai.resources.the_chapter_has_ended_speech_is
+import com.localdoc.ai.resources.this_place_could_not_be_marked
+import com.localdoc.ai.resources.this_place_could_not_be_saved
+import com.localdoc.ai.resources.translating_the_page_of
+import com.localdoc.ai.resources.translation_2
+import com.localdoc.ai.resources.translation_3
+import com.localdoc.ai.resources.translation_on
+import com.localdoc.ai.resources.turn_off
+import com.localdoc.ai.resources.voice_and_speech
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -112,6 +171,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import com.localdoc.ai.ui.reduceMotionEnabled
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -119,6 +179,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -135,6 +196,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,6 +205,8 @@ import androidx.compose.ui.unit.sp
 import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.book.Book
+import com.localdoc.ai.book.PagePos
+import androidx.compose.ui.unit.IntSize
 import com.localdoc.ai.book.SpanStyleType
 import com.localdoc.ai.notes.AnchorResolver
 import com.localdoc.ai.notes.Annotation
@@ -153,6 +218,7 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.ChatMessage
 import com.localdoc.ai.domain.ReaderFont
 import com.localdoc.ai.domain.ReaderSettings
+import com.localdoc.ai.domain.applyOverride
 import com.localdoc.ai.domain.ReaderTheme
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.tts.ReadAloudStop
@@ -183,10 +249,10 @@ fun paperColors(theme: ReaderTheme): PaperColors {
 }
 
 /** Действия ИИ-суфлёра над открытым текстом. */
-internal enum class ReaderAiAction(val label: String, val shortLabel: String, val icon: ImageVector) {
-    SUMMARIZE_PAGE("Суммаризировать страницу", "Пересказ", Icons.Default.Summarize),
-    EXPLAIN_TERM("Объяснить термин", "Термин", Icons.Default.Lightbulb),
-    KEY_POINTS("Найти главное", "Главное", Icons.Default.TravelExplore)
+internal enum class ReaderAiAction(val label: StringResource, val shortLabel: StringResource, val icon: ImageVector) {
+    SUMMARIZE_PAGE(Res.string.summarize_the_page, Res.string.summary, Icons.Default.Summarize),
+    EXPLAIN_TERM(Res.string.explain_a_term, Res.string.term, Icons.Default.Lightbulb),
+    KEY_POINTS(Res.string.find_the_main_points, Res.string.main_points, Icons.Default.TravelExplore)
 }
 
 /** Навигация по соседним главам (веб-новеллы). */
@@ -223,7 +289,9 @@ fun ReaderView(
     applyNavigationBarInsets: Boolean = true,
     topBarActions: @Composable RowScope.() -> Unit = {}
 ) {
-    val settings by AppGraph.readerSettings.value.collectAsState()
+    val globalSettings by AppGraph.readerSettings.value.collectAsState()
+    val bookOverrides by AppGraph.bookOverrides.value.collectAsState()
+    val settings = remember(globalSettings, bookOverrides[docKey]) { globalSettings.applyOverride(bookOverrides[docKey]) }
     val translationSettings by AppGraph.translationSettings.value.collectAsState()
     val translatingDocs by AppGraph.translating.collectAsState()
     val bookmarks by AppGraph.bookmarks.all.collectAsState()
@@ -237,7 +305,9 @@ fun ReaderView(
     val translating = docKey in translatingDocs
     val target = Languages.byCode(translationSettings.targetLanguage)
     // Перевод показывается постранично в любом режиме: так он не мешает прокрутке и озвучке
-    val pagedDisplay = settings.paged || translating
+    // «Постранично» — страницы по размеру экрана; перевод остаётся на порциях прежнего вида (BookPager)
+    val screenMode = settings.paged && !translating
+    val pagedDisplay = translating
     // Позиция переживает смену размера страницы: новая разбивка открывается на том же блоке
     var anchorBlock by remember { mutableStateOf(startBlock) }
     var page by remember(pager) { mutableStateOf(pager.pageOfBlock(anchorBlock)) }
@@ -249,6 +319,19 @@ fun ReaderView(
         initialFirstVisibleItemIndex = (startBlock - firstIndex).coerceIn(0, (itemCount - 1).coerceAtLeast(0))
     )
     var pendingLocal by remember { mutableStateOf<Int?>(null) }
+    // Экранные страницы: место чтения «блок + смещение», раскладка считается в фоне и кэшируется
+    var areaSize by remember { mutableStateOf(IntSize.Zero) }
+    var screenPos by remember { mutableStateOf(PagePos(startBlock.coerceIn(0, lastBlock), 0)) }
+    val screenState = rememberScreenLayout(book, docKey, settings, areaSize, screenMode) { screenPos }
+    val screenLayout = screenState.layout
+    val screenRef = if (screenMode) screenLayout.locate(screenPos) else null
+    val screenPage = screenRef?.let { screenLayout.page(it) }
+    val shownStart = if (screenMode) (screenPage?.start?.block ?: screenPos.block) else pageInfo.startBlock
+    val shownEnd = if (screenMode) (screenPage?.let { it.end.block + if (it.end.offset > 0) 1 else 0 } ?: (shownStart + 1)) else pageInfo.endBlock
+    val screenLabel = screenRef?.let { ref ->
+        val (ordinal, exact) = screenLayout.ordinal(ref)
+        pageLabel(ordinal, exact, screenLayout.total, screenLayout.isComplete)
+    }
 
     val player by AppGraph.readAloud.state.collectAsState()
     val isMine = AppGraph.readAloud.documentKey == docKey && player.active
@@ -279,10 +362,11 @@ fun ReaderView(
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
 
-    val currentBlock by remember(firstIndex) { derivedStateOf { (firstIndex + listState.firstVisibleItemIndex).coerceAtMost(lastBlock) } }
+    val listBlock by remember(firstIndex) { derivedStateOf { (firstIndex + listState.firstVisibleItemIndex).coerceAtMost(lastBlock) } }
+    val currentBlock = if (screenMode) shownStart.coerceAtMost(lastBlock) else listBlock
     val chapterIndex = book.chapterIndexAt(currentBlock)
     val chapterTitle = book.chapters.getOrNull(chapterIndex)?.title
-    val percent = (pager.progressOfPage(page) * 100).toInt()
+    val percent = if (screenMode) currentBlock * 100 / lastBlock.coerceAtLeast(1) else (pager.progressOfPage(page) * 100).toInt()
 
     val entryId = docKey.substringAfter(':')
     val entry = AppGraph.library.entry(entryId)
@@ -292,7 +376,7 @@ fun ReaderView(
     val marksByBlock = remember(book, bookAnnotations) { annotationMarks(book, bookAnnotations) }
     // Закладка стоит там, куда её якорь указывает в текущем разборе книги, а не на сохранённом номере блока
     val resolvedBookmarks = remember(bookmarks, book) { bookmarks.filter { it.entryId == entryId }.associateWith { it.resolveBlock(book) } }
-    val pageBookmark = resolvedBookmarks.entries.firstOrNull { it.value in pageInfo.startBlock until pageInfo.endBlock }?.key
+    val pageBookmark = resolvedBookmarks.entries.firstOrNull { it.value in shownStart until shownEnd }?.key
 
     val sourceCode = translationSettings.sourceLanguage
     val layout = settings.pageSize.chars
@@ -309,19 +393,28 @@ fun ReaderView(
         translatedBlocks?.getOrNull(global - pageInfo.startBlock) ?: book.blocks[global]
 
     // Сохранение прогресса без записи на каждый кадр прокрутки
-    LaunchedEffect(listState, docKey, firstIndex) {
-        snapshotFlow { firstIndex + listState.firstVisibleItemIndex }
+    LaunchedEffect(listState, docKey, firstIndex, screenMode) {
+        snapshotFlow { if (screenMode) screenPos.block else firstIndex + listState.firstVisibleItemIndex }
             .distinctUntilChanged()
             .debounce(600)
             .collectLatest { onProgress(it.coerceAtMost(lastBlock)) }
     }
 
     // В режиме прокрутки страница — это страница под первым видимым блоком
-    LaunchedEffect(pagedDisplay, pager) {
-        if (pagedDisplay) return@LaunchedEffect
+    LaunchedEffect(pagedDisplay, pager, screenMode) {
+        if (pagedDisplay || screenMode) return@LaunchedEffect
         snapshotFlow { pager.pageOfBlock(listState.firstVisibleItemIndex) }
             .distinctUntilChanged()
             .collect { page = it }
+    }
+
+    // Порция для озвучки, перевода и ИИ следует за экранной страницей
+    LaunchedEffect(screenMode, screenPos) { if (screenMode) page = pager.pageOfBlock(screenPos.block) }
+    var wasScreen by remember { mutableStateOf(screenMode) }
+    LaunchedEffect(screenMode) {
+        if (screenMode && !wasScreen) screenPos = PagePos(listBlock.coerceIn(0, lastBlock), 0)
+        if (!screenMode && wasScreen) listState.scrollToItem((screenPos.block - firstIndex).coerceIn(0, (itemCount - 1).coerceAtLeast(0)))
+        wasScreen = screenMode
     }
 
     // Смена страницы / режима: новая страница начинается сверху (или с нужного блока после перехода)
@@ -374,6 +467,7 @@ fun ReaderView(
 
     // Следим за читаемым предложением: если абзац ушёл за экран — докручиваем
     LaunchedEffect(speaking?.block, settings.followSpeech, page) {
+        if (screenMode) return@LaunchedEffect
         val block = speaking?.block ?: return@LaunchedEffect
         if (!settings.followSpeech) return@LaunchedEffect
         val local = block - firstIndex
@@ -381,6 +475,17 @@ fun ReaderView(
         val visible = listState.layoutInfo.visibleItemsInfo
         val fullyVisible = visible.dropLast(1).any { it.index == local }
         if (!fullyVisible) listState.animateScrollToItem(local)
+    }
+
+    // Экранный режим: предложение вышло за страницу — страница переворачивается сама (на ту, где оно кончается)
+    LaunchedEffect(speaking?.block, speaking?.start, speaking?.end, settings.followSpeech, screenMode, screenLayout, screenPos) {
+        if (!screenMode || !settings.followSpeech) return@LaunchedEffect
+        val sentence = speaking ?: return@LaunchedEffect
+        val current = screenPage ?: return@LaunchedEffect
+        val first = PagePos(sentence.block, sentence.start)
+        val last = PagePos(sentence.block, (sentence.end - 1).coerceAtLeast(sentence.start))
+        if (first in current && last in current) return@LaunchedEffect
+        screenLayout.locate(if (first < current.start) first else last)?.let { screenPos = screenLayout.page(it).start }
     }
 
     // Ассистент и ИИ-суфлёр получают текущую страницу, а не весь текст книги
@@ -416,6 +521,11 @@ fun ReaderView(
 
     fun goToBlock(block: Int) {
         val b = block.coerceIn(0, lastBlock)
+        if (screenMode) {
+            screenPos = PagePos(b, 0)
+            if (isMine) AppGraph.readAloud.jumpToBlock(b)
+            return
+        }
         val targetPage = pager.pageOfBlock(b)
         if (pagedDisplay) pendingLocal = b - pager.page(targetPage).startBlock
         page = targetPage
@@ -423,11 +533,17 @@ fun ReaderView(
         if (isMine) AppGraph.readAloud.jumpToBlock(b)
     }
 
-    fun seekPage(index: Int) = goToBlock(pager.page(index.coerceIn(0, (pager.size - 1).coerceAtLeast(0))).startBlock)
+    fun seekPage(index: Int) {
+        if (screenMode) {
+            screenLayout.refAtOrdinal(index)?.let { screenPos = screenLayout.page(it).start }
+            return
+        }
+        goToBlock(pager.page(index.coerceIn(0, (pager.size - 1).coerceAtLeast(0))).startBlock)
+    }
 
     /** Место выделенного текста в книге: сначала рядом с читаемым местом, затем по всей книге. */
     fun locateSelection(selected: String): TextAnchor? {
-        val near = if (pagedDisplay) pageInfo.startBlock until pageInfo.endBlock
+        val near = if (screenMode || pagedDisplay) shownStart until shownEnd
         else (currentBlock - 5).coerceAtLeast(0)..(currentBlock + 60).coerceAtMost(lastBlock)
         return TextAnchor.locate(book.blocks, book.chapters, selected, near)
             ?: TextAnchor.locate(book.blocks, book.chapters, selected, 0..lastBlock)
@@ -438,18 +554,18 @@ fun ReaderView(
         scope.launch {
             val selected = readSelection(clipboard, copy, keepInClipboard = action == SelectionAction.COPY)
             if (selected == null) {
-                notice = "Не удалось получить выделенный текст"
+                notice = getString(Res.string.could_not_get_the_selected_text)
                 return@launch
             }
             when (action) {
-                SelectionAction.COPY -> notice = "Скопировано"
+                SelectionAction.COPY -> notice = getString(Res.string.copied)
                 SelectionAction.QUOTE, SelectionAction.NOTE -> {
                     val anchor = locateSelection(selected)
                     when {
-                        entry == null || anchor == null -> notice = "Это место не удалось сохранить: выделите текст книги"
+                        entry == null || anchor == null -> notice = getString(Res.string.this_place_could_not_be_saved)
                         action == SelectionAction.QUOTE -> {
                             AppGraph.annotations.add(entry, anchor)
-                            notice = "Цитата сохранена"
+                            notice = getString(Res.string.quote_saved)
                         }
                         else -> noteDraft = anchor
                     }
@@ -458,18 +574,18 @@ fun ReaderView(
                     val at = locateSelection(selected)?.block
                     val title = selected.trim().replace(Regex("\\s+"), " ").take(90)
                     if (onChaptersChanged == null || at == null || title.isEmpty()) {
-                        notice = "Это место не удалось отметить: выделите текст книги"
+                        notice = getString(Res.string.this_place_could_not_be_marked)
                     } else {
                         onChaptersChanged(
                             (book.chapters.filter { it.startBlock != at } + com.localdoc.ai.book.Chapter(title, at)).sortedBy { it.startBlock }
                         )
-                        notice = "Начало главы отмечено"
+                        notice = getString(Res.string.chapter_start_marked)
                     }
                 }
                 SelectionAction.WORD -> {
                     val word = WordSelection.wordOf(selected)
                     if (word == null) {
-                        notice = "Выделите одно слово или короткое выражение"
+                        notice = getString(Res.string.select_a_single_word_or_a)
                     } else {
                         val block = locateSelection(word)?.block ?: currentBlock
                         wordLookup = word to WordSelection.sentenceAround(book.blocks.getOrNull(block)?.text.orEmpty(), word)
@@ -485,22 +601,23 @@ fun ReaderView(
     fun runAi(action: ReaderAiAction, term: String? = null) {
         showAi = true
         if (AppGraph.isGenerating.value || AppGraph.loadedModelId.value == null) return
+        scope.launch {
         val pageText = pageBlocks(page).joinToString("\n\n") { it.text }
         val (fragment, prompt, label) = when (action) {
-            ReaderAiAction.SUMMARIZE_PAGE -> Triple(pageText, "Кратко перескажи этот фрагмент в 3–5 пунктах.", action.label)
+            ReaderAiAction.SUMMARIZE_PAGE -> Triple(pageText, getString(Res.string.briefly_retell_this_passage_in_3), getString(action.label))
             ReaderAiAction.KEY_POINTS -> {
                 val start = book.chapters.getOrNull(chapterIndex)?.startBlock ?: 0
                 val end = book.chapters.getOrNull(chapterIndex + 1)?.startBlock ?: book.blocks.size
                 Triple(
                     book.blocks.subList(start.coerceAtMost(end), end).joinToString("\n\n") { it.text },
-                    "Найди главное в этом тексте: ключевые события, идеи, персонажей и выводы — списком.",
-                    action.label + (chapterTitle?.let { " — $it" } ?: "")
+                    getString(Res.string.find_the_main_points_in_this),
+                    getString(action.label) + (chapterTitle?.let { " — $it" } ?: "")
                 )
             }
             ReaderAiAction.EXPLAIN_TERM -> Triple(
                 pageText,
-                "Объясни простыми словами, что означает «$term» в контексте этого фрагмента. Если в тексте нет пояснения — дай общее определение.",
-                "Объяснить: $term"
+                getString(Res.string.explain_in_plain_words_what_means, term.orEmpty()),
+                getString(Res.string.explain, term.orEmpty())
             )
         }
         AppGraph.addMessage(ChatMessage(ChatMessage.Role.USER, label))
@@ -521,15 +638,26 @@ fun ReaderView(
                 if (!handedOver) AppGraph.translator.release()
             }
         }
+        }
     }
 
     // Управление: листание зонами, свайпом и кнопками громкости, автопрокрутка, e-ink
     var autoScroll by remember { mutableStateOf(false) }
-    val reducedMotion = remember { ScreenControls.prefersReducedMotion }
+    val reducedMotion = reduceMotionEnabled()
     val animate = pageAnimationEnabled(settings.pageAnimation, settings.eInk, reducedMotion)
 
     fun turn(forward: Boolean) {
         scope.launch {
+            if (screenMode) {
+                val ref = screenRef ?: return@launch
+                val target = if (forward) screenLayout.next(ref) else screenLayout.previous(ref)
+                when {
+                    target != null -> screenPos = screenLayout.page(target).start
+                    forward && chapterNavigation?.hasNext == true && !screenLayout.hasMoreAfter(ref) -> chapterNavigation.onNext()
+                    !forward && chapterNavigation?.hasPrevious == true && ref.segment == 0 && ref.index == 0 -> chapterNavigation.onPrevious()
+                }
+                return@launch
+            }
             val canScroll = if (forward) listState.canScrollForward else listState.canScrollBackward
             when (pageTurn(forward, canScroll, pagedDisplay, page, pager.size)) {
                 PageTurn.SCROLL -> {
@@ -583,7 +711,7 @@ fun ReaderView(
 
     // Автопрокрутка: плавный сдвиг по кадрам; в конце страницы — следующая страница, в конце книги — остановка
     LaunchedEffect(autoScroll, pagedDisplay, pager) {
-        if (!autoScroll) return@LaunchedEffect
+        if (!autoScroll || screenMode) return@LaunchedEffect
         var lastNanos = withFrameNanos { it }
         var carry = 0f
         while (true) {
@@ -604,13 +732,15 @@ fun ReaderView(
     var turnDirection by remember { mutableStateOf(1) }
     var turns by remember { mutableStateOf(0) }
     var refreshPhase by remember { mutableStateOf(0) }
-    var shownPage by remember { mutableStateOf(page) }
-    LaunchedEffect(page) {
-        if (page == shownPage) return@LaunchedEffect
-        turnDirection = if (page > shownPage) 1 else -1
-        shownPage = page
+    // Ключ листания: у экранной страницы это место чтения (порядок не зависит от уточнения числа страниц)
+    val turnKey: Long = if (screenMode) screenPos.block * TURN_KEY_BLOCK + screenPos.offset else page.toLong()
+    var shownPage by remember { mutableStateOf(turnKey) }
+    LaunchedEffect(turnKey) {
+        if (turnKey == shownPage) return@LaunchedEffect
+        turnDirection = if (turnKey > shownPage) 1 else -1
+        shownPage = turnKey
         turns++
-        if (animate && pagedDisplay) {
+        if (animate && (pagedDisplay || screenMode)) {
             turnAnim.snapTo(0f)
             turnAnim.animateTo(1f, tween(PAGE_TURN_MS))
         } else {
@@ -628,16 +758,20 @@ fun ReaderView(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(paper.background)) {
-        CompositionLocalProvider(LocalTextToolbar provides textToolbar) {
-        key(selectionEpoch) { SelectionContainer {
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(top = 88.dp, bottom = 240.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .graphicsLayer {
+    fun toggleBookmarkHere() {
+        val bookmarked = entry ?: return
+        val block = if (pagedDisplay || screenMode) shownStart else currentBlock
+        AppGraph.bookmarks.toggle(
+            bookmarked, shownStart until shownEnd, block,
+            book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty(),
+            TextAnchor.ofBlock(book.blocks, book.chapters, block),
+            blockOf = { it.resolveBlock(book) }
+        )
+    }
+
+    // Жесты и анимация листания общие для прокрутки и экранных страниц
+    val readerGestures: Modifier = Modifier
+        .graphicsLayer {
                     alpha = turnAnim.value
                     translationX = (1f - turnAnim.value) * turnDirection * PAGE_TURN_SHIFT_DP.dp.toPx()
                 }
@@ -687,6 +821,44 @@ fun ReaderView(
                     }
                 }
                 .pointerInput(Unit) { detectTapGestures { offset -> tapNow(offset.x, size.width.toFloat()) } }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(paper.background).readerHotkeys { hotkey ->
+            when (hotkey) {
+                ReaderHotkey.NEXT -> turn(true)
+                ReaderHotkey.PREVIOUS -> turn(false)
+                ReaderHotkey.CONTENTS -> showToc = true
+                ReaderHotkey.BOOKMARK -> toggleBookmarkHere()
+                ReaderHotkey.PLAY_PAUSE -> AppGraph.readAloud.toggle()
+            }
+        }
+    ) {
+        CompositionLocalProvider(LocalTextToolbar provides textToolbar) {
+        key(selectionEpoch) { SelectionContainer {
+        if (screenMode) {
+            ScreenPageContent(
+                page = screenPage,
+                computing = screenState.computing,
+                book = book,
+                entryId = entryId,
+                settings = settings,
+                paper = paper,
+                speaking = speaking,
+                marksByBlock = marksByBlock,
+                label = screenLabel,
+                bottomInset = applyNavigationBarInsets,
+                onAreaSize = { areaSize = it },
+                onBlockTap = if (isMine) ({ block -> AppGraph.readAloud.jumpToBlock(block) }) else null,
+                onMarkTap = { id -> bookAnnotations.firstOrNull { it.id == id }?.let { noteEdit = it } },
+                modifier = readerGestures
+            )
+        } else LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(top = 88.dp, bottom = 240.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .then(readerGestures)
         ) {
             items(itemCount, key = { firstIndex + it }) { local ->
                 val index = firstIndex + local
@@ -701,7 +873,7 @@ fun ReaderView(
                         marks = if (translatedBlocks == null) marksByBlock[index].orEmpty() else emptyList(),
                         onTap = if (isMine) ({ AppGraph.readAloud.jumpToBlock(index) }) else null,
                         onMarkTap = { id -> bookAnnotations.firstOrNull { it.id == id }?.let { noteEdit = it } },
-                        modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = 24.dp)
+                        modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = settings.margin.dp)
                     )
                 }
             }
@@ -730,7 +902,7 @@ fun ReaderView(
                                 change.consume()
                                 live = brightnessAfterDrag(live, dy, size.height.toFloat())
                                 ScreenControls.setBrightness(live)
-                                notice = "Яркость ${(live * 100).toInt()}%"
+                                scope.launch { notice = getString(Res.string.brightness, (live * 100).toInt()) }
                             }
                         )
                     }
@@ -767,14 +939,14 @@ fun ReaderView(
                         modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 4.dp, vertical = 8.dp)
                     ) {
                         if (onBack != null) {
-                            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back)) }
                         } else {
                             Spacer(Modifier.width(12.dp))
                         }
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
                             Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                listOfNotNull(chapterTitle, "стр. ${page + 1}/${pager.size}", "$percent%").joinToString(" · "),
+                                listOfNotNull(chapterTitle, stringResource(Res.string.page_short, if (screenMode) screenLabel ?: "…" else "${page + 1}/${pager.size}"), "$percent%").joinToString(" · "),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -783,61 +955,55 @@ fun ReaderView(
                         }
                         topBarActions()
                         if (entry != null) {
-                            IconButton(onClick = {
-                                val block = if (pagedDisplay) pageInfo.startBlock else currentBlock
-                                AppGraph.bookmarks.toggle(
-                                    entry, pageInfo.startBlock until pageInfo.endBlock, block,
-                                    book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty(),
-                                    TextAnchor.ofBlock(book.blocks, book.chapters, block),
-                                    blockOf = { it.resolveBlock(book) }
-                                )
-                            }) {
+                            IconButton(onClick = { toggleBookmarkHere() }) {
                                 Icon(
                                     if (pageBookmark != null) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                    contentDescription = if (pageBookmark != null) "Убрать закладку" else "Добавить закладку",
+                                    contentDescription = if (pageBookmark != null) stringResource(Res.string.remove_bookmark) else stringResource(Res.string.add_bookmark),
                                     tint = if (pageBookmark != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                        IconButton(onClick = { showVoice = true }) { Icon(Icons.Default.RecordVoiceOver, contentDescription = "Голос и озвучка") }
+                        IconButton(onClick = { showVoice = true }) { Icon(Icons.Default.RecordVoiceOver, contentDescription = stringResource(Res.string.voice_and_speech)) }
                         Box {
-                            IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Ещё") }
+                            IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.more)) }
                             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                                 if (book.chapters.isNotEmpty()) {
-                                    DropdownMenuItem(text = { Text("Оглавление") }, onClick = { showMenu = false; showToc = true })
+                                    DropdownMenuItem(text = { Text(stringResource(Res.string.contents)) }, onClick = { showMenu = false; showToc = true })
                                 }
                                 if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
-                                    DropdownMenuItem(text = { Text("Главы и оглавление…") }, onClick = { showMenu = false; showChapters = true })
+                                    DropdownMenuItem(text = { Text(stringResource(Res.string.chapters_and_contents)) }, onClick = { showMenu = false; showChapters = true })
                                 }
-                                DropdownMenuItem(text = { Text("Закладки") }, onClick = { showMenu = false; showBookmarks = true })
+                                DropdownMenuItem(text = { Text(stringResource(Res.string.bookmarks)) }, onClick = { showMenu = false; showBookmarks = true })
                                 if (entry != null) {
                                     DropdownMenuItem(
-                                        text = { Text("Цитаты и заметки" + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "") },
+                                        text = { Text(stringResource(Res.string.quotes_and_notes) + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "") },
                                         onClick = { showMenu = false; showAnnotations = true }
                                     )
                                 }
                                 DropdownMenuItem(
-                                    text = { Text(if (translating) "Перевод: включён" else "Перевод…") },
+                                    text = { Text(if (translating) stringResource(Res.string.translation_on) else stringResource(Res.string.translation_3)) },
                                     onClick = { showMenu = false; showTranslate = true }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(if (settings.paged) "Читать прокруткой" else "Читать по страницам") },
+                                    text = { Text(if (settings.paged) stringResource(Res.string.read_by_scrolling) else stringResource(Res.string.read_page_by_page)) },
                                     onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(if (autoScroll) "Остановить автопрокрутку" else "Автопрокрутка") },
-                                    onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
-                                )
-                                DropdownMenuItem(text = { Text("Шрифт и фон") }, onClick = { showMenu = false; showSettings = true })
+                                if (!screenMode) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll)) },
+                                        onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
+                                    )
+                                }
+                                DropdownMenuItem(text = { Text(stringResource(Res.string.font_and_background)) }, onClick = { showMenu = false; showSettings = true })
                                 if (entry != null) {
                                     DropdownMenuItem(
-                                        text = { Text(if (book.format == com.localdoc.ai.book.BookFormat.WEB) "Скачать книгу целиком…" else "Сохранить как…") },
+                                        text = { Text(if (book.format == com.localdoc.ai.book.BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as)) },
                                         onClick = { showMenu = false; showSaveAs = true }
                                     )
                                 }
                                 if (chapterNavigation != null) {
                                     DropdownMenuItem(
-                                        text = { Text(if (settings.autoNext) "Автопереход: включён" else "Автопереход к следующей главе") },
+                                        text = { Text(if (settings.autoNext) stringResource(Res.string.auto_advance_on) else stringResource(Res.string.auto_advance_to_the_next_chapter_2)) },
                                         onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(autoNext = !it.autoNext) } }
                                     )
                                 }
@@ -848,7 +1014,7 @@ fun ReaderView(
                         val done = translatedBlocks?.count { it != null } ?: 0
                         val total = pageInfo.blockCount
                         TranslationBanner(
-                            text = translationError ?: if (done >= total) "Перевод: ${target?.name.orEmpty()}" else "Переводим страницу… $done из $total",
+                            text = translationError ?: if (done >= total) stringResource(Res.string.translation_2, target?.name.orEmpty()) else stringResource(Res.string.translating_the_page_of, done, total),
                             isError = translationError != null,
                             onRetry = { retry++ },
                             onOff = { startTranslation(false) }
@@ -890,7 +1056,7 @@ fun ReaderView(
                     modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     ReaderAiAction.entries.forEach { action ->
-                        AiChip(action.shortLabel, action.icon) {
+                        AiChip(stringResource(action.shortLabel), action.icon) {
                             if (action == ReaderAiAction.EXPLAIN_TERM) askTerm = true else runAi(action)
                         }
                     }
@@ -905,9 +1071,9 @@ fun ReaderView(
                     exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
                 ) {
                     PageBar(
-                        page = page,
-                        pageCount = pager.size,
-                        showPageButtons = pagedDisplay,
+                        page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
+                        pageCount = if (screenMode) screenLayout.total else pager.size,
+                        showPageButtons = pagedDisplay || screenMode,
                         onSeek = ::seekPage,
                         onListen = ::listen,
                         onAskAi = { showAi = true }
@@ -922,7 +1088,7 @@ fun ReaderView(
         }
     }
 
-    if (showSettings) ReaderSettingsSheet(onDismiss = { showSettings = false })
+    if (showSettings) ReaderSettingsSheet(docKey = docKey, onDismiss = { showSettings = false })
     if (showSaveAs && entry != null) SaveAsDialog(entry = entry, onDismiss = { showSaveAs = false })
     if (showChapters && entry != null && onChaptersChanged != null) {
         ChaptersSheet(
@@ -949,7 +1115,7 @@ fun ReaderView(
     if (showTranslate) {
         TranslateSheet(
             enabled = translating,
-            status = if (translating) translationError ?: "Страница ${page + 1} из ${pager.size}" else null,
+            status = if (translating) translationError ?: stringResource(Res.string.page_of_2, page + 1, pager.size) else null,
             onToggle = ::startTranslation,
             onDismiss = { showTranslate = false },
             onOpenModels = { showTranslate = false; onOpenModels() }
@@ -957,7 +1123,7 @@ fun ReaderView(
     }
     if (showBookmarks) {
         BookmarksSheet(
-            title = "Закладки",
+            title = stringResource(Res.string.bookmarks),
             bookmarks = bookmarks.filter { it.entryId == entryId }.sortedBy { it.block },
             showBookTitle = false,
             onJump = { mark -> showBookmarks = false; goToBlock(mark.resolveBlock(book)) },
@@ -974,7 +1140,7 @@ fun ReaderView(
             },
             onEdit = { noteEdit = it },
             onDelete = { AppGraph.annotations.remove(it.id) },
-            onExport = { epub -> exportBookNotes(entryId, book.title, book.author, epub) { message -> if (message != null) notice = message } },
+            onExport = { epub -> exportBookNotes(scope, entryId, book.title, book.author, epub) { message -> if (message != null) notice = message } },
             onDismiss = { showAnnotations = false }
         )
     }
@@ -987,7 +1153,7 @@ fun ReaderView(
             onSave = { text, color ->
                 entry?.let { AppGraph.annotations.add(it, anchor, text, color) }
                 noteDraft = null
-                notice = "Заметка сохранена"
+                scope.launch { notice = getString(Res.string.note_saved) }
             }
         )
     }
@@ -1029,9 +1195,9 @@ fun ReaderView(
     }
     TextInputDialog(
         visible = askTerm,
-        title = "Объяснить термин",
-        placeholder = "Слово или выражение из текста",
-        confirmLabel = "Спросить",
+        title = stringResource(Res.string.explain_a_term),
+        placeholder = stringResource(Res.string.a_word_or_phrase_from_the),
+        confirmLabel = stringResource(Res.string.ask),
         onDismiss = { askTerm = false },
         onConfirm = { term ->
             askTerm = false
@@ -1061,6 +1227,7 @@ private const val AUTO_NEXT_DELAY_MS = 2_500L
 
 /** Листание зоной или кнопкой прокручивает почти экран: последняя строка остаётся на виду. */
 private const val SCREEN_SCROLL_FRACTION = 0.9f
+private const val TURN_KEY_BLOCK = 1_000_000L
 private const val PAGE_TURN_MS = 240
 private const val PAGE_TURN_SHIFT_DP = 40
 private const val EINK_FLASH_MS = 120L
@@ -1070,7 +1237,6 @@ private const val BRIGHTNESS_STRIP_DP = 28
 private const val DEFAULT_BRIGHTNESS = 0.5f
 /** Дольше этого нажатие на подсветку — выделение текста, а не открытие заметки. */
 private const val MARK_TAP_MAX_MS = 400L
-private const val LIST_BULLET = "•  "
 
 /** Полоса состояния перевода под верхней панелью: прогресс страницы или ошибка с повтором. */
 @Composable
@@ -1085,8 +1251,8 @@ private fun TranslationBanner(text: String, isError: Boolean, onRetry: () -> Uni
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            if (isError) TextButton(onClick = onRetry) { Text("Повторить", maxLines = 1, softWrap = false) }
-            TextButton(onClick = onOff) { Text("Выключить", maxLines = 1, softWrap = false) }
+            if (isError) TextButton(onClick = onRetry) { Text(stringResource(Res.string.repeat), maxLines = 1, softWrap = false) }
+            TextButton(onClick = onOff) { Text(stringResource(Res.string.turn_off), maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -1112,14 +1278,14 @@ private fun ChapterEndCard(stop: ReadAloudStop, hasNextPage: Boolean, onContinue
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)) {
             Text(
-                if (stop == ReadAloudStop.CHAPTER_END) "Глава закончилась — озвучка на паузе." else "Конец главы — озвучка остановлена.",
+                if (stop == ReadAloudStop.CHAPTER_END) stringResource(Res.string.the_chapter_has_ended_speech_is) else stringResource(Res.string.end_of_chapter_speech_stopped),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.weight(1f)
             )
             when {
-                stop == ReadAloudStop.CHAPTER_END -> TextButton(onClick = onContinue) { Text("Читать дальше") }
-                hasNextPage -> TextButton(onClick = onNextPage) { Text("Следующая глава") }
+                stop == ReadAloudStop.CHAPTER_END -> TextButton(onClick = onContinue) { Text(stringResource(Res.string.keep_reading)) }
+                hasNextPage -> TextButton(onClick = onNextPage) { Text(stringResource(Res.string.next_chapter)) }
             }
         }
     }
@@ -1135,15 +1301,15 @@ private fun ChapterFooter(nav: ChapterNavigation, paper: PaperColors) {
         itemVerticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp)
     ) {
-        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text("← Назад", maxLines = 1, softWrap = false) }
-        nav.onTableOfContents?.let { TextButton(onClick = it) { Text("Оглавление", color = paper.text, maxLines = 1, softWrap = false) } }
-        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text("Далее →", maxLines = 1, softWrap = false) }
+        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text(stringResource(Res.string.back_2), maxLines = 1, softWrap = false) }
+        nav.onTableOfContents?.let { TextButton(onClick = it) { Text(stringResource(Res.string.contents), color = paper.text, maxLines = 1, softWrap = false) } }
+        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text(stringResource(Res.string.next), maxLines = 1, softWrap = false) }
     }
 }
 
 /** Один блок текста с типографикой читалки, Markdown-выделениями и подсветкой предложения. */
 @Composable
-private fun BlockText(
+internal fun BlockText(
     block: Block,
     entryId: String?,
     referer: String?,
@@ -1153,54 +1319,44 @@ private fun BlockText(
     marks: List<TextMark>,
     onTap: (() -> Unit)?,
     onMarkTap: (String) -> Unit,
-    modifier: Modifier
+    modifier: Modifier,
+    /** Блок разрезан страницей: без верхнего (продолжение) или нижнего (перенос) отступа. */
+    continuesPrev: Boolean = false,
+    continuesNext: Boolean = false
 ) {
     if (block.type == BlockType.IMAGE) {
         block.image?.let { BookImage(entryId, it, block.text, referer, modifier.padding(vertical = 8.dp)) }
         return
     }
-    val family = if (settings.font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif
-    val base = settings.fontSize
+    val custom by produceState(AppGraph.fonts.cached(settings.fontFile), settings.fontFile) { value = AppGraph.fonts.load(settings.fontFile) }
+    val family = readerFamily(settings, custom)
     val highlightColor = if (paper.background.luminance() < 0.3f) paper.highlight.copy(alpha = 0.8f) else paper.highlight
-    val style = when (block.type) {
-        BlockType.HEADING -> TextStyle(
-            fontFamily = family,
-            fontSize = (base * if (block.level <= 1) 1.5f else 1.25f).sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = (base * 1.9f).sp
-        )
-        BlockType.QUOTE -> TextStyle(fontFamily = family, fontSize = base.sp, fontStyle = FontStyle.Italic, lineHeight = (base * settings.lineHeight).sp)
-        BlockType.CODE -> TextStyle(fontFamily = FontFamily.Monospace, fontSize = (base * 0.82f).sp, lineHeight = (base * 1.35f).sp)
-        BlockType.LIST_ITEM, BlockType.PARAGRAPH, BlockType.IMAGE -> TextStyle(fontFamily = family, fontSize = base.sp, lineHeight = (base * settings.lineHeight).sp)
-    }
-    val topPadding = when (block.type) {
-        BlockType.HEADING -> if (block.level <= 1) 28.dp else 18.dp
-        BlockType.QUOTE, BlockType.CODE -> 6.dp
-        else -> 0.dp
-    }
-    val bottomPadding = if (block.type == BlockType.HEADING) 10.dp else (base * 0.7f).dp
+    val insets = blockInsets(block, settings)
+    val isCode = block.type == BlockType.CODE
+    // Рамка кода на разрезе страницы открыта: её вертикальный отступ остаётся только у настоящего края
+    val topPadding = if (continuesPrev) 0.dp else (insets.top - if (isCode) CODE_PADDING_DP else 0f).dp
+    val bottomPadding = if (continuesNext) 0.dp else (insets.bottom - if (isCode) CODE_PADDING_DP else 0f).dp
     val text = buildBlockText(block, highlight, highlightColor, marks)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val bulletLength = if (block.type == BlockType.LIST_ITEM) LIST_BULLET.length else 0
     Text(
         text = if (block.type == BlockType.LIST_ITEM) AnnotatedString(LIST_BULLET) + text else text,
         onTextLayout = { layout = it },
-        style = style.copy(
-            color = if (block.type == BlockType.QUOTE) paper.secondary else paper.text,
-            textAlign = if (settings.justify && block.type == BlockType.PARAGRAPH) TextAlign.Justify else TextAlign.Start
-        ),
+        style = blockTextStyle(block, settings, family, if (block.type == BlockType.QUOTE) paper.secondary else paper.text),
         modifier = modifier
             .fillMaxWidth()
             .padding(top = topPadding, bottom = bottomPadding)
             .then(
                 when (block.type) {
-                    BlockType.CODE -> Modifier.background(paper.secondary.copy(alpha = 0.1f), RoundedCornerShape(8.dp)).padding(12.dp)
-                    BlockType.QUOTE -> Modifier.padding(start = 12.dp)
-                    BlockType.LIST_ITEM -> Modifier.padding(start = (block.level.coerceAtMost(4) * 16).dp)
+                    BlockType.CODE -> Modifier.background(paper.secondary.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = CODE_PADDING_DP.dp)
+                        .padding(top = if (continuesPrev) 0.dp else CODE_PADDING_DP.dp, bottom = if (continuesNext) 0.dp else CODE_PADDING_DP.dp)
+                    BlockType.QUOTE -> Modifier.padding(start = QUOTE_INDENT_DP.dp)
+                    BlockType.LIST_ITEM -> Modifier.padding(start = insets.start.dp)
                     else -> Modifier
                 }
             )
-            .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
+            .then(if (onTap != null) Modifier.clickable(role = Role.Button, onClick = onTap) else Modifier)
             // Нажатие на подсвеченное место открывает заметку; стоит последним, чтобы сработать раньше остальных нажатий
             .then(
                 if (marks.isEmpty()) Modifier else Modifier.pointerInput(marks, bulletLength) {
@@ -1219,7 +1375,7 @@ private fun BlockText(
     )
 }
 
-private fun buildBlockText(
+internal fun buildBlockText(
     block: Block,
     highlight: SpeechSegment?,
     highlightColor: Color,

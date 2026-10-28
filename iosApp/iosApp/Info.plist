@@ -30,6 +30,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Микрофон нужен для голосовых команд чтения («дальше», «назад», «пауза»). Функция выключена, пока вы её не включите.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Команды распознаются на устройстве, без отправки звука в сеть.</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Не требуется</string>
 	<key>UIRequiresFullScreen</key>
@@ -37,6 +41,11 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.localdoc.ai.novelupdates</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

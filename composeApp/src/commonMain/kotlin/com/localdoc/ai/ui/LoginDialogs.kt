@@ -1,5 +1,19 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.done
+import com.localdoc.ai.resources.in_the_browser
+import com.localdoc.ai.resources.login_or_e_mail
+import com.localdoc.ai.resources.password
+import com.localdoc.ai.resources.sign_in
+import com.localdoc.ai.resources.sign_in_page
+import com.localdoc.ai.resources.sign_in_to
+import com.localdoc.ai.resources.sign_in_to_the_site_then
+import com.localdoc.ai.resources.signing_in
+import com.localdoc.ai.resources.the_site_asks_for_a_check
+import com.localdoc.ai.resources.this_page_is_available_after_signing
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -61,38 +75,37 @@ private fun LoginDialog(request: LoginRequest, busy: Boolean, onBrowser: () -> U
     var loginUrl by remember(request.host) { mutableStateOf(request.loginUrl) }
     AlertDialog(
         onDismissRequest = { if (!busy) AppGraph.webSession.dismissLogin() },
-        title = { Text("Вход на ${request.host}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        title = { Text(stringResource(Res.string.sign_in_to, request.host), maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "Эта страница доступна после входа. Логин и пароль хранятся только на устройстве, в защищённом хранилище; " +
-                        "их можно стереть кнопкой «Забыть сайт» в Настройках.",
+                    stringResource(Res.string.this_page_is_available_after_signing),
                     style = MaterialTheme.typography.bodySmall
                 )
                 request.message?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-                OutlinedTextField(login, { login = it }, label = { Text("Логин или e-mail") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(login, { login = it }, label = { Text(stringResource(Res.string.login_or_e_mail)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
-                    password, { password = it }, label = { Text("Пароль") }, singleLine = true,
+                    password, { password = it }, label = { Text(stringResource(Res.string.password)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(loginUrl, { loginUrl = it }, label = { Text("Страница входа") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(loginUrl, { loginUrl = it }, label = { Text(stringResource(Res.string.sign_in_page)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 if (busy) Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.padding(end = 12.dp))
-                    Text("Входим…")
+                    Text(stringResource(Res.string.signing_in))
                 }
             }
         },
         confirmButton = {
             TextButton(enabled = !busy && login.isNotBlank() && password.isNotEmpty(), onClick = { AppGraph.webSession.submitLogin(loginUrl.trim(), login, password) }) {
-                Text("Войти", maxLines = 1, softWrap = false)
+                Text(stringResource(Res.string.sign_in), maxLines = 1, softWrap = false)
             }
         },
         dismissButton = {
             Row {
-                TextButton(enabled = !busy, onClick = onBrowser) { Text("В браузере", maxLines = 1, softWrap = false) }
-                TextButton(enabled = !busy, onClick = { AppGraph.webSession.dismissLogin() }) { Text("Отмена", maxLines = 1, softWrap = false) }
+                TextButton(enabled = !busy, onClick = onBrowser) { Text(stringResource(Res.string.in_the_browser), maxLines = 1, softWrap = false) }
+                TextButton(enabled = !busy, onClick = { AppGraph.webSession.dismissLogin() }) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) }
             }
         }
     )
@@ -107,15 +120,15 @@ private fun LoginBrowserDialog(request: LoginRequest, onDone: () -> Unit, onCanc
         Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().statusBarsPadding()) {
                 Text(
-                    if (request.browserOnly) "Сайт просит пройти проверку (например, капчу). Пройдите её сами и войдите, затем нажмите «Готово»."
-                    else "Войдите на сайт, затем нажмите «Готово» — приложение заберёт сессию.",
+                    if (request.browserOnly) stringResource(Res.string.the_site_asks_for_a_check)
+                    else stringResource(Res.string.sign_in_to_the_site_then),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(12.dp)
                 )
                 request.message?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp)) }
                 LoginBrowser(url = request.loginUrl, controller = controller, modifier = Modifier.weight(1f).fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-                    TextButton(onClick = onCancel) { Text("Отмена", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = onCancel) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) }
                     TextButton(onClick = {
                         scope.launch {
                             val url = controller.currentUrl.ifBlank { request.loginUrl }
@@ -123,7 +136,7 @@ private fun LoginBrowserDialog(request: LoginRequest, onDone: () -> Unit, onCanc
                             AppGraph.webSession.finishBrowserLogin(url, cookies)
                             onDone()
                         }
-                    }) { Text("Готово", maxLines = 1, softWrap = false) }
+                    }) { Text(stringResource(Res.string.done), maxLines = 1, softWrap = false) }
                 }
             }
         }

@@ -2,6 +2,48 @@
 
 package com.localdoc.ai.ui
 
+import androidx.compose.ui.semantics.Role
+import com.localdoc.ai.resources.add_to_collection
+import com.localdoc.ai.resources.add_to_library
+import com.localdoc.ai.resources.added_to_the_library
+import com.localdoc.ai.resources.adding_books
+import com.localdoc.ai.resources.adding_books_of
+import com.localdoc.ai.resources.allow_all_files_access_in_the
+import com.localdoc.ai.resources.and_txt_html_md_xml
+import com.localdoc.ai.resources.back
+import com.localdoc.ai.resources.books_on_this_device
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.clear
+import com.localdoc.ai.resources.clear_selection
+import com.localdoc.ai.resources.could_not_open_the_file
+import com.localdoc.ai.resources.create
+import com.localdoc.ai.resources.delete_collection
+import com.localdoc.ai.resources.failed
+import com.localdoc.ai.resources.files
+import com.localdoc.ai.resources.find_books
+import com.localdoc.ai.resources.folder_or_location
+import com.localdoc.ai.resources.for_example_summer_reading
+import com.localdoc.ai.resources.found
+import com.localdoc.ai.resources.found_2
+import com.localdoc.ai.resources.got_it
+import com.localdoc.ai.resources.hide_added
+import com.localdoc.ai.resources.in_library
+import com.localdoc.ai.resources.new_collection
+import com.localdoc.ai.resources.no_collections_yet_select_books_and
+import com.localdoc.ai.resources.remove_from_the_catalog
+import com.localdoc.ai.resources.scan_again
+import com.localdoc.ai.resources.scan_the_device_or_pick_a
+import com.localdoc.ai.resources.search_the_catalog
+import com.localdoc.ai.resources.select_all
+import com.localdoc.ai.resources.selected
+import com.localdoc.ai.resources.sort
+import com.localdoc.ai.resources.stop
+import com.localdoc.ai.resources.the_app_will_scan_files_and
+import com.localdoc.ai.resources.the_catalog_is_empty
+import com.localdoc.ai.resources.whole_device
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -95,8 +137,8 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
 
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
-            Text("Книги на устройстве", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back)) }
+            Text(stringResource(Res.string.books_on_this_device), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
             item { ScanCard(roots = roots, scanRunning = scan.running, includeText = includeText, onIncludeText = { includeText = it }) }
@@ -105,10 +147,10 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                     Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             if (scan.running) {
-                                Text(scan.phase + if (scan.found > 0) " · найдено: ${scan.found}" else "", style = MaterialTheme.typography.titleSmall)
+                                Text(scan.phase + if (scan.found > 0) " " + stringResource(Res.string.found, scan.found) else "", style = MaterialTheme.typography.titleSmall)
                                 if (scan.total > 0) LinearProgressIndicator(progress = { scan.processed.toFloat() / scan.total }, modifier = Modifier.fillMaxWidth())
                                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                                OutlinedButton(onClick = { AppGraph.catalog.cancel() }) { Text("Остановить", maxLines = 1, softWrap = false) }
+                                OutlinedButton(onClick = { AppGraph.catalog.cancel() }) { Text(stringResource(Res.string.stop), maxLines = 1, softWrap = false) }
                             } else {
                                 Text(scan.message.orEmpty(), style = MaterialTheme.typography.bodyMedium)
                             }
@@ -120,8 +162,8 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                 item {
                     EmptyState(
                         icon = Icons.Default.Folder,
-                        title = "Каталог пуст",
-                        text = "Просканируйте устройство или выберите папку — найденные книги появятся на полках по авторам, жанрам и годам."
+                        title = stringResource(Res.string.the_catalog_is_empty),
+                        text = stringResource(Res.string.scan_the_device_or_pick_a)
                     )
                 }
             } else {
@@ -129,15 +171,15 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                     GooglePillField(
                         value = filter.query,
                         onValueChange = { filter = filter.copy(query = it) },
-                        placeholder = "Поиск по каталогу",
+                        placeholder = stringResource(Res.string.search_the_catalog),
                         leadingIcon = Icons.Default.Search,
-                        trailing = { if (filter.query.isNotEmpty()) IconButton(onClick = { filter = filter.copy(query = "") }) { Icon(Icons.Default.Close, contentDescription = "Очистить") } }
+                        trailing = { if (filter.query.isNotEmpty()) IconButton(onClick = { filter = filter.copy(query = "") }) { Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.clear)) } }
                     )
                 }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         ShelfKind.entries.forEach { kind ->
-                            FilterChip(selected = filter.kind == kind, onClick = { filter = filter.copy(kind = kind, value = null) }, label = { Text(kind.label, maxLines = 1, softWrap = false) })
+                            FilterChip(selected = filter.kind == kind, onClick = { filter = filter.copy(kind = kind, value = null) }, label = { Text(stringResource(kind.label), maxLines = 1, softWrap = false) })
                         }
                     }
                 }
@@ -152,31 +194,31 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                                 )
                             }
                             if (filter.kind == ShelfKind.MINE && shelfValues.isEmpty()) {
-                                Text("Подборок пока нет: отметьте книги и нажмите «В подборку».", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(Res.string.no_collections_yet_select_books_and), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
                 }
                 item {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-                        Text("Найдено: ${shown.size}", style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(Res.string.found_2, shown.size), style = MaterialTheme.typography.labelLarge)
                         Box {
-                            FilterChip(selected = false, onClick = { sortMenu = true }, label = { Text("Сортировка: ${filter.sort.label}", maxLines = 1, softWrap = false) })
+                            FilterChip(selected = false, onClick = { sortMenu = true }, label = { Text(stringResource(Res.string.sort, stringResource(filter.sort.label)), maxLines = 1, softWrap = false) })
                             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                 CatalogSort.entries.forEach { sort ->
-                                    DropdownMenuItem(text = { Text(sort.label) }, onClick = { sortMenu = false; filter = filter.copy(sort = sort) })
+                                    DropdownMenuItem(text = { Text(stringResource(sort.label)) }, onClick = { sortMenu = false; filter = filter.copy(sort = sort) })
                                 }
                             }
                         }
-                        FilterChip(selected = filter.hideAdded, onClick = { filter = filter.copy(hideAdded = !filter.hideAdded) }, label = { Text("Скрыть добавленные", maxLines = 1, softWrap = false) })
+                        FilterChip(selected = filter.hideAdded, onClick = { filter = filter.copy(hideAdded = !filter.hideAdded) }, label = { Text(stringResource(Res.string.hide_added), maxLines = 1, softWrap = false) })
                         if (filter.kind == ShelfKind.MINE && filter.value != null) {
                             TextButton(onClick = { AppGraph.catalog.deleteShelf(filter.value.orEmpty()); filter = filter.copy(value = null) }) {
-                                Text("Удалить подборку", maxLines = 1, softWrap = false)
+                                Text(stringResource(Res.string.delete_collection), maxLines = 1, softWrap = false)
                             }
                         }
                         if (shown.isNotEmpty()) {
                             TextButton(onClick = { selected = if (selected.containsAll(shown.map { it.uri })) emptySet() else shown.map { it.uri }.toSet() }) {
-                                Text(if (selected.containsAll(shown.map { it.uri })) "Снять выбор" else "Выбрать все", maxLines = 1, softWrap = false)
+                                Text(if (selected.containsAll(shown.map { it.uri })) stringResource(Res.string.clear_selection) else stringResource(Res.string.select_all), maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -192,7 +234,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                                 val result = AppGraph.addFromCatalog(listOf(item))
                                 importing = null
                                 if (result.added == 1) AppGraph.catalog.items.value.firstOrNull { it.uri == item.uri }?.libraryId?.let(AppGraph.library::entry)?.let(onOpenEntry)
-                                else report = result.failed.firstOrNull() ?: "Не удалось открыть файл"
+                                else report = result.failed.firstOrNull() ?: getString(Res.string.could_not_open_the_file)
                             }
                         }
                     )
@@ -205,19 +247,19 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
                     itemVerticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Text("Выбрано: ${selected.size}", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(Res.string.selected, selected.size), style = MaterialTheme.typography.labelLarge)
                     Button(onClick = {
                         val chosen = items.filter { it.uri in selected }
                         scope.launch {
-                            importing = "Добавляем книги"
-                            val result = AppGraph.addFromCatalog(chosen) { done, total -> importing = "Добавляем книги: $done из $total" }
+                            importing = getString(Res.string.adding_books)
+                            val result = AppGraph.addFromCatalog(chosen) { done, total -> scope.launch { importing = getString(Res.string.adding_books_of, done, total) } }
                             importing = null
                             selected = emptySet()
-                            report = "Добавлено в библиотеку: ${result.added}" + if (result.failed.isNotEmpty()) ". Не удалось: ${result.failed.size} (${result.failed.first()})" else ""
+                            report = getString(Res.string.added_to_the_library, result.added) + if (result.failed.isNotEmpty()) getString(Res.string.failed, result.failed.size, result.failed.first()) else ""
                         }
-                    }) { Text("В библиотеку", maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { newShelf = true }) { Text("В подборку…", maxLines = 1, softWrap = false) }
-                    TextButton(onClick = { selected = emptySet() }) { Text("Отмена", maxLines = 1, softWrap = false) }
+                    }) { Text(stringResource(Res.string.add_to_library), maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = { newShelf = true }) { Text(stringResource(Res.string.add_to_collection), maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { selected = emptySet() }) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) }
                 }
             }
         }
@@ -226,9 +268,9 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
     if (newShelf) {
         TextInputDialog(
             visible = true,
-            title = "Новая подборка",
-            placeholder = "Например: «Прочитать летом»",
-            confirmLabel = "Создать",
+            title = stringResource(Res.string.new_collection),
+            placeholder = stringResource(Res.string.for_example_summer_reading),
+            confirmLabel = stringResource(Res.string.create),
             onDismiss = { newShelf = false },
             onConfirm = { name ->
                 newShelf = false
@@ -243,7 +285,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
         AlertDialog(
             onDismissRequest = { report = null },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { report = null }) { Text("Понятно", maxLines = 1, softWrap = false) } }
+            confirmButton = { TextButton(onClick = { report = null }) { Text(stringResource(Res.string.got_it), maxLines = 1, softWrap = false) } }
         )
     }
 }
@@ -259,41 +301,41 @@ private fun ScanCard(
     var needsAccess by remember { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Найти книги", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(Res.string.find_books), style = MaterialTheme.typography.titleMedium)
             Text(
-                "Приложение просмотрит файлы и составит каталог: книги останутся на своих местах, пока вы не добавите их в библиотеку.",
+                stringResource(Res.string.the_app_will_scan_files_and),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val wholeDeviceLabel = stringResource(Res.string.whole_device)
                 if (scanner.supportsWholeDevice) {
                     Button(enabled = !scanRunning, onClick = {
-                        if (scanner.hasAllFilesAccess()) AppGraph.catalog.scan(DEVICE_ROOT, "Всё устройство", includeText)
+                        if (scanner.hasAllFilesAccess()) AppGraph.catalog.scan(DEVICE_ROOT, wholeDeviceLabel, includeText)
                         else { needsAccess = true; scanner.requestAllFilesAccess() }
-                    }) { Text("Всё устройство", maxLines = 1, softWrap = false) }
+                    }) { Text(stringResource(Res.string.whole_device), maxLines = 1, softWrap = false) }
                 }
                 OutlinedButton(enabled = !scanRunning, onClick = {
                     scanner.pickFolder { root -> if (root != null) AppGraph.catalog.scan(root.id, root.title, includeText) }
-                }) { Text("Папка или ресурс…", maxLines = 1, softWrap = false) }
+                }) { Text(stringResource(Res.string.folder_or_location), maxLines = 1, softWrap = false) }
             }
             if (needsAccess) {
                 Text(
-                    "Разрешите «Доступ ко всем файлам» в открывшихся настройках, вернитесь и нажмите «Всё устройство» ещё раз. " +
-                        "Либо выберите папку — для неё разрешение не нужно.",
+                    stringResource(Res.string.allow_all_files_access_in_the),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            FilterChip(selected = includeText, onClick = { onIncludeText(!includeText) }, label = { Text("И TXT, HTML, MD, XML", maxLines = 1, softWrap = false) })
+            FilterChip(selected = includeText, onClick = { onIncludeText(!includeText) }, label = { Text(stringResource(Res.string.and_txt_html_md_xml), maxLines = 1, softWrap = false) })
             roots.forEach { root ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(root.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Файлов: ${root.files}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(Res.string.files, root.files), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    IconButton(enabled = !scanRunning, onClick = { AppGraph.catalog.scan(root.id, root.title, includeText) }) { Icon(Icons.Default.Refresh, contentDescription = "Сканировать заново") }
-                    IconButton(enabled = !scanRunning, onClick = { AppGraph.catalog.forgetRoot(root.id) }) { Icon(Icons.Default.Delete, contentDescription = "Убрать из каталога") }
+                    IconButton(enabled = !scanRunning, onClick = { AppGraph.catalog.scan(root.id, root.title, includeText) }) { Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.scan_again)) }
+                    IconButton(enabled = !scanRunning, onClick = { AppGraph.catalog.forgetRoot(root.id) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.remove_from_the_catalog)) }
                 }
             }
         }
@@ -319,10 +361,10 @@ private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Uni
             Column(horizontalAlignment = Alignment.End) {
                 Text(item.format.label, style = MaterialTheme.typography.labelMedium)
                 Text(formatBytes(item.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                if (item.libraryId != null) Text("в библиотеке", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                if (item.libraryId != null) Text(stringResource(Res.string.in_library), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.clickable(onClick = onOpen)
+        modifier = Modifier.clickable(role = Role.Button, onClick = onOpen)
     )
 }

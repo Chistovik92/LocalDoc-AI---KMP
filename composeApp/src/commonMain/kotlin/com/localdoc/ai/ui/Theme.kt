@@ -100,6 +100,43 @@ private val DarkColors = darkColorScheme(
     inversePrimary = Color(0xFF0B57D0)
 )
 
+/** Высококонтрастные схемы: текст и границы не слабее 7:1 к фону. */
+private val HighContrastLight = lightColorScheme(
+    primary = Color(0xFF002D9C), onPrimary = Color.White,
+    primaryContainer = Color(0xFFD0E0FF), onPrimaryContainer = Color.Black,
+    secondary = Color(0xFF00334E), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFCDE9FF), onSecondaryContainer = Color.Black,
+    tertiary = Color(0xFF0B4A1E), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFC4EED0), onTertiaryContainer = Color.Black,
+    error = Color(0xFF8C0009), onError = Color.White,
+    errorContainer = Color(0xFFFFD9D6), onErrorContainer = Color.Black,
+    background = Color.White, onBackground = Color.Black,
+    surface = Color.White, onSurface = Color.Black,
+    surfaceVariant = Color(0xFFEDEDED), onSurfaceVariant = Color.Black,
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color.White, surfaceContainer = Color(0xFFF2F2F2),
+    surfaceContainerHigh = Color(0xFFE8E8E8), surfaceContainerHighest = Color(0xFFDEDEDE),
+    outline = Color.Black, outlineVariant = Color(0xFF3C3C3C),
+    inverseSurface = Color.Black, inverseOnSurface = Color.White, inversePrimary = Color(0xFFB5CBFF)
+)
+
+private val HighContrastDark = darkColorScheme(
+    primary = Color(0xFFCFE0FF), onPrimary = Color.Black,
+    primaryContainer = Color(0xFF1F3F8F), onPrimaryContainer = Color.White,
+    secondary = Color(0xFFBFE6FF), onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF1B4D6E), onSecondaryContainer = Color.White,
+    tertiary = Color(0xFFB4F0C5), onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF1F5A31), onTertiaryContainer = Color.White,
+    error = Color(0xFFFFB4AB), onError = Color.Black,
+    errorContainer = Color(0xFF7A1009), onErrorContainer = Color.White,
+    background = Color.Black, onBackground = Color.White,
+    surface = Color.Black, onSurface = Color.White,
+    surfaceVariant = Color(0xFF1A1A1A), onSurfaceVariant = Color.White,
+    surfaceContainerLowest = Color.Black, surfaceContainerLow = Color(0xFF0A0A0A), surfaceContainer = Color(0xFF141414),
+    surfaceContainerHigh = Color(0xFF1E1E1E), surfaceContainerHighest = Color(0xFF282828),
+    outline = Color.White, outlineVariant = Color(0xFFC8C8C8),
+    inverseSurface = Color.White, inverseOnSurface = Color.Black, inversePrimary = Color(0xFF002D9C)
+)
+
 private val GoogleShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),
     small = RoundedCornerShape(8.dp),
@@ -127,8 +164,12 @@ expect fun dynamicColorScheme(dark: Boolean): ColorScheme?
 @Composable
 fun LocalDocTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
+    val colors = when {
+        highContrastEnabled() -> if (dark) HighContrastDark else HighContrastLight
+        else -> dynamicColorScheme(dark) ?: if (dark) DarkColors else LightColors
+    }
     MaterialTheme(
-        colorScheme = dynamicColorScheme(dark) ?: if (dark) DarkColors else LightColors,
+        colorScheme = colors,
         shapes = GoogleShapes,
         typography = googleTypography(),
         content = content

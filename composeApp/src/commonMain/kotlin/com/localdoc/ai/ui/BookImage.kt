@@ -1,6 +1,9 @@
 package com.localdoc.ai.ui
 
 import androidx.compose.foundation.Image
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.illustration
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +30,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.domain.AppGraph
 
@@ -52,15 +56,15 @@ private fun rememberImage(entryId: String?, ref: String, maxDimension: Int, refe
  * пока грузится — заглушка, при ошибке — значок и подпись.
  */
 @Composable
-fun BookImage(entryId: String?, ref: String, caption: String, referer: String?, modifier: Modifier = Modifier, maxDimension: Int = 1280) {
+fun BookImage(entryId: String?, ref: String, caption: String, referer: String?, modifier: Modifier = Modifier, maxDimension: Int = 1280, maxHeight: Dp = 560.dp) {
     val state = rememberImage(entryId, ref, maxDimension, referer)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.fillMaxWidth()) {
         when (state) {
             is ImageState.Ready -> Image(
                 bitmap = state.bitmap,
-                contentDescription = caption.ifBlank { null },
+                contentDescription = caption.ifBlank { stringResource(Res.string.illustration) },
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).clip(RoundedCornerShape(8.dp))
+                modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).clip(RoundedCornerShape(8.dp))
             )
             ImageState.Loading -> Placeholder(Icons.Default.Image, 160)
             ImageState.Failed -> Placeholder(Icons.Default.BrokenImage, 72)

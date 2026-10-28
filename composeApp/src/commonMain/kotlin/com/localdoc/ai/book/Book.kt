@@ -13,14 +13,16 @@ enum class BookFormat(val label: String) {
     MARKDOWN("Markdown"),
     TEXT("TXT"),
     HTML("HTML"),
-    WEB("Веб"),
+    WEB("Web"),
     DOCX("DOCX"),
     DOC("DOC"),
     ODT("ODT"),
     RTF("RTF"),
     XML("XML"),
     WPS("WPS"),
-    PAGES("Pages")
+    PAGES("Pages"),
+    MOBI("Mobi / AZW3"),
+    CBZ("CBZ")
 }
 
 /** Тип блока текста — единица вёрстки, озвучки и прогресса чтения. */
@@ -69,6 +71,8 @@ data class Book(
     val cover: String? = null,
     /** Идентификаторы картинок, лежащих в хранилище книги (нужны, чтобы удалить их вместе с книгой). */
     val images: List<String> = emptyList(),
+    /** PDF: имя копии файла в хранилище приложения — по ней страницы рисуются картинками; null — копии нет, остаётся режим «текст». */
+    val pdfFile: String? = null,
     /**
      * Байты картинок в памяти (id → данные): заполняются разбором и при загрузке для экспорта;
      * в JSON библиотеки не попадают — картинки лежат отдельными файлами.

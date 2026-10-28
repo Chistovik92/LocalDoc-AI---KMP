@@ -1,5 +1,24 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.ad_free_reading_mode
+import com.localdoc.ai.resources.ai_summary
+import com.localdoc.ai.resources.enter_an_address_or_paste_a
+import com.localdoc.ai.resources.loading_the_page
+import com.localdoc.ai.resources.new_address
+import com.localdoc.ai.resources.no_ads_and_no_menus
+import com.localdoc.ai.resources.no_chapter_list_found_with_a
+import com.localdoc.ai.resources.novel_contents
+import com.localdoc.ai.resources.open
+import com.localdoc.ai.resources.open_in_browser
+import com.localdoc.ai.resources.open_page
+import com.localdoc.ai.resources.read_2
+import com.localdoc.ai.resources.recent_pages
+import com.localdoc.ai.resources.refresh_from_the_web
+import com.localdoc.ai.resources.repeat
+import com.localdoc.ai.resources.speech_with_highlighting
+import com.localdoc.ai.resources.web_novel_chapters
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,9 +118,9 @@ fun WebScreen(onOpenAssistant: () -> Unit, onOpenModels: () -> Unit) {
                 }
             ),
             topBarActions = {
-                IconButton(onClick = { askUrl = true }) { Icon(Icons.Default.Language, contentDescription = "Новый адрес") }
+                IconButton(onClick = { askUrl = true }) { Icon(Icons.Default.Language, contentDescription = stringResource(Res.string.new_address)) }
                 IconButton(onClick = { PlatformActions.openUrl(doc.book.source) }) {
-                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Открыть в браузере")
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = stringResource(Res.string.open_in_browser))
                 }
             }
         )
@@ -112,18 +131,18 @@ fun WebScreen(onOpenAssistant: () -> Unit, onOpenModels: () -> Unit) {
 
     if (showToc) {
         ModalBottomSheet(onDismissRequest = { showToc = false }) {
-            Text("Оглавление новеллы", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            Text(stringResource(Res.string.novel_contents), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             when {
                 tocLoading -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 toc.isEmpty() -> Column(Modifier.padding(24.dp)) {
                     Text(
-                        error ?: "Список глав не найден. С загруженной локальной моделью приложение попробует найти оглавление само.",
+                        error ?: stringResource(Res.string.no_chapter_list_found_with_a),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     AssistChip(
                         onClick = { session.clearError(); session.loadTableOfContents() },
-                        label = { Text("Повторить") },
+                        label = { Text(stringResource(Res.string.repeat)) },
                         leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
                         modifier = Modifier.padding(top = 12.dp)
                     )
@@ -148,13 +167,13 @@ fun WebScreen(onOpenAssistant: () -> Unit, onOpenModels: () -> Unit) {
 
     TextInputDialog(
         visible = askUrl,
-        title = "Открыть страницу",
+        title = stringResource(Res.string.open_page),
         placeholder = "https://…",
-        confirmLabel = "Открыть",
+        confirmLabel = stringResource(Res.string.open),
         onDismiss = { askUrl = false },
         onConfirm = { askUrl = false; session.open(it) }
     )
-    ProcessingDialog(loading?.let { "Загрузка страницы" }, subtitle = loading.orEmpty())
+    ProcessingDialog(loading?.let { stringResource(Res.string.loading_the_page) }, subtitle = loading.orEmpty())
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -179,18 +198,18 @@ private fun WebHome(onOpen: (String) -> Unit, onOpenSaved: (String) -> Unit, err
                 fontSize = 44.sp,
                 fontWeight = FontWeight.Medium
             )
-            Text("Режим чтения без рекламы", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(Res.string.ad_free_reading_mode), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(24.dp))
             GooglePillField(
                 value = address,
                 onValueChange = { address = it },
-                placeholder = "Введите адрес или вставьте ссылку",
+                placeholder = stringResource(Res.string.enter_an_address_or_paste_a),
                 leadingIcon = Icons.Default.Public,
                 imeAction = ImeAction.Go,
                 onSubmit = { if (address.isNotBlank()) onOpen(address) },
                 trailing = {
                     IconButton(onClick = { if (address.isNotBlank()) onOpen(address) }, enabled = address.isNotBlank()) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Открыть")
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(Res.string.open))
                     }
                 },
                 modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth()
@@ -200,7 +219,7 @@ private fun WebHome(onOpen: (String) -> Unit, onOpenSaved: (String) -> Unit, err
             }
             Spacer(Modifier.height(16.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), modifier = Modifier.widthIn(max = 640.dp)) {
-                listOf("Без рекламы и меню", "Главы веб-новелл", "Озвучка с подсветкой", "ИИ-пересказ").forEach { hint ->
+                listOf(stringResource(Res.string.no_ads_and_no_menus), stringResource(Res.string.web_novel_chapters), stringResource(Res.string.speech_with_highlighting), stringResource(Res.string.ai_summary)).forEach { hint ->
                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainer) {
                         Text(
                             hint,
@@ -216,7 +235,7 @@ private fun WebHome(onOpen: (String) -> Unit, onOpenSaved: (String) -> Unit, err
         if (recent.isNotEmpty()) {
             item {
                 Text(
-                    "Недавние страницы",
+                    stringResource(Res.string.recent_pages),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(vertical = 8.dp)
                 )
@@ -227,12 +246,12 @@ private fun WebHome(onOpen: (String) -> Unit, onOpenSaved: (String) -> Unit, err
                     supportingContent = {
                         Column {
                             Text(entry.author.ifBlank { entry.source }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (entry.progress > 0f) Text("Прочитано ${(entry.progress * 100).toInt()}%")
+                            if (entry.progress > 0f) Text(stringResource(Res.string.read_2, (entry.progress * 100).toInt()))
                         }
                     },
                     leadingContent = { Icon(Icons.Default.History, contentDescription = null) },
                     trailingContent = {
-                        IconButton(onClick = { onOpen(entry.source) }) { Icon(Icons.Default.Refresh, contentDescription = "Обновить из сети") }
+                        IconButton(onClick = { onOpen(entry.source) }) { Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.refresh_from_the_web)) }
                     },
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                     modifier = Modifier.widthIn(max = 640.dp).clickable { onOpenSaved(entry.id) }

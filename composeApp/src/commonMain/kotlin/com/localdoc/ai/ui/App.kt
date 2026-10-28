@@ -1,5 +1,32 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.assistant
+import com.localdoc.ai.resources.book_not_found_add_it_again
+import com.localdoc.ai.resources.books
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.could_not_open
+import com.localdoc.ai.resources.details
+import com.localdoc.ai.resources.download_and_install
+import com.localdoc.ai.resources.later
+import com.localdoc.ai.resources.loading
+import com.localdoc.ai.resources.now_reading
+import com.localdoc.ai.resources.open
+import com.localdoc.ai.resources.open_page
+import com.localdoc.ai.resources.opening_the_book
+import com.localdoc.ai.resources.paste_or_type_text
+import com.localdoc.ai.resources.paste_text
+import com.localdoc.ai.resources.preparing_the_text
+import com.localdoc.ai.resources.read
+import com.localdoc.ai.resources.settings
+import com.localdoc.ai.resources.shared_text
+import com.localdoc.ai.resources.the_book_was_deleted_the_link
+import com.localdoc.ai.resources.version_is_available
+import com.localdoc.ai.resources.web
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.file_is_corrupted
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +58,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,21 +83,24 @@ import com.localdoc.ai.notes.AnchorResolver
 import com.localdoc.ai.notes.Annotation
 import com.localdoc.ai.notes.TextAnchor
 import com.localdoc.ai.domain.IncomingDoc
+import com.localdoc.ai.platform.IoDispatcher
 import com.localdoc.ai.platform.FilePicker
 import com.localdoc.ai.platform.PlatformBackHandler
 import com.localdoc.ai.platform.SystemPlayer
 import com.localdoc.ai.ui.reader.PlayerBar
+import com.localdoc.ai.ui.reader.PdfPagesScreen
 import com.localdoc.ai.ui.reader.ReaderView
 import com.localdoc.ai.update.UpdateDownload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-private enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
-    Books("Книги", Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
-    Web("Веб", Icons.Outlined.Language, Icons.Filled.Language),
-    Assistant("Ассистент", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome),
-    Settings("Настройки", Icons.Outlined.Settings, Icons.Filled.Settings)
+private enum class Tab(val label: StringResource, val icon: ImageVector, val selectedIcon: ImageVector) {
+    Books(Res.string.books, Icons.AutoMirrored.Outlined.MenuBook, Icons.AutoMirrored.Filled.MenuBook),
+    Web(Res.string.web, Icons.Outlined.Language, Icons.Filled.Language),
+    Assistant(Res.string.assistant, Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome),
+    Settings(Res.string.settings, Icons.Outlined.Settings, Icons.Filled.Settings)
 }
 
 /** Открытая книга в читалке. */
@@ -90,6 +121,8 @@ fun App() {
         var settingsSection by remember { mutableStateOf<SettingsSection?>(null) }
         var showCatalog by remember { mutableStateOf(false) }
         val snackbar = remember { SnackbarHostState() }
+        // Расписание автообновления новелл пересчитывается при каждом запуске (на случай сброса планировщика системой)
+        LaunchedEffect(Unit) { AppGraph.autoUpdate.reschedule() }
         val scope = rememberCoroutineScope()
         val filePicker = remember { FilePicker() }
         val incoming by AppGraph.incoming.collectAsState()
@@ -106,12 +139,15 @@ fun App() {
             tab = Tab.Settings
         }
 
+        val openingBookLabel = stringResource(Res.string.opening_the_book)
+        val preparingTextLabel = stringResource(Res.string.preparing_the_text)
+
         fun open(entry: BookEntry, listen: Boolean = false) {
             scope.launch {
                 try {
                     val book = AppGraph.library.load(entry.id)
                     if (book == null) {
-                        snackbar.showSnackbar("Книга не найдена — добавьте её снова")
+                        snackbar.showSnackbar(getString(Res.string.book_not_found_add_it_again))
                         return@launch
                     }
                     AppGraph.library.touch(entry.id)
@@ -119,7 +155,7 @@ fun App() {
                     if (listen) AppGraph.startReading(bookKey(entry.id), book, entry.progressBlock)
                 } catch (t: Throwable) {
                     if (t is kotlinx.coroutines.CancellationException) throw t
-                    snackbar.showSnackbar("Не удалось открыть: ${t.message ?: "файл повреждён"}")
+                    snackbar.showSnackbar(getString(Res.string.could_not_open, t.message ?: getString(Res.string.file_is_corrupted)))
                 }
             }
         }
@@ -129,7 +165,7 @@ fun App() {
             AppGraph.library.saveProgress(entryId, block)
             val entry = AppGraph.library.entry(entryId)
             when {
-                entry == null -> scope.launch { snackbar.showSnackbar("Книга удалена — ссылка больше не работает") }
+                entry == null -> scope.launch { snackbar.showSnackbar(getString(Res.string.the_book_was_deleted_the_link)) }
                 entry.format == BookFormat.WEB -> {
                     openBook = null
                     tab = Tab.Web
@@ -165,14 +201,17 @@ fun App() {
 
         fun pickFile() {
             filePicker.pick("*/*") { uri ->
-                if (uri != null) importAndOpen("Открываем книгу") { AppGraph.importer.import(uri) }
+                if (uri != null) importAndOpen(openingBookLabel) { AppGraph.importer.import(uri) }
             }
         }
 
         // Восстанавливаем модель, загруженную до перезапуска; тихо проверяем обновления
         LaunchedEffect(Unit) {
             SystemPlayer.start()
+            AppGraph.voiceControl
+            AppGraph.readingStats // подключает учёт озвучки к статистике чтения
             AppGraph.updates.check(silent = true)
+            withContext(IoDispatcher) { AppGraph.scheduledBackup.runIfDue() }
             AppGraph.restoreLastModel()
         }
 
@@ -195,8 +234,8 @@ fun App() {
                     tab = Tab.Web
                     AppGraph.webSession.open(item.payload)
                 }
-                IncomingDoc.IncomingType.TEXT -> importAndOpen("Присланный текст") { AppGraph.importer.importText(item.payload, "Присланный текст") }
-                IncomingDoc.IncomingType.FILE -> importAndOpen("Открываем книгу") { AppGraph.importer.import(item.payload) }
+                IncomingDoc.IncomingType.TEXT -> importAndOpen(getString(Res.string.shared_text)) { AppGraph.importer.importText(item.payload, getString(Res.string.shared_text)) }
+                IncomingDoc.IncomingType.FILE -> importAndOpen(getString(Res.string.opening_the_book)) { AppGraph.importer.import(item.payload) }
             }
         }
 
@@ -230,12 +269,35 @@ fun App() {
         } else if (reading != null) {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
+            // Закрытая читалка не должна засчитываться как чтение: интервал закрывается, накопленное сохраняется
+            DisposableEffect(reading.entryId) { onDispose { AppGraph.readingStats.onPause() } }
             Box(Modifier.fillMaxSize()) {
+            // PDF с копией файла открывается страницами-картинками; режим «текст» — по кнопке в панели
+            var pdfAsText by remember(reading.entryId) { mutableStateOf(false) }
+            // Позиция общая для обоих режимов: при переключении чтение продолжается с того же места
+            var currentBlock by remember(reading.entryId) { mutableStateOf(reading.startBlock) }
+            if (reading.book.pdfFile != null && !pdfAsText) {
+                PdfPagesScreen(
+                    book = reading.book,
+                    startBlock = currentBlock,
+                    onProgress = {
+                        currentBlock = it
+                        AppGraph.library.saveProgress(reading.entryId, it)
+                        AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
+                    },
+                    onBack = { openBook = null },
+                    onShowText = { pdfAsText = true }
+                )
+            } else
             ReaderView(
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
-                startBlock = reading.startBlock,
-                onProgress = { AppGraph.library.saveProgress(reading.entryId, it) },
+                startBlock = currentBlock,
+                onProgress = {
+                    currentBlock = it
+                    AppGraph.library.saveProgress(reading.entryId, it)
+                    AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
+                },
                 onChaptersChanged = { chapters ->
                     scope.launch {
                         AppGraph.library.replaceChapters(reading.entryId, chapters)
@@ -259,7 +321,7 @@ fun App() {
                         // Мини-плеер: озвучка продолжается, пока вы в другой вкладке
                         val webShowsPlayer = tab == Tab.Web && webDocument != null
                         if (player.active && !webShowsPlayer) {
-                            PlayerBar(state = player, title = player.title.ifBlank { "Сейчас читается" }, onVoiceSettings = {
+                            PlayerBar(state = player, title = player.title.ifBlank { stringResource(Res.string.now_reading) }, onVoiceSettings = {
                                 val id = AppGraph.readAloud.documentKey?.removePrefix("book:")
                                 id?.let(AppGraph.library::entry)?.let { open(it) }
                             })
@@ -269,8 +331,8 @@ fun App() {
                                 NavigationBarItem(
                                     selected = tab == entry,
                                     onClick = { tab = entry },
-                                    icon = { Icon(if (tab == entry) entry.selectedIcon else entry.icon, contentDescription = entry.label) },
-                                    label = { Text(entry.label) }
+                                    icon = { Icon(if (tab == entry) entry.selectedIcon else entry.icon, contentDescription = stringResource(entry.label)) },
+                                    label = { Text(stringResource(entry.label)) }
                                 )
                             }
                         }
@@ -306,21 +368,21 @@ fun App() {
 
         TextInputDialog(
             visible = pasteText,
-            title = "Вставить текст",
-            placeholder = "Вставьте или введите текст",
-            confirmLabel = "Читать",
+            title = stringResource(Res.string.paste_text),
+            placeholder = stringResource(Res.string.paste_or_type_text),
+            confirmLabel = stringResource(Res.string.read),
             singleLine = false,
             onDismiss = { pasteText = false },
             onConfirm = { text ->
                 pasteText = false
-                importAndOpen("Готовим текст") { AppGraph.importer.importText(text, text.lineSequence().first().take(60)) }
+                importAndOpen(preparingTextLabel) { AppGraph.importer.importText(text, text.lineSequence().first().take(60)) }
             }
         )
         TextInputDialog(
             visible = askUrl,
-            title = "Открыть страницу",
+            title = stringResource(Res.string.open_page),
             placeholder = "https://…",
-            confirmLabel = "Открыть",
+            confirmLabel = stringResource(Res.string.open),
             onDismiss = { askUrl = false },
             onConfirm = { url ->
                 askUrl = false
@@ -334,7 +396,7 @@ fun App() {
             val downloading = downloadState is UpdateDownload.Downloading
             AlertDialog(
                 onDismissRequest = { if (!downloading) AppGraph.updates.dismiss() },
-                title = { Text("Доступна версия ${found.version}") },
+                title = { Text(stringResource(Res.string.version_is_available, found.version)) },
                 text = {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         Text(found.notes.ifBlank { found.title }.take(1200))
@@ -345,14 +407,14 @@ fun App() {
                     TextButton(enabled = !downloading, onClick = { AppGraph.updates.install(found) }) {
                         Text(
                             when {
-                                downloading -> "Загрузка…"
-                                found.downloadUrl != null -> "Скачать и установить"
-                                else -> "Подробнее"
+                                downloading -> stringResource(Res.string.loading)
+                                found.downloadUrl != null -> stringResource(Res.string.download_and_install)
+                                else -> stringResource(Res.string.details)
                             }
                         )
                     }
                 },
-                dismissButton = { TextButton(onClick = { AppGraph.updates.dismiss() }) { Text(if (downloading) "Отмена" else "Позже") } }
+                dismissButton = { TextButton(onClick = { AppGraph.updates.dismiss() }) { Text(if (downloading) stringResource(Res.string.cancel) else stringResource(Res.string.later)) } }
             )
         }
     }
@@ -371,7 +433,7 @@ private fun CoroutineScope.launchImport(
             block()
         } catch (t: Throwable) {
             if (t is kotlinx.coroutines.CancellationException) throw t
-            onError("Не удалось открыть: ${t.message ?: t::class.simpleName}")
+            onError(getString(Res.string.could_not_open, (t.message ?: t::class.simpleName).orEmpty()))
         } finally {
             onDone()
         }

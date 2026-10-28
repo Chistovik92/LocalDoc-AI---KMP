@@ -22,6 +22,7 @@ actual class Speaker actual constructor() : SpeechEngine {
     private var languageTag: String? = null
     private var rate = 1f
     private var pitch = 1f
+    @Volatile private var volume = 1f
     private val callbacks = ConcurrentHashMap<String, (Boolean) -> Unit>()
     private val pending = ArrayList<() -> Unit>()
     private val ids = AtomicLong()
@@ -90,7 +91,9 @@ actual class Speaker actual constructor() : SpeechEngine {
         callbacks[id] = onFinished
         whenReady {
             val limit = TextToSpeech.getMaxSpeechInputLength()
-            val result = tts?.speak(text.take(limit), TextToSpeech.QUEUE_FLUSH, Bundle(), id) ?: TextToSpeech.ERROR
+            // Громкость реплики задаётся при запуске: затухание таймера сна идёт по предложениям
+            val params = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume) }
+            val result = tts?.speak(text.take(limit), TextToSpeech.QUEUE_FLUSH, params, id) ?: TextToSpeech.ERROR
             if (result != TextToSpeech.SUCCESS) finish(id, false)
         }
     }
@@ -104,6 +107,10 @@ actual class Speaker actual constructor() : SpeechEngine {
     override fun setRate(rate: Float) {
         this.rate = rate
         tts?.setSpeechRate(rate)
+    }
+
+    override fun setVolume(volume: Float) {
+        this.volume = volume.coerceIn(0f, 1f)
     }
 
     override fun setPitch(pitch: Float) {

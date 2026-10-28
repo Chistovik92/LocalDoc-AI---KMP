@@ -89,6 +89,10 @@ class LibraryRepository(
     }
 
     fun remove(id: String) {
+        // Копия PDF, по которой рисуются страницы, лежит отдельно от картинок книги
+        files.readAppFile(fileName(id))
+            ?.let { runCatching { json.decodeFromString(Book.serializer(), it.decodeToString()) }.getOrNull() }
+            ?.pdfFile?.let(files::deleteAppFile)
         files.deleteAppFile(fileName(id))
         files.deleteAppFiles(imagePrefix(id))
         update(_entries.value.filterNot { it.id == id })

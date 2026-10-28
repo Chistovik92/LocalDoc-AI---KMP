@@ -1,5 +1,17 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.downloaded
+import com.localdoc.ai.resources.downloaded_of
+import com.localdoc.ai.resources.extracting_text_local_ocr_if_needed
+import com.localdoc.ai.resources.gb
+import com.localdoc.ai.resources.generation_error
+import com.localdoc.ai.resources.generation_stopped
+import com.localdoc.ai.resources.mb
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.platform.formatDecimal
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -183,7 +195,7 @@ fun EmptyState(icon: ImageVector, title: String, text: String, modifier: Modifie
 
 /** Модальный индикатор долгой операции (импорт, OCR, загрузка страницы). */
 @Composable
-fun ProcessingDialog(title: String?, subtitle: String = "Извлечение текста (при необходимости — локальный OCR)…") {
+fun ProcessingDialog(title: String?, subtitle: String = stringResource(Res.string.extracting_text_local_ocr_if_needed)) {
     if (title == null) return
     Dialog(onDismissRequest = {}) {
         Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
@@ -223,7 +235,7 @@ fun TextInputDialog(
             )
         },
         confirmButton = { TextButton(onClick = { if (text.isNotBlank()) onConfirm(text.trim()) }) { Text(confirmLabel) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) } }
     )
 }
 
@@ -261,10 +273,10 @@ fun launchGeneration(flow: kotlinx.coroutines.flow.Flow<String>) {
                 AppGraph.statsTokensPerSec.value = tokenCount / seconds
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
-            AppGraph.updateLastAssistant(acc.toString().ifBlank { "Генерация остановлена." })
+            AppGraph.updateLastAssistant(acc.toString().ifBlank { getString(Res.string.generation_stopped) })
             throw e
         } catch (t: Throwable) {
-            AppGraph.updateLastAssistant(acc.toString().ifBlank { "Ошибка генерации: ${t.message}" })
+            AppGraph.updateLastAssistant(acc.toString().ifBlank { getString(Res.string.generation_error, t.message.orEmpty()) })
         } finally {
             AppGraph.isGenerating.value = false
             if (AppGraph.generationJob === coroutineContext[Job]) AppGraph.generationJob = null
@@ -279,8 +291,9 @@ fun stopGeneration() {
 }
 
 /** Размер модели/файла в человекочитаемом виде. */
+@Composable
 fun formatSize(sizeMb: Long): String =
-    if (sizeMb >= 1024) "${(sizeMb * 10 / 1024) / 10.0} ГБ" else "$sizeMb МБ"
+    if (sizeMb >= 1024) stringResource(Res.string.gb, formatDecimal(sizeMb / 1024.0)) else stringResource(Res.string.mb, sizeMb)
 
 /** Прогресс загрузки обновления и сообщения менеджера обновлений (окно обновления и «О приложении»). */
 @Composable
@@ -296,7 +309,7 @@ fun UpdateProgressInfo(download: UpdateDownload, status: String?) {
                 }
                 val done = formatSize(download.downloadedBytes / BYTES_IN_MB)
                 Text(
-                    if (download.totalBytes > 0) "Скачано $done из ${formatSize(download.totalBytes / BYTES_IN_MB)}" else "Скачано $done",
+                    if (download.totalBytes > 0) stringResource(Res.string.downloaded_of, done, formatSize(download.totalBytes / BYTES_IN_MB)) else stringResource(Res.string.downloaded, done),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

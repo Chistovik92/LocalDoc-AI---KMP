@@ -1,5 +1,19 @@
 package com.localdoc.ai.ui.reader
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import com.localdoc.ai.resources.could_not_prepare_the_file
+import com.localdoc.ai.resources.delete_quote
+import com.localdoc.ai.resources.edit_note
+import com.localdoc.ai.resources.file_saved
+import com.localdoc.ai.resources.quotes_and_notes
+import com.localdoc.ai.resources.select_text_in_the_reader_the
+import com.localdoc.ai.resources.this_book_has_no_quotes_notes
+import com.localdoc.ai.resources.to_epub
+import com.localdoc.ai.resources.to_markdown
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -47,8 +61,8 @@ internal fun AnnotationRow(
             ?.let { note -> ({ Text(note, maxLines = 4, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.primary) }) },
         trailingContent = {
             Row {
-                IconButton(onClick = { onEdit(item) }) { Icon(Icons.Default.Edit, contentDescription = "Изменить заметку") }
-                IconButton(onClick = { onDelete(item) }) { Icon(Icons.Default.Delete, contentDescription = "Удалить цитату") }
+                IconButton(onClick = { onEdit(item) }) { Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.edit_note)) }
+                IconButton(onClick = { onDelete(item) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.delete_quote)) }
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -68,18 +82,18 @@ internal fun AnnotationsSheet(
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text("Цитаты и заметки", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        Text(stringResource(Res.string.quotes_and_notes), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         if (annotations.isEmpty()) {
             Text(
-                "Выделите текст в читалке — появятся действия «Цитата» и «Заметка».",
+                stringResource(Res.string.select_text_in_the_reader_the),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp).padding(bottom = 24.dp)
             )
         } else {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 24.dp)) {
-                OutlinedButton(onClick = { onExport(false) }) { Text("В Markdown", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = { onExport(true) }) { Text("В EPUB", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { onExport(false) }) { Text(stringResource(Res.string.to_markdown), maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { onExport(true) }) { Text(stringResource(Res.string.to_epub), maxLines = 1, softWrap = false) }
             }
             LazyColumn(modifier = Modifier.padding(bottom = 24.dp)) {
                 items(annotations, key = { it.id }) { AnnotationRow(it, showBookTitle = false, onJump = onJump, onEdit = onEdit, onDelete = onDelete) }
@@ -92,7 +106,7 @@ internal fun AnnotationsSheet(
  * Сохраняет цитаты, заметки, закладки и слова книги в Markdown или EPUB через «Сохранить как…».
  * [onMessage] получает итог для показа пользователю (null — пользователь отменил сохранение).
  */
-internal fun exportBookNotes(entryId: String, title: String, author: String, epub: Boolean, onMessage: (String?) -> Unit) {
+internal fun exportBookNotes(scope: CoroutineScope, entryId: String, title: String, author: String, epub: Boolean, onMessage: (String?) -> Unit) {
     val notes = BookNotes(
         title = title,
         author = author,
@@ -101,24 +115,26 @@ internal fun exportBookNotes(entryId: String, title: String, author: String, epu
         words = AppGraph.dictionary.all.value.filter { it.entryId == entryId }
     )
     if (notes.isEmpty) {
-        onMessage("В этой книге пока нет цитат, заметок и закладок")
+        scope.launch { onMessage(getString(Res.string.this_book_has_no_quotes_notes)) }
         return
     }
     val extension = if (epub) "epub" else "md"
     val bytes = try {
         if (epub) AnnotationExport.epub(notes) else AnnotationExport.markdown(notes).encodeToByteArray()
     } catch (e: Exception) {
-        onMessage("Не удалось подготовить файл: ${e.message ?: "ошибка"}")
+        scope.launch { onMessage(getString(Res.string.could_not_prepare_the_file, e.message.orEmpty())) }
         return
     }
     val mime = if (epub) "application/epub+zip" else "text/markdown"
     AppGraph.fileSaver.save(AnnotationExport.fileName(notes, extension), mime, bytes) { result ->
-        onMessage(
-            when (result) {
-                is SaveResult.Saved -> "Файл сохранён"
-                SaveResult.Cancelled -> null
-                is SaveResult.Failed -> result.message
-            }
-        )
+        scope.launch {
+            onMessage(
+                when (result) {
+                    is SaveResult.Saved -> getString(Res.string.file_saved)
+                    SaveResult.Cancelled -> null
+                    is SaveResult.Failed -> result.message
+                }
+            )
+        }
     }
 }

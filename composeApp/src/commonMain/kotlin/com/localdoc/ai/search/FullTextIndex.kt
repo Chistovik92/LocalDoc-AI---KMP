@@ -72,6 +72,38 @@ class FullTextIndex(
     private var manifest: MutableMap<String, String> = readManifest()
     private val cache = LinkedHashMap<String, Shard>()
 
+    private var batchDepth = 0
+    private var manifestDirty = false
+
+    /**
+     * Группа изменений с одной записью манифеста в конце: без неё каждая из тысяч книг сериализовала бы весь
+     * манифест заново (квадратичный рост). Обрыв посреди группы безопасен: файлы индекса без записи в манифесте
+     * при следующей синхронизации просто строятся заново.
+     */
+    suspend fun <T> batch(block: suspend () -> T): T {
+        batchDepth++
+        try {
+            return block()
+        } finally {
+            batchDepth--
+            if (batchDepth == 0 && manifestDirty) persistManifest()
+        }
+    }
+
+    /** Запись после индексации: внутри [batch] откладывается до его конца. */
+    private fun persistManifest() {
+        if (batchDepth > 0) manifestDirty = true else flushManifest()
+    }
+
+    /**
+     * Немедленная запись. Нужна удалению и инвалидации: если процесс оборвётся до конца группы, отложенная запись
+     * потеряла бы «книга изменилась», и устаревший индекс считался бы актуальным (подпись книги не меняется).
+     */
+    private fun flushManifest() {
+        manifestDirty = false
+        saveManifest(json.encodeToString(manifestSerializer, manifest))
+    }
+
     fun indexedDocs(): Set<String> = manifest.keys.toSet()
 
     fun isCurrent(docId: String, signature: String): Boolean = manifest[docId] == signature
@@ -89,19 +121,19 @@ class FullTextIndex(
         cache[docId] = shard
         trimCache()
         manifest[docId] = signature
-        saveManifest(json.encodeToString(manifestSerializer, manifest))
+        persistManifest()
         return true
     }
 
     fun remove(docId: String) {
         files.deleteAll(fileName(docId))
         cache.remove(docId)
-        if (manifest.remove(docId) != null) saveManifest(json.encodeToString(manifestSerializer, manifest))
+        if (manifest.remove(docId) != null) flushManifest()
     }
 
     /** Забывает документ: при следующей синхронизации он будет проиндексирован заново. */
     fun invalidate(docId: String) {
-        if (manifest.remove(docId) != null) saveManifest(json.encodeToString(manifestSerializer, manifest))
+        if (manifest.remove(docId) != null) flushManifest()
         cache.remove(docId)
     }
 
@@ -110,7 +142,7 @@ class FullTextIndex(
         manifest.keys.toList().forEach { files.deleteAll(fileName(it)) }
         manifest.clear()
         cache.clear()
-        saveManifest(json.encodeToString(manifestSerializer, manifest))
+        flushManifest()
     }
 
     /**

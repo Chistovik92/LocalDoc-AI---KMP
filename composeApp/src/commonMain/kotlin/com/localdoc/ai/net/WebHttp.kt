@@ -60,13 +60,35 @@ class HttpStatusException(val status: Int, val url: String) : IllegalStateExcept
 class WebHttp(
     private val transport: HttpTransport,
     val cookies: CookieJar,
-    private val throttle: HostThrottle = HostThrottle()
+    private val throttle: HostThrottle = HostThrottle(),
+    /** `robots.txt` сайтов: `Crawl-delay` удлиняет паузу между запросами; null — не учитывается. */
+    private val robots: RobotsPolicy? = null
 ) {
+    private val preparedHosts = HashSet<String>()
+
+    /** Можно ли открыть [url] автоматически (по расписанию) с точки зрения `robots.txt`; без политики — да. */
+    suspend fun allowedByRobots(url: String): Boolean = robots?.isAllowed(url) ?: true
+
+    /** Один раз на сайт читает `robots.txt` и передаёт очереди запросов `Crawl-delay`. */
+    private suspend fun prepareHost(url: String) {
+        val policy = robots ?: return
+        if (url.substringBefore('?').endsWith("/robots.txt")) return
+        val host = hostOf(url)
+        if (!preparedHosts.add(host)) return
+        policy.rulesFor(url).crawlDelayMs?.let { throttle.setCrawlDelay(host, it) }
+    }
 
     val userAgent: String get() = transport.userAgent
 
     suspend fun get(url: String, headers: Map<String, String> = emptyMap(), maxBytes: Long = MAX_PAGE_BYTES): HttpResult =
         send("GET", url, null, headers, maxBytes)
+
+    /**
+     * Запрос мимо очереди сайта: только для `robots.txt`, чтобы первая страница сайта не ждала лишнюю паузу после него.
+     * Один небольшой запрос на сайт в сутки.
+     */
+    suspend fun getUnthrottled(url: String, maxBytes: Long = MAX_ROBOTS_BYTES): HttpResult =
+        send("GET", url, null, emptyMap(), maxBytes, throttled = false)
 
     suspend fun postForm(
         url: String,
@@ -80,7 +102,14 @@ class WebHttp(
         return send("POST", url, formEncode(fields).encodeToByteArray(), headers, maxBytes)
     }
 
-    private suspend fun send(method: String, startUrl: String, body: ByteArray?, extra: Map<String, String>, maxBytes: Long): HttpResult {
+    private suspend fun send(
+        method: String,
+        startUrl: String,
+        body: ByteArray?,
+        extra: Map<String, String>,
+        maxBytes: Long,
+        throttled: Boolean = true
+    ): HttpResult {
         var url = requireHttp(startUrl)
         var verb = method
         var payload = body
@@ -88,6 +117,7 @@ class WebHttp(
         repeat(MAX_REDIRECTS + 1) {
             var retries = 0
             var response: RawResponse
+            if (verb == "GET" && throttled) prepareHost(url)
             while (true) {
                 // Заголовки собираются заново на каждую попытку: cookie из ответа 429 / 503 должны уйти с повтором
                 val headers = LinkedHashMap<String, String>()
@@ -95,11 +125,14 @@ class WebHttp(
                 headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
                 headers["Accept-Language"] = "ru,en;q=0.8"
                 headers.putAll(extra)
+                // Данные для входа (Basic и др.) предназначены только хосту первого запроса, но не тому, куда он перенаправил
+                if (hostOf(url) != hostOf(startUrl)) headers.keys.removeAll { it.lowercase() in CREDENTIAL_HEADERS }
                 if (previous != null && "Referer" !in headers) headers["Referer"] = previous!!
                 cookies.header(url)?.let { headers["Cookie"] = it }
                 if (payload == null) headers.remove("Content-Type")
 
-                val attempt = throttledExecute(RawRequest(url, verb, headers, payload), maxBytes)
+                val request = RawRequest(url, verb, headers, payload)
+                val attempt = if (throttled) throttledExecute(request, maxBytes) else Attempt(transport.execute(request, maxBytes), null)
                 response = attempt.response
                 response.setCookies.forEach { cookies.store(url, it) }
                 // Повторяются только запросы на чтение: форма входа с одноразовым токеном второй раз не отправляется
@@ -113,6 +146,7 @@ class WebHttp(
             if (response.status in REDIRECT_CODES && !location.isNullOrBlank()) {
                 val next = WebNavigationDetector.resolveUrl(url, location)?.let(::requireHttp)
                     ?: throw IllegalStateException("Некорректное перенаправление")
+                NetSafety.checkRedirect(url, next)
                 // 301/302/303 после POST превращаются в GET; 307/308 повторяют запрос как есть
                 if (response.status in listOf(301, 302, 303) && verb != "GET") { verb = "GET"; payload = null }
                 previous = url
@@ -156,8 +190,10 @@ class WebHttp(
         const val MAX_IMAGE_BYTES = 8L * 1024 * 1024
         const val MAX_DOWNLOAD_BYTES = 150L * 1024 * 1024
         const val MAX_RATE_RETRIES = 2
+        const val MAX_ROBOTS_BYTES = 512L * 1024
         private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
         private val RATE_LIMITED = setOf(429, 503)
+        private val CREDENTIAL_HEADERS = setOf("authorization", "proxy-authorization")
 
         /** Сайт (с портом) из адреса — ключ очереди запросов. */
         internal fun hostOf(url: String): String =
