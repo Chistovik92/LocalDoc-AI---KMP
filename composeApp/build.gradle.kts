@@ -135,8 +135,10 @@ android {
         versionName = "2.1.0"
 
         ndk {
-            // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах)
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах).
+            // Для проверки на x86-эмуляторах: ./gradlew assembleDebug -Plocaldoc.abis=x86,x86_64
+            val abis = providers.gradleProperty("localdoc.abis").orNull?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+            abiFilters += abis ?: listOf("arm64-v8a", "armeabi-v7a")
         }
 
         externalNativeBuild {
