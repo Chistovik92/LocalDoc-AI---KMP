@@ -15,6 +15,7 @@ import platform.Foundation.NSURLSessionAuthChallengeDisposition
 import platform.Foundation.NSURLSessionAuthChallengePerformDefaultHandling
 import platform.Foundation.NSURLSessionAuthChallengeUseCredential
 import platform.Foundation.credentialForTrust
+import platform.Foundation.serverTrust
 import platform.Security.SecCertificateCopyData
 import platform.Security.SecTrustEvaluateWithError
 import platform.Security.SecTrustGetCertificateAtIndex
