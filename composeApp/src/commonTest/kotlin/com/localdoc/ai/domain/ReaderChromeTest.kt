@@ -72,12 +72,11 @@ class ReaderChromeTest {
     }
 
     @Test
-    fun `chapter block position in scrolling and translated paging`() {
-        assertTrue(chapterBlockOnTop(pagedDisplay = false, page = 5))
-        assertTrue(chapterBlockOnBottom(pagedDisplay = false, page = 0, pageCount = 9))
-        assertTrue(chapterBlockOnTop(true, 0))
-        assertFalse(chapterBlockOnTop(true, 1))
-        assertTrue(chapterBlockOnBottom(true, 8, 9))
-        assertFalse(chapterBlockOnBottom(true, 7, 9))
+    fun `pinned chapter blocks only in scrolling while panels are visible`() {
+        val block = ChapterListBlock(true, true, true)
+        assertEquals(block, pinnedChapterBlock(block, scrollListing = true, panelsVisible = true))
+        assertNull(pinnedChapterBlock(block, scrollListing = true, panelsVisible = false))
+        assertNull(pinnedChapterBlock(block, scrollListing = false, panelsVisible = true))
+        assertNull(pinnedChapterBlock(null, scrollListing = true, panelsVisible = true))
     }
 }

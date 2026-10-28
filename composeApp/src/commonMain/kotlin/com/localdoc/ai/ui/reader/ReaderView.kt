@@ -129,8 +129,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.localdoc.ai.domain.ChapterButtons
 import com.localdoc.ai.domain.ChapterListBlock
-import com.localdoc.ai.domain.chapterBlockOnBottom
-import com.localdoc.ai.domain.chapterBlockOnTop
+import com.localdoc.ai.domain.pinnedChapterBlock
 import com.localdoc.ai.domain.chapterListBlock
 import com.localdoc.ai.domain.bottomPanelVisible
 import com.localdoc.ai.domain.chapterButtons
@@ -464,8 +463,9 @@ fun ReaderView(
 
     // Автопереход: дочитали главу прокруткой до кнопок «Далее» — через пару секунд открывается следующая
     val hasFooter = chapterNavigation != null && (!pagedDisplay || page >= pager.size - 1)
+    // Кнопки глав закреплены, поэтому «дочитали» — это конец списка
     val footerVisible by remember(itemCount, hasFooter) {
-        derivedStateOf { hasFooter && listState.layoutInfo.visibleItemsInfo.any { it.index == itemCount } }
+        derivedStateOf { hasFooter && !screenMode && !listState.canScrollForward }
     }
     var scrolledByUser by remember(docKey) { mutableStateOf(false) }
     LaunchedEffect(listState) {
@@ -842,6 +842,16 @@ fun ReaderView(
                 }
                 .pointerInput(Unit) { detectTapGestures { offset -> tapNow(offset.x, size.width.toFloat()) } }
 
+    val webChapterBlock = chapterListBlock(
+        isWeb = book.format == com.localdoc.ai.book.BookFormat.WEB,
+        hasNavigation = chapterNavigation != null,
+        hasPrevious = chapterNavigation?.hasPrevious == true,
+        hasNext = chapterNavigation?.hasNext == true,
+        hasContents = chapterNavigation?.onTableOfContents != null
+    )
+    val pinnedBlock = pinnedChapterBlock(webChapterBlock, scrollListing = !screenMode, panelsVisible = bottomPanelVisible(uiVisible))
+    val chromePadding = if (webChapterBlock != null && !screenMode) CHAPTER_BLOCK_DP.dp else 0.dp
+
     Box(
         modifier = Modifier.fillMaxSize().background(paper.background).readerHotkeys { hotkey ->
             when (hotkey) {
@@ -874,22 +884,12 @@ fun ReaderView(
             )
         } else LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(top = 88.dp, bottom = 240.dp),
+            contentPadding = PaddingValues(top = 88.dp + chromePadding, bottom = 240.dp + chromePadding),
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .then(readerGestures)
         ) {
-            val listBlock = chapterListBlock(
-                isWeb = book.format == com.localdoc.ai.book.BookFormat.WEB,
-                hasNavigation = chapterNavigation != null,
-                hasPrevious = chapterNavigation?.hasPrevious == true,
-                hasNext = chapterNavigation?.hasNext == true,
-                hasContents = chapterNavigation?.onTableOfContents != null
-            )
-            if (listBlock != null && chapterNavigation != null && chapterBlockOnTop(pagedDisplay, page)) {
-                item(key = "chapter-header") { ChapterBlock(chapterNavigation, listBlock, paper, verticalPadding = 16.dp) }
-            }
             items(itemCount, key = { firstIndex + it }) { local ->
                 val index = firstIndex + local
                 Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.fillMaxWidth()) {
@@ -904,15 +904,6 @@ fun ReaderView(
                         onTap = if (isMine) ({ AppGraph.readAloud.jumpToBlock(index) }) else null,
                         onMarkTap = { id -> bookAnnotations.firstOrNull { it.id == id }?.let { noteEdit = it } },
                         modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = settings.margin.dp)
-                    )
-                }
-            }
-            if (chapterNavigation != null && chapterBlockOnBottom(pagedDisplay, page, pager.size)) {
-                item(key = "chapter-footer") {
-                    ChapterBlock(
-                        chapterNavigation,
-                        listBlock ?: ChapterListBlock(chapterNavigation.hasPrevious, chapterNavigation.hasNext, chapterNavigation.onTableOfContents != null),
-                        paper, verticalPadding = 32.dp
                     )
                 }
             }
@@ -1046,6 +1037,7 @@ fun ReaderView(
                             }
                         }
                     }
+                    if (pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
                     if (translating) {
                         val done = translatedBlocks?.count { it != null } ?: 0
                         val total = pageInfo.blockCount
@@ -1102,8 +1094,9 @@ fun ReaderView(
                 hasNavigation = chapterNavigation != null,
                 hasPrevious = chapterNavigation?.hasPrevious == true,
                 hasNext = chapterNavigation?.hasNext == true,
-                pagedListing = screenMode || pagedDisplay
+                pagedListing = screenMode
             )
+            if (pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
             AnimatedVisibility(
                 visible = bottomPanelVisible(uiVisible) && chapterButtonsState != null,
                 enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
@@ -1276,6 +1269,9 @@ private fun annotationMarks(book: Book, annotations: List<Annotation>): Map<Int,
 
 private const val AI_WAIT_FOR_TRANSLATION_MS = 60_000L
 private const val AUTO_NEXT_DELAY_MS = 2_500L
+
+/** Высота закреплённого блока кнопок глав, dp: на столько списку добавляется отступ сверху и снизу. */
+private const val CHAPTER_BLOCK_DP = 56
 
 /** Листание зоной или кнопкой прокручивает почти экран: последняя строка остаётся на виду. */
 private const val SCREEN_SCROLL_FRACTION = 0.9f

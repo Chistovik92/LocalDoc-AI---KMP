@@ -54,6 +54,9 @@ data class ChapterListBlock(val previousEnabled: Boolean, val nextEnabled: Boole
 fun chapterListBlock(isWeb: Boolean, hasNavigation: Boolean, hasPrevious: Boolean, hasNext: Boolean, hasContents: Boolean): ChapterListBlock? =
     if (isWeb && hasNavigation) ChapterListBlock(hasPrevious, hasNext, hasContents) else null
 
-/** Сверху блок виден на первой порции (при переводе — только на первой странице), снизу — на последней. */
-fun chapterBlockOnTop(pagedDisplay: Boolean, page: Int): Boolean = !pagedDisplay || page == 0
-fun chapterBlockOnBottom(pagedDisplay: Boolean, page: Int, pageCount: Int): Boolean = !pagedDisplay || page >= pageCount - 1
+/**
+ * Закреплённые панели с кнопками глав сверху и снизу страницы: только в режиме прокрутки (при постраничном
+ * листании кнопки живут в нижней панели) и только пока видны остальные панели.
+ */
+fun pinnedChapterBlock(block: ChapterListBlock?, scrollListing: Boolean, panelsVisible: Boolean): ChapterListBlock? =
+    if (scrollListing && panelsVisible) block else null
