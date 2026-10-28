@@ -398,7 +398,7 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
                 FilterChip(
                     selected = settings.pageSize == size,
                     onClick = { update { it.copy(pageSize = size) } },
-                    label = { Text(stringResource(Res.string.k_chars, size.label, size.chars / 1000.0), maxLines = 1, softWrap = false) }
+                    label = { Text(stringResource(Res.string.k_chars, stringResource(size.label), size.chars / 1000.0), maxLines = 1, softWrap = false) }
                 )
             }
         }
@@ -445,7 +445,7 @@ private fun ReaderControlsSettings(settings: ReaderSettings, update: ((ReaderSet
                 FilterChip(
                     selected = settings.orientation == lock,
                     onClick = { update { it.copy(orientation = lock) } },
-                    label = { Text(stringResource(Res.string.orientation, lock.label), maxLines = 1, softWrap = false) }
+                    label = { Text(stringResource(Res.string.orientation, stringResource(lock.label)), maxLines = 1, softWrap = false) }
                 )
             }
         }

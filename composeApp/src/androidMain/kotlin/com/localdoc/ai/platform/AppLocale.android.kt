@@ -8,6 +8,9 @@ private const val PREFS = "localdoc_ui"
 private const val KEY_LANGUAGE = "language"
 
 actual object AppLocale {
+    /** Язык системы, запомненный до первой подмены `Locale.setDefault`. */
+    private var systemLocale: Locale? = null
+
     actual val appliesImmediately: Boolean = true
 
     actual fun savedTag(): String? =
@@ -30,7 +33,13 @@ actual object AppLocale {
 
     /** Контекст окна с выбранным языком; вызывается из `attachBaseContext` активности. */
     fun wrap(base: Context): Context {
-        val tag = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LANGUAGE, null) ?: return base
+        val system = systemLocale ?: Locale.getDefault().also { systemLocale = it }
+        val tag = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LANGUAGE, null)
+        if (tag == null) {
+            // Выбор сброшен: возвращаем язык системы, иначе процесс остаётся на прежнем выбранном
+            Locale.setDefault(system)
+            return base
+        }
         val locale = Locale.forLanguageTag(tag)
         Locale.setDefault(locale)
         val config = Configuration(base.resources.configuration)

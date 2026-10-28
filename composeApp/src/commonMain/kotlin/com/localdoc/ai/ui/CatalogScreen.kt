@@ -203,7 +203,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(Res.string.found_2, shown.size), style = MaterialTheme.typography.labelLarge)
                         Box {
-                            FilterChip(selected = false, onClick = { sortMenu = true }, label = { Text(stringResource(Res.string.sort, filter.sort.label), maxLines = 1, softWrap = false) })
+                            FilterChip(selected = false, onClick = { sortMenu = true }, label = { Text(stringResource(Res.string.sort, stringResource(filter.sort.label)), maxLines = 1, softWrap = false) })
                             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                 CatalogSort.entries.forEach { sort ->
                                     DropdownMenuItem(text = { Text(stringResource(sort.label)) }, onClick = { sortMenu = false; filter = filter.copy(sort = sort) })
