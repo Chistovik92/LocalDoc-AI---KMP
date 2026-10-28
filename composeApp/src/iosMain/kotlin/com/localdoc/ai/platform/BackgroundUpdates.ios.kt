@@ -86,7 +86,7 @@ actual object BackgroundUpdates {
         }
     }
 
-    actual fun timeZoneOffsetMinutes(): Int = (NSTimeZone.localTimeZone.secondsFromGMT / 60).toInt()
+    actual fun timeZoneOffsetMinutes(): Int = (NSTimeZone.localTimeZone.secondsFromGMT() / 60).toInt()
 
     actual fun notifyNewChapters(title: String, text: String) {
         val content = UNMutableNotificationContent()

@@ -77,10 +77,11 @@ kotlin {
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.pdfbox.android)
             implementation(libs.mlkit.text.recognition)
+            // ONNX Runtime для эмбеддингов multilingual-e5-small; объявлен раньше sherpa-onnx, чтобы при общем
+            // libonnxruntime.so (см. packaging ниже) выбиралась именно эта, более новая сборка
+            implementation(libs.onnxruntime.android)
             // sherpa-onnx: JNI + Kotlin API OfflineTts, onnxruntime слинкован статически
             implementation("com.k2fsa.sherpa:sherpa-onnx-static-link-onnxruntime:${libs.versions.sherpaOnnx.get()}@aar")
-            // ONNX Runtime для эмбеддингов multilingual-e5-small (отдельно от статического в sherpa-onnx)
-            implementation(libs.onnxruntime.android)
             // bzip2 для распаковки голосовых пакетов (tar разбирает общий TarReader)
             implementation(libs.commons.compress)
         }
@@ -149,6 +150,12 @@ android {
                 }
             }
         }
+    }
+
+    packaging {
+        // onnxruntime-android (эмбеддинги) и sherpa-onnx (озвучка) приносят каждый свой libonnxruntime.so:
+        // оставляем один — из onnxruntime-android 1.20; sherpa-onnx слинкован с ONNX Runtime статически
+        jniLibs.pickFirsts += "**/libonnxruntime.so"
     }
 
     signingConfigs {

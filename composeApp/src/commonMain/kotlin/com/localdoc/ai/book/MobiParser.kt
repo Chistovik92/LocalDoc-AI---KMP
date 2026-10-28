@@ -207,7 +207,7 @@ object MobiParser {
         // Оглавление MOBI 6: ссылки <a filepos=N> — смещения в байтах распакованного текста
         val raw = latin1(text)
         val targets = FILEPOS.findAll(raw).mapNotNull { it.groupValues[1].toIntOrNull() }
-            .filter { it in 1 until text.size }.toSortedSet().toList()
+            .filter { it in 1 until text.size }.distinct().sorted().toList()
         val titles = tocTitles(raw, header)
 
         val blocks = ArrayList<Block>()
