@@ -176,6 +176,20 @@ class TextRepairTest {
     }
 
     @Test
+    fun `paragraph sized blocks without punctuation are not glued into one`() {
+        val blocks = (0 until 200).map { p("заметка про слово " + "текст ".repeat(25) + it) }
+        assertEquals(blocks.size, TextRepair.repair(blocks).blocks.size)
+    }
+
+    @Test
+    fun `short hard wrapped lines are glued even in a long text`() {
+        val lines = (0 until 400).map { p("строка номера " + "слово ".repeat(8) + it) }
+        val result = TextRepair.repair(lines)
+        assertTrue(result.blocks.size < 20)
+        assertTrue(result.blocks.all { it.text.length <= 8_000 })
+    }
+
+    @Test
     fun `clean text is returned untouched`() {
         val clean = listOf(p("Первый абзац."), p("Второй абзац."), Block(BlockType.CODE, "val  x =  1"))
         val result = TextRepair.repair(clean)

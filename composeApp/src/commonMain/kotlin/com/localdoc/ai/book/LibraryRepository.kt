@@ -74,6 +74,24 @@ class LibraryRepository(
         updated
     }
 
+    /**
+     * Заменяет текст книги исправленным ([TextRepair]): оглавление и прогресс переносятся на новые номера блоков,
+     * картинки и обложка остаются. Закладки и цитаты ищут место по тексту, поэтому не теряются. Возвращает книгу
+     * и новое место чтения.
+     */
+    suspend fun replaceBlocks(id: String, result: RepairResult): Pair<Book, Int>? = withContext(Dispatchers.Default) {
+        val book = load(id) ?: return@withContext null
+        val entry = _entries.value.firstOrNull { it.id == id }
+        val updated = book.copy(blocks = result.blocks, chapters = TextRepair.remapChapters(book.chapters, result))
+        files.writeAppFile(fileName(id), json.encodeToString(Book.serializer(), updated).encodeToByteArray())
+        val progress = result.newIndex(entry?.progressBlock ?: 0).coerceIn(0, (result.blocks.size - 1).coerceAtLeast(0))
+        if (entry != null) {
+            update(_entries.value.map { if (it.id == id) entry.copy(totalBlocks = result.blocks.size, progressBlock = progress) else it })
+        }
+        onContentReplaced(id)
+        updated to progress
+    }
+
     fun entry(id: String): BookEntry? = _entries.value.firstOrNull { it.id == id }
 
     /** Отметка «открыта сейчас»: поднимает книгу наверх списка. */

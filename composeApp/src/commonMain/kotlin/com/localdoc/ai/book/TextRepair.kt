@@ -39,6 +39,10 @@ object TextRepair {
     private const val LONG_PARAGRAPH = 1800
     private const val LONG_MIN_SENTENCES = 6
     private const val ASCENDING_SHARE = 0.8
+    private const val MIN_BLOCKS_FOR_GUARD = 50
+    private const val UNPUNCTUATED_SHARE = 0.5
+    private const val UNPUNCTUATED_LINE = 120
+    private const val MAX_JOINED = 8_000
 
     private val PAGE_NUMBER = Regex(
         "^[\\[(\\-–—\\s]*(?:(?:страница|стр|с|page|p|pág|seite|сторінка)\\.?\\s*)?(\\d{1,4})" +
@@ -196,11 +200,23 @@ object TextRepair {
         a.type == BlockType.PARAGRAPH && b.type == BlockType.PARAGRAPH && a.text.isNotBlank() &&
             !a.text.trimEnd().endsWithTerminal() && b.text.trimStart().firstOrNull()?.isLowerCase() == true
 
+    /**
+     * Если почти каждый разрыв похож на обрыв, а блоки уже размером с абзац, в тексте просто нет знаков препинания
+     * (список, стихи, заметки): склеивать нечего. Жёстко перенесённые строки короче.
+     */
+    private fun looksUnpunctuated(items: List<Item>): Boolean {
+        if (items.size < MIN_BLOCKS_FOR_GUARD) return false
+        val cuts = items.zipWithNext().count { (a, b) -> cutAt(a.block, b.block) }
+        val average = items.sumOf { it.block.text.length } / items.size
+        return cuts > items.size * UNPUNCTUATED_SHARE && average > UNPUNCTUATED_LINE
+    }
+
     private fun mergeCuts(items: List<Item>, changes: MutableList<RepairChange>): List<Item> {
+        if (looksUnpunctuated(items)) return items
         val out = ArrayList<Item>()
         for (item in items) {
             val last = out.lastOrNull()
-            if (last != null && cutAt(last.block, item.block)) out[out.lastIndex] = joinItems(last, item, changes, last.origins.firstOrNull() ?: 0)
+            if (last != null && cutAt(last.block, item.block) && last.block.text.length + item.block.text.length <= MAX_JOINED) out[out.lastIndex] = joinItems(last, item, changes, last.origins.firstOrNull() ?: 0)
             else out.add(item)
         }
         return out
