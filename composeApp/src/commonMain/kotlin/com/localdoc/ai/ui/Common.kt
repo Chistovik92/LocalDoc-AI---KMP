@@ -9,6 +9,7 @@ import com.localdoc.ai.resources.generation_error
 import com.localdoc.ai.resources.generation_stopped
 import com.localdoc.ai.resources.mb
 import com.localdoc.ai.resources.Res
+import com.localdoc.ai.platform.formatDecimal
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.Image
@@ -292,7 +293,7 @@ fun stopGeneration() {
 /** Размер модели/файла в человекочитаемом виде. */
 @Composable
 fun formatSize(sizeMb: Long): String =
-    if (sizeMb >= 1024) stringResource(Res.string.gb, (sizeMb * 10 / 1024) / 10.0) else stringResource(Res.string.mb, sizeMb)
+    if (sizeMb >= 1024) stringResource(Res.string.gb, formatDecimal(sizeMb / 1024.0)) else stringResource(Res.string.mb, sizeMb)
 
 /** Прогресс загрузки обновления и сообщения менеджера обновлений (окно обновления и «О приложении»). */
 @Composable

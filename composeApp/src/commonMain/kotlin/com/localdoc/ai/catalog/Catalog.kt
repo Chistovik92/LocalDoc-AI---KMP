@@ -1,5 +1,23 @@
 package com.localdoc.ai.catalog
 
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.sort_added
+import com.localdoc.ai.resources.sort_author
+import com.localdoc.ai.resources.sort_modified
+import com.localdoc.ai.resources.sort_size
+import com.localdoc.ai.resources.sort_title
+import com.localdoc.ai.resources.sort_year
+import org.jetbrains.compose.resources.StringResource
+import com.localdoc.ai.resources.all
+import com.localdoc.ai.resources.shelf_authors
+import com.localdoc.ai.resources.shelf_folders
+import com.localdoc.ai.resources.shelf_formats
+import com.localdoc.ai.resources.shelf_genres
+import com.localdoc.ai.resources.shelf_languages
+import com.localdoc.ai.resources.shelf_mine
+import com.localdoc.ai.resources.shelf_recent
+import com.localdoc.ai.resources.shelf_series
+import com.localdoc.ai.resources.shelf_years
 import com.localdoc.ai.book.BookFormat
 import com.localdoc.ai.book.FormatDetector
 import com.localdoc.ai.domain.NovelFiles
@@ -67,21 +85,21 @@ data class ScanState(
 )
 
 /** Полки каталога по образцу интернет-магазинов. */
-enum class ShelfKind(val label: String) {
-    ALL("Все"),
-    RECENT("Недавние"),
-    AUTHOR("Авторы"),
-    GENRE("Жанры"),
-    YEAR("Годы"),
-    SERIES("Серии"),
-    FORMAT("Форматы"),
-    FOLDER("Папки"),
-    LANGUAGE("Языки"),
-    MINE("Мои подборки")
+enum class ShelfKind(val label: StringResource) {
+    ALL(Res.string.all),
+    RECENT(Res.string.shelf_recent),
+    AUTHOR(Res.string.shelf_authors),
+    GENRE(Res.string.shelf_genres),
+    YEAR(Res.string.shelf_years),
+    SERIES(Res.string.shelf_series),
+    FORMAT(Res.string.shelf_formats),
+    FOLDER(Res.string.shelf_folders),
+    LANGUAGE(Res.string.shelf_languages),
+    MINE(Res.string.shelf_mine)
 }
 
-enum class CatalogSort(val label: String) {
-    TITLE("Название"), AUTHOR("Автор"), YEAR("Год (новые)"), ADDED("Недавно найденные"), SIZE("Размер"), MODIFIED("Изменён")
+enum class CatalogSort(val label: StringResource) {
+    TITLE(Res.string.sort_title), AUTHOR(Res.string.sort_author), YEAR(Res.string.sort_year), ADDED(Res.string.sort_added), SIZE(Res.string.sort_size), MODIFIED(Res.string.sort_modified)
 }
 
 /** Значение полки и число книг в нём. */

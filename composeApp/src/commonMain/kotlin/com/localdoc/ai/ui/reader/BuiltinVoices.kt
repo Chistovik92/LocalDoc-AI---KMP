@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.built_in_voices
 import com.localdoc.ai.resources.cancel_download
 import com.localdoc.ai.resources.delete_voice
@@ -144,7 +145,7 @@ private fun BuiltinVoiceRow(
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.clickable(enabled = installed, onClick = onSelect)
+        modifier = Modifier.clickable(role = Role.Button, enabled = installed, onClick = onSelect)
     )
 }
 

@@ -247,6 +247,7 @@ private fun ColorPicker(selected: AnnotationColor, onSelect: (AnnotationColor) -
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         AnnotationColor.entries.forEach { color ->
             val chosen = color == selected
+            val colorName = stringResource(color.label)
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -255,7 +256,7 @@ private fun ColorPicker(selected: AnnotationColor, onSelect: (AnnotationColor) -
                         BorderStroke(if (chosen) 3.dp else 1.dp, if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
                         CircleShape
                     )
-                    .semantics { contentDescription = color.label }
+                    .semantics { contentDescription = colorName }
                     .clickable { onSelect(color) }
             )
         }

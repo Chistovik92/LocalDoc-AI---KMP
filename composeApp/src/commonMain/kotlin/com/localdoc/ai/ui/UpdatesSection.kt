@@ -40,6 +40,13 @@ import com.localdoc.ai.resources.tue
 import com.localdoc.ai.resources.wed
 import com.localdoc.ai.resources.wi_fi_only
 import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.speed_cautious
+import com.localdoc.ai.resources.speed_cautious_hint
+import com.localdoc.ai.resources.speed_fast
+import com.localdoc.ai.resources.speed_fast_hint
+import com.localdoc.ai.resources.speed_normal
+import com.localdoc.ai.resources.speed_normal_hint
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
@@ -103,8 +110,8 @@ private fun SpeedCard() {
             ) {
                 RadioButton(selected = speed == option, onClick = { AppGraph.downloadSpeed.update { option } })
                 Column(Modifier.weight(1f)) {
-                    Text(option.label, style = MaterialTheme.typography.titleSmall)
-                    Text(option.hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(speedLabel(option)), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(speedHint(option)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -270,4 +277,16 @@ private fun intervalLabel(hours: Int): String = when {
     hours == 72 -> stringResource(Res.string.every_3_days)
     hours == 168 -> stringResource(Res.string.once_a_week)
     else -> stringResource(Res.string.h, hours)
+}
+
+private fun speedLabel(speed: DownloadSpeed): StringResource = when (speed) {
+    DownloadSpeed.CAUTIOUS -> Res.string.speed_cautious
+    DownloadSpeed.NORMAL -> Res.string.speed_normal
+    DownloadSpeed.FAST -> Res.string.speed_fast
+}
+
+private fun speedHint(speed: DownloadSpeed): StringResource = when (speed) {
+    DownloadSpeed.CAUTIOUS -> Res.string.speed_cautious_hint
+    DownloadSpeed.NORMAL -> Res.string.speed_normal_hint
+    DownloadSpeed.FAST -> Res.string.speed_fast_hint
 }

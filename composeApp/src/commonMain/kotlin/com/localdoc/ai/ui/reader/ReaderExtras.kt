@@ -2,6 +2,7 @@
 
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.ask_ai
 import com.localdoc.ai.resources.choose_a_model
 import com.localdoc.ai.resources.close
@@ -104,7 +105,7 @@ private fun LanguageRow(title: String, subtitle: String, selected: Boolean, onCl
         supportingContent = if (subtitle.isNotBlank() && subtitle != title) ({ Text(subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }) else null,
         leadingContent = { RadioButton(selected = selected, onClick = onClick) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick)
     )
 }
 

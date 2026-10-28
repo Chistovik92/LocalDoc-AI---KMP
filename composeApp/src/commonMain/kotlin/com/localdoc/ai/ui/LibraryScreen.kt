@@ -2,6 +2,7 @@
 
 package com.localdoc.ai.ui
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.add
 import com.localdoc.ai.resources.add_a_book_or_document_epub
 import com.localdoc.ai.resources.add_to_the_library
@@ -301,7 +302,7 @@ private fun AddOption(icon: ImageVector, title: String, subtitle: String, onClic
         supportingContent = { Text(subtitle) },
         leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick)
     )
 }
 
@@ -313,7 +314,7 @@ private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: 
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(28.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)
+        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onOpen)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             BookCover(novel ?: entry.title, entry.author, entry.format, Modifier.width(72.dp), cover = entry.cover, entryId = entry.id)

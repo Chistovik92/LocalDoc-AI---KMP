@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.a_short_summary_of_the_plot
 import com.localdoc.ai.resources.about_the_book
 import com.localdoc.ai.resources.advise_me_how_to_read_faster
@@ -255,7 +256,7 @@ private fun Greeting(suggestions: List<Pair<StringResource, StringResource>>, mo
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.weight(1f).clickable(enabled = modelLoaded) { onSuggestion(title) }
+                    modifier = Modifier.weight(1f).clickable(role = Role.Button, enabled = modelLoaded) { onSuggestion(title) }
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Text(title, style = MaterialTheme.typography.bodyMedium)

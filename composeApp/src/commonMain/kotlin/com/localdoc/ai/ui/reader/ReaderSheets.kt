@@ -2,6 +2,8 @@
 
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.a_lightweight_open_synthesizer_for_100
 import com.localdoc.ai.resources.add_ttf_otf
 import com.localdoc.ai.resources.additional_voices_including_the_improved_enh
@@ -311,7 +313,7 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
                     ) {
                         Text("Аа", color = paper.text, fontFamily = FontFamily.Serif)
                     }
-                    Text(theme.label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+                    Text(stringResource(theme.label), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -322,7 +324,7 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
                 FilterChip(
                     selected = settings.font == font,
                     onClick = { update { it.copy(font = font) } },
-                    label = { Text(font.label, fontFamily = if (font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif) },
+                    label = { Text(stringResource(font.label), fontFamily = if (font == ReaderFont.SERIF) FontFamily.Serif else FontFamily.SansSerif) },
                     leadingIcon = if (settings.font == font) ({ Icon(Icons.Default.Check, null) }) else null
                 )
             }
@@ -402,7 +404,7 @@ private fun ReaderControlsSettings(settings: ReaderSettings, update: ((ReaderSet
     SectionLabel(stringResource(Res.string.tap_zones))
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         TapZones.entries.forEach { zones ->
-            EngineRow(zones.label, settings.tapZones == zones) { update { it.copy(tapZones = zones) } }
+            EngineRow(stringResource(zones.label), settings.tapZones == zones) { update { it.copy(tapZones = zones) } }
         }
     }
     if (settings.tapZones != TapZones.MENU_ONLY) {
@@ -706,15 +708,18 @@ private fun LabeledSlider(label: String, value: String, current: Float, range: C
 
 @Composable
 private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+    ) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
 @Composable
 private fun EngineRow(label: String, selected: Boolean, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick)) {
         RadioButton(selected = selected, onClick = onClick)
         Text(label, style = MaterialTheme.typography.bodyLarge)
     }
@@ -727,6 +732,6 @@ private fun VoiceRow(title: String, subtitle: String, selected: Boolean, onClick
         supportingContent = { Text(subtitle) },
         leadingContent = { RadioButton(selected = selected, onClick = onClick) },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick)
     )
 }

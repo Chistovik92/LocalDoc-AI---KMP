@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.a_word_or_phrase_from_the
 import com.localdoc.ai.resources.add_bookmark
 import com.localdoc.ai.resources.ask
@@ -169,6 +170,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import com.localdoc.ai.ui.reduceMotionEnabled
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -590,7 +592,7 @@ fun ReaderView(
 
     // Управление: листание зонами, свайпом и кнопками громкости, автопрокрутка, e-ink
     var autoScroll by remember { mutableStateOf(false) }
-    val reducedMotion = remember { ScreenControls.prefersReducedMotion }
+    val reducedMotion = reduceMotionEnabled()
     val animate = pageAnimationEnabled(settings.pageAnimation, settings.eInk, reducedMotion)
 
     fun turn(forward: Boolean) {
@@ -693,7 +695,28 @@ fun ReaderView(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(paper.background)) {
+    fun toggleBookmarkHere() {
+        val bookmarked = entry ?: return
+        val block = if (pagedDisplay) pageInfo.startBlock else currentBlock
+        AppGraph.bookmarks.toggle(
+            bookmarked, pageInfo.startBlock until pageInfo.endBlock, block,
+            book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty(),
+            TextAnchor.ofBlock(book.blocks, book.chapters, block),
+            blockOf = { it.resolveBlock(book) }
+        )
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(paper.background).readerHotkeys { hotkey ->
+            when (hotkey) {
+                ReaderHotkey.NEXT -> turn(true)
+                ReaderHotkey.PREVIOUS -> turn(false)
+                ReaderHotkey.CONTENTS -> showToc = true
+                ReaderHotkey.BOOKMARK -> toggleBookmarkHere()
+                ReaderHotkey.PLAY_PAUSE -> AppGraph.readAloud.toggle()
+            }
+        }
+    ) {
         CompositionLocalProvider(LocalTextToolbar provides textToolbar) {
         key(selectionEpoch) { SelectionContainer {
         LazyColumn(
@@ -848,15 +871,7 @@ fun ReaderView(
                         }
                         topBarActions()
                         if (entry != null) {
-                            IconButton(onClick = {
-                                val block = if (pagedDisplay) pageInfo.startBlock else currentBlock
-                                AppGraph.bookmarks.toggle(
-                                    entry, pageInfo.startBlock until pageInfo.endBlock, block,
-                                    book.blocks.getOrNull(block)?.text.orEmpty(), chapterTitle.orEmpty(),
-                                    TextAnchor.ofBlock(book.blocks, book.chapters, block),
-                                    blockOf = { it.resolveBlock(book) }
-                                )
-                            }) {
+                            IconButton(onClick = { toggleBookmarkHere() }) {
                                 Icon(
                                     if (pageBookmark != null) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                     contentDescription = if (pageBookmark != null) stringResource(Res.string.remove_bookmark) else stringResource(Res.string.add_bookmark),
@@ -1271,7 +1286,7 @@ private fun BlockText(
                     else -> Modifier
                 }
             )
-            .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
+            .then(if (onTap != null) Modifier.clickable(role = Role.Button, onClick = onTap) else Modifier)
             // Нажатие на подсвеченное место открывает заметку; стоит последним, чтобы сработать раньше остальных нажатий
             .then(
                 if (marks.isEmpty()) Modifier else Modifier.pointerInput(marks, bulletLength) {

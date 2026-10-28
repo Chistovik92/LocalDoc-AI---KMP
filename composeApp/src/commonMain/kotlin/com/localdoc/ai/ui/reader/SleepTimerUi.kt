@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.close
 import com.localdoc.ai.resources.min
 import com.localdoc.ai.resources.minutes
@@ -90,7 +91,7 @@ fun SleepTimerButton() {
 
 @Composable
 private fun SleepOption(text: String, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(vertical = 10.dp)) {
         Text(text, style = MaterialTheme.typography.bodyLarge)
     }
 }

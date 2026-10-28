@@ -1,5 +1,17 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.done
+import com.localdoc.ai.resources.phase_building
+import com.localdoc.ai.resources.phase_cancelled
+import com.localdoc.ai.resources.phase_chapters
+import com.localdoc.ai.resources.phase_exporting
+import com.localdoc.ai.resources.phase_failed
+import com.localdoc.ai.resources.phase_file
+import com.localdoc.ai.resources.phase_looking
+import com.localdoc.ai.resources.phase_saving
+import com.localdoc.ai.resources.phase_toc
+import org.jetbrains.compose.resources.StringResource
 import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.book.Book
@@ -52,17 +64,17 @@ fun interface FileFetcher {
 class DownloadedFile(val name: String, val bytes: ByteArray)
 
 /** Этап скачивания книги для показа пользователю. */
-enum class DownloadPhase(val label: String) {
-    LOOKING("Ищем готовый файл книги"),
-    FILE("Скачиваем файл книги"),
-    TOC("Загружаем оглавление"),
-    CHAPTERS("Скачиваем главы"),
-    BUILDING("Собираем книгу"),
-    EXPORTING("Готовим файл"),
-    SAVING("Сохраняем"),
-    DONE("Готово"),
-    FAILED("Ошибка"),
-    CANCELLED("Отменено")
+enum class DownloadPhase(val label: StringResource) {
+    LOOKING(Res.string.phase_looking),
+    FILE(Res.string.phase_file),
+    TOC(Res.string.phase_toc),
+    CHAPTERS(Res.string.phase_chapters),
+    BUILDING(Res.string.phase_building),
+    EXPORTING(Res.string.phase_exporting),
+    SAVING(Res.string.phase_saving),
+    DONE(Res.string.done),
+    FAILED(Res.string.phase_failed),
+    CANCELLED(Res.string.phase_cancelled)
 }
 
 data class DownloadProgress(val phase: DownloadPhase, val done: Int = 0, val total: Int = 0, val message: String? = null)

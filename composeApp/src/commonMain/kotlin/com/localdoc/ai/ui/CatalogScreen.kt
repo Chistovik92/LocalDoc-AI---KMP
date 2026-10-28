@@ -2,6 +2,7 @@
 
 package com.localdoc.ai.ui
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.add_to_collection
 import com.localdoc.ai.resources.add_to_library
 import com.localdoc.ai.resources.added_to_the_library
@@ -178,7 +179,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         ShelfKind.entries.forEach { kind ->
-                            FilterChip(selected = filter.kind == kind, onClick = { filter = filter.copy(kind = kind, value = null) }, label = { Text(kind.label, maxLines = 1, softWrap = false) })
+                            FilterChip(selected = filter.kind == kind, onClick = { filter = filter.copy(kind = kind, value = null) }, label = { Text(stringResource(kind.label), maxLines = 1, softWrap = false) })
                         }
                     }
                 }
@@ -205,7 +206,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                             FilterChip(selected = false, onClick = { sortMenu = true }, label = { Text(stringResource(Res.string.sort, filter.sort.label), maxLines = 1, softWrap = false) })
                             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                                 CatalogSort.entries.forEach { sort ->
-                                    DropdownMenuItem(text = { Text(sort.label) }, onClick = { sortMenu = false; filter = filter.copy(sort = sort) })
+                                    DropdownMenuItem(text = { Text(stringResource(sort.label)) }, onClick = { sortMenu = false; filter = filter.copy(sort = sort) })
                                 }
                             }
                         }
@@ -364,6 +365,6 @@ private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Uni
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.clickable(onClick = onOpen)
+        modifier = Modifier.clickable(role = Role.Button, onClick = onOpen)
     )
 }

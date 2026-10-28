@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui
 
+import androidx.compose.ui.semantics.Role
 import com.localdoc.ai.resources.add
 import com.localdoc.ai.resources.add_a_catalog
 import com.localdoc.ai.resources.added_to_the_library_2
@@ -265,7 +266,7 @@ private fun EntryRow(entry: OpdsEntry, busy: Boolean, onOpen: () -> Unit, onDown
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().then(if (entry.navigationUrl != null) Modifier.clickable(onClick = onOpen) else Modifier)
+        modifier = Modifier.fillMaxWidth().then(if (entry.navigationUrl != null) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)) {
             Column(Modifier.weight(1f)) {

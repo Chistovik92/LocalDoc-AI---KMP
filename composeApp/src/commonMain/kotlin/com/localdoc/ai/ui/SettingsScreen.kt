@@ -58,7 +58,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Backup
+import com.localdoc.ai.resources.interface_and_accessibility
+import com.localdoc.ai.resources.language_contrast_motion
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.EditNote
@@ -111,6 +114,7 @@ enum class SettingsSection(val title: StringResource, val description: StringRes
     STORAGE(Res.string.storage, Res.string.image_cache_downloaded_novel_pages, Icons.Default.Storage),
     BACKUP(Res.string.backup, Res.string.library_and_settings_in_one_file, Icons.Default.Backup),
     SYNC(Res.string.sync, Res.string.progress_bookmarks_and_notes_between_devices, Icons.Default.Backup),
+    INTERFACE(Res.string.interface_and_accessibility, Res.string.language_contrast_motion, Icons.Default.Accessibility),
     ABOUT(Res.string.updates_and_about, Res.string.version_update_check, Icons.Default.Info)
 }
 
@@ -153,6 +157,7 @@ fun SettingsScreen(
                         SettingsSection.STORAGE -> StorageSection()
                         SettingsSection.BACKUP -> BackupSection()
                         SettingsSection.SYNC -> SyncSection()
+                        SettingsSection.INTERFACE -> InterfaceSection()
                         SettingsSection.ABOUT -> AboutSection()
                         else -> Unit
                     }

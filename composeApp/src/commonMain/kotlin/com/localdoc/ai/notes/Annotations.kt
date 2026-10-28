@@ -1,5 +1,12 @@
 package com.localdoc.ai.notes
 
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.color_blue
+import com.localdoc.ai.resources.color_green
+import com.localdoc.ai.resources.color_orange
+import com.localdoc.ai.resources.color_pink
+import com.localdoc.ai.resources.color_yellow
+import org.jetbrains.compose.resources.StringResource
 import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.book.BookFormat
 import com.localdoc.ai.net.nowMillis
@@ -14,12 +21,12 @@ import kotlin.random.Random
 
 /** Цвет подсветки цитаты: [argb] — полупрозрачный фон поверх текста. */
 @Serializable
-enum class AnnotationColor(val label: String, val argb: Long) {
-    YELLOW("Жёлтый", 0x66FFD54F),
-    GREEN("Зелёный", 0x6681C784),
-    BLUE("Синий", 0x6664B5F6),
-    PINK("Розовый", 0x66F48FB1),
-    ORANGE("Оранжевый", 0x66FFB74D)
+enum class AnnotationColor(val label: StringResource, val argb: Long) {
+    YELLOW(Res.string.color_yellow, 0x66FFD54F),
+    GREEN(Res.string.color_green, 0x6681C784),
+    BLUE(Res.string.color_blue, 0x6664B5F6),
+    PINK(Res.string.color_pink, 0x66F48FB1),
+    ORANGE(Res.string.color_orange, 0x66FFB74D)
 }
 
 /**
