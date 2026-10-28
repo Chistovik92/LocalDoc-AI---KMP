@@ -661,4 +661,20 @@
     <string name="screen_page_explanation">Страница — столько текста, сколько помещается на экран при выбранных шрифте, интервале и полях.</string>
     <string name="speech_chunk_title">Порция для озвучки и перевода</string>
     <string name="speech_chunk_hint">Озвучка, перевод и ИИ работают порциями текста в любом режиме — большая книга не зависает.</string>
+    <string name="fix_breaks_menu">Исправить переносы и абзацы…</string>
+    <string name="fix_breaks_title">Переносы и абзацы</string>
+    <string name="fix_breaks_hint">Склеит строки, оборванные посреди предложения, вернёт слова, разорванные переносом, разделит слипшиеся абзацы и уберёт номера страниц и колонтитулы. Закладки, цитаты и место чтения сохранятся.</string>
+    <string name="fix_breaks_check">Найти исправления</string>
+    <string name="fix_breaks_check_ai">Проверить спорные места с помощью ИИ</string>
+    <string name="fix_breaks_ai_needs_model">Чтобы проверить спорные места нейросетью, выберите модель. Без неё действуют только программные правила.</string>
+    <string name="fix_breaks_none">Исправлять нечего</string>
+    <string name="fix_breaks_joined">Склеено строк: %1$s</string>
+    <string name="fix_breaks_hyphens">Слов с переносом восстановлено: %1$s</string>
+    <string name="fix_breaks_split">Слипшихся абзацев разделено: %1$s</string>
+    <string name="fix_breaks_removed">Убрано номеров страниц и колонтитулов: %1$s</string>
+    <string name="fix_breaks_spaces">Исправлено пробелов: %1$s</string>
+    <string name="fix_breaks_before">Было</string>
+    <string name="fix_breaks_after">Стало</string>
+    <string name="fix_breaks_apply">Применить исправления</string>
+    <string name="fix_breaks_failed">Не удалось исправить текст</string>
 </resources>

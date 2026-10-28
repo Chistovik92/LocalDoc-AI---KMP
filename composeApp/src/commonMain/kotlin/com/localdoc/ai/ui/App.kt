@@ -304,6 +304,14 @@ fun App() {
                             ?.let { openBook = OpenBook(reading.entryId, it, reading.startBlock) }
                     }
                 },
+                onTextRepaired = { repair ->
+                    scope.launch {
+                        AppGraph.library.replaceBlocks(reading.entryId, repair)?.let { (fixed, block) ->
+                            currentBlock = block
+                            openBook = OpenBook(reading.entryId, fixed, block)
+                        }
+                    }
+                },
                 onBack = { openBook = null },
                 onOpenAssistant = { openBook = null; tab = Tab.Assistant },
                 onOpenModels = ::openModels

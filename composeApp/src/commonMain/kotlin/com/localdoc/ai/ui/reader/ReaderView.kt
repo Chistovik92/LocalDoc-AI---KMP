@@ -15,6 +15,7 @@ import com.localdoc.ai.resources.briefly_retell_this_passage_in_3
 import com.localdoc.ai.resources.brightness
 import com.localdoc.ai.resources.chapter_start_marked
 import com.localdoc.ai.resources.chapters_and_contents
+import com.localdoc.ai.resources.fix_breaks_menu
 import com.localdoc.ai.resources.contents
 import com.localdoc.ai.resources.copied
 import com.localdoc.ai.resources.could_not_get_the_selected_text
@@ -285,6 +286,8 @@ fun ReaderView(
     chapterNavigation: ChapterNavigation? = null,
     /** Книга из библиотеки: новое оглавление (найденное по словам, нейросетью или отмеченное вручную) нужно сохранить. */
     onChaptersChanged: ((List<com.localdoc.ai.book.Chapter>) -> Unit)? = null,
+    /** Книга из библиотеки: исправленные переносы и абзацы нужно сохранить (прогресс и оглавление переносятся). */
+    onTextRepaired: ((com.localdoc.ai.book.RepairResult) -> Unit)? = null,
     /** false — экран внутри Scaffold с нижней навигацией, отступ системной панели уже учтён. */
     applyNavigationBarInsets: Boolean = true,
     topBarActions: @Composable RowScope.() -> Unit = {}
@@ -347,6 +350,7 @@ fun ReaderView(
     var showMenu by remember { mutableStateOf(false) }
     var showSaveAs by remember { mutableStateOf(false) }
     var showChapters by remember { mutableStateOf(false) }
+    var showRepair by remember { mutableStateOf(false) }
     var askTerm by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
     var showAnnotations by remember { mutableStateOf(false) }
@@ -973,6 +977,9 @@ fun ReaderView(
                                 if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
                                     DropdownMenuItem(text = { Text(stringResource(Res.string.chapters_and_contents)) }, onClick = { showMenu = false; showChapters = true })
                                 }
+                                if (entry != null && onTextRepaired != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
+                                    DropdownMenuItem(text = { Text(stringResource(Res.string.fix_breaks_menu)) }, onClick = { showMenu = false; showRepair = true })
+                                }
                                 DropdownMenuItem(text = { Text(stringResource(Res.string.bookmarks)) }, onClick = { showMenu = false; showBookmarks = true })
                                 if (entry != null) {
                                     DropdownMenuItem(
@@ -1098,6 +1105,14 @@ fun ReaderView(
             onSaveAs = { showChapters = false; showSaveAs = true },
             onOpenModels = { showChapters = false; onOpenModels() },
             onDismiss = { showChapters = false }
+        )
+    }
+    if (showRepair && entry != null && onTextRepaired != null) {
+        RepairSheet(
+            book = book,
+            onApply = { showRepair = false; onTextRepaired(it) },
+            onOpenModels = { showRepair = false; onOpenModels() },
+            onDismiss = { showRepair = false }
         )
     }
     if (showVoice) VoiceSettingsSheet(onDismiss = { showVoice = false })

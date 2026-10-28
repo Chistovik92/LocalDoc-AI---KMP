@@ -657,4 +657,20 @@
     <string name="screen_page_explanation">A page is as much text as fits on the screen with the chosen font, spacing and margins.</string>
     <string name="speech_chunk_title">Chunk for speech and translation</string>
     <string name="speech_chunk_hint">Speech, translation and AI work in chunks of text in any mode — a large book won’t freeze.</string>
+    <string name="fix_breaks_menu">Fix line breaks and paragraphs…</string>
+    <string name="fix_breaks_title">Line breaks and paragraphs</string>
+    <string name="fix_breaks_hint">Joins lines cut in the middle of a sentence, restores words broken by hyphenation, separates glued paragraphs and removes page numbers and running headers. Bookmarks, quotes and your reading position are kept.</string>
+    <string name="fix_breaks_check">Find fixes</string>
+    <string name="fix_breaks_check_ai">Check doubtful places with AI</string>
+    <string name="fix_breaks_ai_needs_model">Choose a model to check doubtful places with the neural network. Without it only the built-in rules apply.</string>
+    <string name="fix_breaks_none">Nothing to fix</string>
+    <string name="fix_breaks_joined">Lines joined: %1$s</string>
+    <string name="fix_breaks_hyphens">Hyphenated words restored: %1$s</string>
+    <string name="fix_breaks_split">Glued paragraphs separated: %1$s</string>
+    <string name="fix_breaks_removed">Page numbers and headers removed: %1$s</string>
+    <string name="fix_breaks_spaces">Spaces fixed: %1$s</string>
+    <string name="fix_breaks_before">Before</string>
+    <string name="fix_breaks_after">After</string>
+    <string name="fix_breaks_apply">Apply fixes</string>
+    <string name="fix_breaks_failed">Could not fix the text</string>
 </resources>

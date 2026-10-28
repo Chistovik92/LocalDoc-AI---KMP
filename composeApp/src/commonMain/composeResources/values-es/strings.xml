@@ -659,4 +659,20 @@
     <string name="screen_page_explanation">Una página es el texto que cabe en pantalla con la fuente, el interlineado y los márgenes elegidos.</string>
     <string name="speech_chunk_title">Porción para narración y traducción</string>
     <string name="speech_chunk_hint">La narración, la traducción y la IA funcionan por porciones de texto en cualquier modo: un libro grande no se bloquea.</string>
+    <string name="fix_breaks_menu">Corregir saltos de línea y párrafos…</string>
+    <string name="fix_breaks_title">Saltos de línea y párrafos</string>
+    <string name="fix_breaks_hint">Une las líneas cortadas a mitad de frase, restaura las palabras partidas por guiones, separa los párrafos pegados y elimina números de página y encabezados. Los marcadores, las citas y la posición de lectura se conservan.</string>
+    <string name="fix_breaks_check">Buscar correcciones</string>
+    <string name="fix_breaks_check_ai">Revisar los casos dudosos con IA</string>
+    <string name="fix_breaks_ai_needs_model">Elija un modelo para revisar los casos dudosos con la red neuronal. Sin él solo se aplican las reglas integradas.</string>
+    <string name="fix_breaks_none">No hay nada que corregir</string>
+    <string name="fix_breaks_joined">Líneas unidas: %1$s</string>
+    <string name="fix_breaks_hyphens">Palabras con guion restauradas: %1$s</string>
+    <string name="fix_breaks_split">Párrafos pegados separados: %1$s</string>
+    <string name="fix_breaks_removed">Números de página y encabezados eliminados: %1$s</string>
+    <string name="fix_breaks_spaces">Espacios corregidos: %1$s</string>
+    <string name="fix_breaks_before">Antes</string>
+    <string name="fix_breaks_after">Después</string>
+    <string name="fix_breaks_apply">Aplicar correcciones</string>
+    <string name="fix_breaks_failed">No se pudo corregir el texto</string>
 </resources>
