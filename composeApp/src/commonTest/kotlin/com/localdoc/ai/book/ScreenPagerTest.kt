@@ -198,4 +198,13 @@ class ScreenPagerTest {
         assertFalse(layout.ordinal(ref).second)
         assertTrue(layout.total > pages.size)
     }
+
+    @Test
+    fun `block slice clips and shifts spans`() {
+        val block = Block(BlockType.PARAGRAPH, "0123456789", spans = listOf(Span(2, 8, SpanStyleType.BOLD), Span(0, 2, SpanStyleType.ITALIC)))
+        val part = block.slice(4, 10)
+        assertEquals("456789", part.text)
+        assertEquals(listOf(Span(0, 4, SpanStyleType.BOLD)), part.spans)
+        assertEquals(block, block.slice(0, 10))
+    }
 }

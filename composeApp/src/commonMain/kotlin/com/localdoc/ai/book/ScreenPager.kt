@@ -33,6 +33,19 @@ fun ScreenPage.slices(blocks: List<Block>): List<BlockSlice> {
     return out
 }
 
+/** Кусок блока [from, to): текст обрезан, выделения (span) сдвинуты и обрезаны по границам куска. */
+fun Block.slice(from: Int, to: Int): Block {
+    if (from <= 0 && to >= text.length) return this
+    val a = from.coerceIn(0, text.length)
+    val b = to.coerceIn(a, text.length)
+    val clipped = spans.mapNotNull { s ->
+        val start = max(s.start, a) - a
+        val end = min(s.end, b) - a
+        if (end > start) Span(start, end, s.style) else null
+    }
+    return copy(text = text.substring(a, b), spans = clipped)
+}
+
 /** Область страницы в пикселях: ширина и высота текста без полей. */
 data class PageSpec(val width: Float, val height: Float)
 

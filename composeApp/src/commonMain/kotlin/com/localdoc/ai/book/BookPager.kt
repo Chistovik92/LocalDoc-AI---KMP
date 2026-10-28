@@ -8,7 +8,7 @@ data class BookPage(val index: Int, val startBlock: Int, val endBlock: Int) {
     operator fun contains(block: Int): Boolean = block in startBlock until endBlock
 }
 
-/** Размер страницы: по объёму текста — он же порция для чтения, озвучки, перевода и ИИ. */
+/** Порция текста для озвучки, перевода и ИИ (не экранная страница — та считается в [ScreenPager]). */
 @Serializable
 enum class PageSize(val label: String, val chars: Int) {
     SMALL("Малая", 1_500),
