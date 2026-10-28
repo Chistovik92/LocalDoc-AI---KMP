@@ -421,7 +421,7 @@
     <string name="previous_chapter">Попередній розділ</string>
     <string name="go_to_previous_chapter">Перейти до попереднього розділу</string>
     <string name="go_to_next_chapter">Перейти до наступного розділу</string>
-    <string name="back_2">← Назад</string>
+    <string name="open_table_of_contents">Відкрити зміст</string>
     <string name="next">Далі →</string>
     <string name="sleep_timer">Таймер сну</string>
     <string name="until_the_end_of_the_chapter">до кінця розділу</string>

@@ -9,7 +9,6 @@ import com.localdoc.ai.resources.auto_advance_on
 import com.localdoc.ai.resources.auto_advance_to_the_next_chapter_2
 import com.localdoc.ai.resources.auto_scroll
 import com.localdoc.ai.resources.back
-import com.localdoc.ai.resources.back_2
 import com.localdoc.ai.resources.bookmarks
 import com.localdoc.ai.resources.briefly_retell_this_passage_in_3
 import com.localdoc.ai.resources.brightness
@@ -34,6 +33,7 @@ import com.localdoc.ai.resources.next_chapter
 import com.localdoc.ai.resources.previous_chapter
 import com.localdoc.ai.resources.go_to_previous_chapter
 import com.localdoc.ai.resources.go_to_next_chapter
+import com.localdoc.ai.resources.open_table_of_contents
 import com.localdoc.ai.resources.note_saved
 import com.localdoc.ai.resources.p
 import com.localdoc.ai.resources.page_of_2
@@ -128,6 +128,10 @@ import com.localdoc.ai.domain.autoScrollDelta
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.localdoc.ai.domain.ChapterButtons
+import com.localdoc.ai.domain.ChapterListBlock
+import com.localdoc.ai.domain.chapterBlockOnBottom
+import com.localdoc.ai.domain.chapterBlockOnTop
+import com.localdoc.ai.domain.chapterListBlock
 import com.localdoc.ai.domain.bottomPanelVisible
 import com.localdoc.ai.domain.chapterButtons
 import com.localdoc.ai.domain.chromeAfterPageTurn
@@ -876,6 +880,16 @@ fun ReaderView(
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .then(readerGestures)
         ) {
+            val listBlock = chapterListBlock(
+                isWeb = book.format == com.localdoc.ai.book.BookFormat.WEB,
+                hasNavigation = chapterNavigation != null,
+                hasPrevious = chapterNavigation?.hasPrevious == true,
+                hasNext = chapterNavigation?.hasNext == true,
+                hasContents = chapterNavigation?.onTableOfContents != null
+            )
+            if (listBlock != null && chapterNavigation != null && chapterBlockOnTop(pagedDisplay, page)) {
+                item(key = "chapter-header") { ChapterBlock(chapterNavigation, listBlock, paper, verticalPadding = 16.dp) }
+            }
             items(itemCount, key = { firstIndex + it }) { local ->
                 val index = firstIndex + local
                 Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.fillMaxWidth()) {
@@ -893,8 +907,14 @@ fun ReaderView(
                     )
                 }
             }
-            if (chapterNavigation != null && (!pagedDisplay || page >= pager.size - 1)) {
-                item { ChapterFooter(chapterNavigation, paper) }
+            if (chapterNavigation != null && chapterBlockOnBottom(pagedDisplay, page, pager.size)) {
+                item(key = "chapter-footer") {
+                    ChapterBlock(
+                        chapterNavigation,
+                        listBlock ?: ChapterListBlock(chapterNavigation.hasPrevious, chapterNavigation.hasNext, chapterNavigation.onTableOfContents != null),
+                        paper, verticalPadding = 32.dp
+                    )
+                }
             }
         }
         } }
@@ -1350,17 +1370,33 @@ private fun ChapterButtonsRow(nav: ChapterNavigation, state: ChapterButtons) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ChapterFooter(nav: ChapterNavigation, paper: PaperColors) {
+private fun ChapterBlock(nav: ChapterNavigation, state: ChapterListBlock, paper: PaperColors, verticalPadding: androidx.compose.ui.unit.Dp) {
+    val previousDescription = stringResource(Res.string.go_to_previous_chapter)
+    val nextDescription = stringResource(Res.string.go_to_next_chapter)
+    val contentsDescription = stringResource(Res.string.open_table_of_contents)
     // Текст кнопок — строго в одну строку; если не помещаются, переносится сама кнопка
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = verticalPadding)
     ) {
-        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text(stringResource(Res.string.back_2), maxLines = 1, softWrap = false) }
-        nav.onTableOfContents?.let { TextButton(onClick = it) { Text(stringResource(Res.string.contents), color = paper.text, maxLines = 1, softWrap = false) } }
-        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text(stringResource(Res.string.next), maxLines = 1, softWrap = false) }
+        OutlinedButton(
+            onClick = nav.onPrevious,
+            enabled = state.previousEnabled,
+            modifier = Modifier.semantics { contentDescription = previousDescription }
+        ) { Text(stringResource(Res.string.previous_chapter), maxLines = 1, softWrap = false) }
+        val openContents = nav.onTableOfContents
+        if (state.showContents && openContents != null) {
+            TextButton(onClick = openContents, modifier = Modifier.semantics { contentDescription = contentsDescription }) {
+                Text(stringResource(Res.string.contents), color = paper.text, maxLines = 1, softWrap = false)
+            }
+        }
+        Button(
+            onClick = nav.onNext,
+            enabled = state.nextEnabled,
+            modifier = Modifier.semantics { contentDescription = nextDescription }
+        ) { Text(stringResource(Res.string.next_chapter), maxLines = 1, softWrap = false) }
     }
 }
 

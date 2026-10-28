@@ -43,3 +43,17 @@ data class ChapterButtons(val previousEnabled: Boolean, val nextEnabled: Boolean
  */
 fun chapterButtons(hasNavigation: Boolean, hasPrevious: Boolean, hasNext: Boolean, pagedListing: Boolean): ChapterButtons? =
     if (hasNavigation && pagedListing) ChapterButtons(previousEnabled = hasPrevious, nextEnabled = hasNext) else null
+
+/** Блок кнопок глав в начале и в конце прокручиваемой веб-страницы. */
+data class ChapterListBlock(val previousEnabled: Boolean, val nextEnabled: Boolean, val showContents: Boolean)
+
+/**
+ * Блок с кнопками «к предыдущей главе», «к следующей главе» и «Оглавление» — только для веб-книг с навигацией
+ * по главам; «Оглавление» — только если есть обработчик [hasContents]. null — блока нет.
+ */
+fun chapterListBlock(isWeb: Boolean, hasNavigation: Boolean, hasPrevious: Boolean, hasNext: Boolean, hasContents: Boolean): ChapterListBlock? =
+    if (isWeb && hasNavigation) ChapterListBlock(hasPrevious, hasNext, hasContents) else null
+
+/** Сверху блок виден на первой порции (при переводе — только на первой странице), снизу — на последней. */
+fun chapterBlockOnTop(pagedDisplay: Boolean, page: Int): Boolean = !pagedDisplay || page == 0
+fun chapterBlockOnBottom(pagedDisplay: Boolean, page: Int, pageCount: Int): Boolean = !pagedDisplay || page >= pageCount - 1

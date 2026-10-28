@@ -421,7 +421,7 @@
     <string name="previous_chapter">Vorheriges Kapitel</string>
     <string name="go_to_previous_chapter">Zum vorherigen Kapitel</string>
     <string name="go_to_next_chapter">Zum nächsten Kapitel</string>
-    <string name="back_2">← Zurück</string>
+    <string name="open_table_of_contents">Inhaltsverzeichnis öffnen</string>
     <string name="next">Weiter →</string>
     <string name="sleep_timer">Schlaf-Timer</string>
     <string name="until_the_end_of_the_chapter">bis zum Kapitelende</string>

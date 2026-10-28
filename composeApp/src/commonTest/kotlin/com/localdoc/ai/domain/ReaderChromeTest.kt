@@ -57,4 +57,27 @@ class ReaderChromeTest {
         assertEquals(ChapterButtons(previousEnabled = false, nextEnabled = true), chapterButtons(true, false, true, true))
         assertEquals(ChapterButtons(previousEnabled = true, nextEnabled = false), chapterButtons(true, true, false, true))
     }
+
+    @Test
+    fun `chapter list block only for web books with navigation`() {
+        assertNull(chapterListBlock(isWeb = false, hasNavigation = true, hasPrevious = true, hasNext = true, hasContents = true))
+        assertNull(chapterListBlock(isWeb = true, hasNavigation = false, hasPrevious = true, hasNext = true, hasContents = true))
+        assertEquals(ChapterListBlock(true, true, true), chapterListBlock(true, true, true, true, true))
+    }
+
+    @Test
+    fun `chapter list block disables unavailable buttons and hides missing contents`() {
+        assertEquals(ChapterListBlock(previousEnabled = false, nextEnabled = true, showContents = false), chapterListBlock(true, true, false, true, false))
+        assertEquals(ChapterListBlock(previousEnabled = true, nextEnabled = false, showContents = true), chapterListBlock(true, true, true, false, true))
+    }
+
+    @Test
+    fun `chapter block position in scrolling and translated paging`() {
+        assertTrue(chapterBlockOnTop(pagedDisplay = false, page = 5))
+        assertTrue(chapterBlockOnBottom(pagedDisplay = false, page = 0, pageCount = 9))
+        assertTrue(chapterBlockOnTop(true, 0))
+        assertFalse(chapterBlockOnTop(true, 1))
+        assertTrue(chapterBlockOnBottom(true, 8, 9))
+        assertFalse(chapterBlockOnBottom(true, 7, 9))
+    }
 }

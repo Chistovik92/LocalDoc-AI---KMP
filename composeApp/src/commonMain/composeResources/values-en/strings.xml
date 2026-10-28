@@ -421,7 +421,7 @@
     <string name="previous_chapter">Previous chapter</string>
     <string name="go_to_previous_chapter">Go to the previous chapter</string>
     <string name="go_to_next_chapter">Go to the next chapter</string>
-    <string name="back_2">← Back</string>
+    <string name="open_table_of_contents">Open the table of contents</string>
     <string name="next">Next →</string>
     <string name="sleep_timer">Sleep timer</string>
     <string name="until_the_end_of_the_chapter">until the end of the chapter</string>
