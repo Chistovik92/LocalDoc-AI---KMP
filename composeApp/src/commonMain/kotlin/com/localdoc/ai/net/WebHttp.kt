@@ -24,6 +24,16 @@ fun SecureStore.asStorage(): SecretStorage = object : SecretStorage {
     override fun remove(key: String) = this@asStorage.remove(key)
 }
 
+/**
+ * Что разрешено пользователем для сайта с непроверенным сертификатом: [fingerprints] — отпечатки SHA-256 сертификатов,
+ * которым он доверил этот сайт, [any] — галочка «открывать сайты с любым сертификатом».
+ */
+class CertificateAllowance(val fingerprints: Set<String>, val any: Boolean) {
+    companion object {
+        val NONE = CertificateAllowance(emptySet(), false)
+    }
+}
+
 /** Итог запроса после всех редиректов. [url] — адрес последнего ответа. */
 class HttpResult(val url: String, val status: Int, val headers: Map<String, String>, val body: ByteArray) {
     val contentType: String get() = headers["content-type"].orEmpty().lowercase()
@@ -62,7 +72,9 @@ class WebHttp(
     val cookies: CookieJar,
     private val throttle: HostThrottle = HostThrottle(),
     /** `robots.txt` сайтов: `Crawl-delay` удлиняет паузу между запросами; null — не учитывается. */
-    private val robots: RobotsPolicy? = null
+    private val robots: RobotsPolicy? = null,
+    /** Согласия пользователя на сертификаты сайта (хост[:порт] → разрешение); по умолчанию — никаких. */
+    private val certificates: (String) -> CertificateAllowance = { CertificateAllowance.NONE }
 ) {
     private val preparedHosts = HashSet<String>()
 
@@ -131,7 +143,11 @@ class WebHttp(
                 cookies.header(url)?.let { headers["Cookie"] = it }
                 if (payload == null) headers.remove("Content-Type")
 
-                val request = RawRequest(url, verb, headers, payload)
+                val allowance = certificates(hostOf(url))
+                val request = RawRequest(
+                    url, verb, headers, payload,
+                    trustedCertificates = allowance.fingerprints, trustAnyCertificate = allowance.any
+                )
                 val attempt = if (throttled) throttledExecute(request, maxBytes) else Attempt(transport.execute(request, maxBytes), null)
                 response = attempt.response
                 response.setCookies.forEach { cookies.store(url, it) }

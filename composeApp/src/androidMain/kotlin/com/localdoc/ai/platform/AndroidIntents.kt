@@ -42,10 +42,13 @@ object AndroidIntents {
 
     fun registerMicrophone(launcher: ActivityResultLauncher<String>) { microphoneLauncher = launcher }
 
-    fun launchMicrophonePermission(onResult: (Boolean) -> Unit) {
+    /** Запрос одного разрешения (микрофон, чтение хранилища на Android 8–9): тот же лаунчер, один запрос за раз. */
+    fun launchPermission(permission: String, onResult: (Boolean) -> Unit) {
         microphoneCallback = onResult
-        microphoneLauncher?.launch(android.Manifest.permission.RECORD_AUDIO) ?: onResult(false)
+        microphoneLauncher?.launch(permission) ?: onResult(false)
     }
+
+    fun launchMicrophonePermission(onResult: (Boolean) -> Unit) = launchPermission(android.Manifest.permission.RECORD_AUDIO, onResult)
 
     fun onMicrophoneResult(granted: Boolean) {
         microphoneCallback?.invoke(granted)

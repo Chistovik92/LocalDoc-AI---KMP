@@ -126,7 +126,8 @@ LocalDoc-AI---KMP/
 
 ## Сборка Android
 
-Требуется JDK 17/21, Android SDK + NDK (arm64-v8a), CMake 3.22+.
+Требуется JDK 17/21, Android SDK + NDK (arm64-v8a и armeabi-v7a), CMake 3.22+. Приложение работает на Android 8.0–17
+(`minSdk` 26; 64-битные и 32-битные телефоны), нативные библиотеки выровнены на 16 КБ.
 
 ```bash
 # Android Studio: открыть корень репозитория → Run.

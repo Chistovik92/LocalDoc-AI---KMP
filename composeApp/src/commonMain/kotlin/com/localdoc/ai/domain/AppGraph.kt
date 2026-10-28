@@ -130,12 +130,15 @@ object AppGraph {
     val cookieJar: CookieJar by lazy { CookieJar(secure.asStorage()) }
     /** «Скорость скачивания»: пауза между запросами к одному сайту (по умолчанию — осторожно). */
     val downloadSpeed = PersistedSetting(kv, "download_speed", DownloadSpeed.serializer(), DownloadSpeed.CAUTIOUS)
+    /** Согласия на сайты с непроверенным сертификатом: по сайту (отпечаток) и общая галочка. */
+    val certificateTrust = CertificateTrust(PersistedSetting(kv, "certificate_trust", CertificateTrustState.serializer(), CertificateTrustState()))
     val webHttp: WebHttp by lazy {
         WebHttp(
             RawHttp().asTransport(),
             cookieJar,
             HostThrottle(speed = { downloadSpeed.value.value }),
-            RobotsPolicy({ url -> webHttp.getUnthrottled(url) })
+            RobotsPolicy({ url -> webHttp.getUnthrottled(url) }),
+            certificates = certificateTrust::allowanceFor
         )
     }
     val siteVault: SiteVault by lazy { SiteVault(secure.asStorage(), cookieJar) }
@@ -497,7 +500,8 @@ object AppGraph {
             scope = appScope,
             auth = { siteAuth },
             vault = { siteVault },
-            autoNext = { readerSettings.value.value.autoNext }
+            autoNext = { readerSettings.value.value.autoNext },
+            trustCertificate = certificateTrust::trust
         )
     }
 

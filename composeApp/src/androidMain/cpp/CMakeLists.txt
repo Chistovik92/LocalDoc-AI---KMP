@@ -15,6 +15,12 @@ set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+# 32-битный ARM (armeabi-v7a, Android 8–9 на старых телефонах): llamafile-sgemm использует FP16-векторы NEON (vld1q_f16),
+# которых нет в ARMv7, — он отключается; остальные ядра llama.cpp работают через обычный NEON/скалярный код
+if(ANDROID_ABI STREQUAL "armeabi-v7a")
+    set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
+endif()
+
 # Ядро llama.cpp + единый C-мост
 add_subdirectory("${LLAMA_DIR}" llama_build)
 

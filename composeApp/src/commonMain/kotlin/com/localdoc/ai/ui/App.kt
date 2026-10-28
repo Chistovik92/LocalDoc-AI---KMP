@@ -403,6 +403,7 @@ fun App() {
         )
         ProcessingDialog(processing)
         WebLoginHost()
+        WebCertificateHost()
 
         update?.let { found ->
             val downloading = downloadState is UpdateDownload.Downloading

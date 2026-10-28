@@ -124,18 +124,23 @@ val releaseSigning = loadReleaseSigning()
 
 android {
     namespace = "com.localdoc.ai"
+    // API 37 (Android 17) AGP 8.7 не собирает (платформа SDK называется «android-37.0»): приложение работает на Android 17
+    // через обратную совместимость (targetSdk 35); сборка против 37 — после обновления AGP
     compileSdk = 36
 
     defaultConfig {
         applicationId = "com.localdoc.ai"
-        minSdk = 29
+        // Android 8.0 (API 26) … Android 17 (API 37)
+        minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "2.0.2"
+        versionCode = 15
+        versionName = "2.1.0"
 
         ndk {
-            // Современные флагманские устройства (Snapdragon 8 серии / Dimensity)
-            abiFilters += listOf("arm64-v8a")
+            // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах).
+            // Для проверки на x86-эмуляторах: ./gradlew assembleDebug -Plocaldoc.abis=x86,x86_64
+            val abis = providers.gradleProperty("localdoc.abis").orNull?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+            abiFilters += abis ?: listOf("arm64-v8a", "armeabi-v7a")
         }
 
         externalNativeBuild {
@@ -146,6 +151,8 @@ android {
                 val vulkan = providers.gradleProperty("localdoc.vulkan").orNull == "true"
                 arguments += buildList {
                     add("-DANDROID_STL=c++_shared")
+                    // Библиотеки выравниваются на 16 КБ: без этого приложение не запускается на устройствах Android 15+ с 16-КБ страницами
+                    add("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
                     if (vulkan) add("-DGGML_VULKAN=ON")
                 }
             }
@@ -154,7 +161,7 @@ android {
 
     packaging {
         // onnxruntime-android (эмбеддинги) и sherpa-onnx (озвучка) приносят каждый свой libonnxruntime.so:
-        // оставляем один — из onnxruntime-android 1.20; sherpa-onnx слинкован с ONNX Runtime статически
+        // оставляем один — из onnxruntime-android 1.22; sherpa-onnx слинкован с ONNX Runtime статически
         jniLibs.pickFirsts += "**/libonnxruntime.so"
     }
 
