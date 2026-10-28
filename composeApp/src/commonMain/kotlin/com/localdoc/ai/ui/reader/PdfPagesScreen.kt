@@ -87,12 +87,26 @@ fun PdfPagesScreen(
     onShowText: () -> Unit
 ) {
     val fileName = book.pdfFile
-    val source = remember(fileName) {
-        fileName?.let { name ->
-            runCatching { PdfPageSource(PdfPageRenderer(AppGraph.files.appFilePath(name)), IoDispatcher) }.getOrNull()
+    // Документ открывается вне главного потока: открытие большого PDF иначе подвесило бы интерфейс
+    var openedSource by remember(fileName) { mutableStateOf<PdfPageSource?>(null) }
+    var opened by remember(fileName) { mutableStateOf(false) }
+    LaunchedEffect(fileName) {
+        openedSource = fileName?.let { name ->
+            kotlinx.coroutines.withContext(IoDispatcher) {
+                runCatching { PdfPageSource(PdfPageRenderer(AppGraph.files.appFilePath(name)), IoDispatcher) }.getOrNull()
+            }
         }
+        opened = true
     }
-    DisposableEffect(source) { onDispose { source?.close() } }
+    DisposableEffect(openedSource) { onDispose { openedSource?.close() } }
+    val source = openedSource
+    if (!opened) {
+        androidx.compose.foundation.layout.Box(
+            Modifier.fillMaxSize().background(Color(0xFF1B1B1B)),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) { androidx.compose.material3.CircularProgressIndicator() }
+        return
+    }
     if (source == null || source.pageCount <= 0) {
         LaunchedEffect(Unit) { onShowText() }
         return

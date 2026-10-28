@@ -159,7 +159,9 @@ class ShelfCollection(
         for ((id, payload) in upserts) {
             val p = wire.decodeFromString(ShelfPayload.serializer(), payload)
             val ids = p.books.map { entryByKey[it] }
-            if (ids.any { it == null }) {
+            // Книги нет в библиотеке или для неё ещё нет каталожного элемента (например, после восстановления копии):
+            // подборка ждёт, иначе членство тихо потерялось бы и при следующей синхронизации ушло бы в облако урезанным
+            if (ids.any { it == null || urisByLibraryId[it].isNullOrEmpty() }) {
                 pending += id
                 continue
             }

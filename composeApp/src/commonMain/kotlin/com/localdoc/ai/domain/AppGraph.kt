@@ -269,6 +269,7 @@ object AppGraph {
             annotations.reload()
             dictionary.reload()
             readerSettings.reload()
+            bookOverrides.reload()
             voiceSettings.reload()
             readingStatsSetting.reload()
             appScope.launch { applyVoiceSettings() }

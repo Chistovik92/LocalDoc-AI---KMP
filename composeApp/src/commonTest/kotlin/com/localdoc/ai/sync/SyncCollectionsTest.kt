@@ -106,6 +106,20 @@ class SyncCollectionsTest {
         assertNull(shelves.firstOrNull { it.id == "s2" })
     }
 
+    @Test
+    fun `a shelf waits when a library book has no catalog item yet`() {
+        val key = bookKey(entry("a1", "src-1"))!!
+        var shelves = listOf(UserShelf("s1", "Старое", listOf("uri://local-only")))
+        // Книга в библиотеке есть (например, после восстановления копии), а каталожного элемента для неё пока нет
+        val shelf = ShelfCollection({ shelves }, { shelves = it }, { emptyList() }, { listOf(entry("a1", "src-1")) })
+
+        val pending = shelf.apply(mapOf("s2" to """{"name":"Из облака","books":["$key"]}"""), emptySet())
+
+        assertEquals(setOf("s2"), pending, "подборка ждёт каталожного элемента, а не теряет книгу")
+        assertNull(shelves.firstOrNull { it.id == "s2" })
+        assertEquals(listOf("uri://local-only"), shelves.single().uris)
+    }
+
     private fun item(uri: String, libraryId: String) = com.localdoc.ai.catalog.CatalogItem(
         uri = uri, name = "n", size = 1, modified = 1, folder = "", root = "device", format = BookFormat.EPUB, title = "t",
         libraryId = libraryId
