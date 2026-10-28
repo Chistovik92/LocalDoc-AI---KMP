@@ -660,4 +660,20 @@
     <string name="screen_page_explanation">Eine Seite ist so viel Text, wie bei der gewählten Schrift, dem Zeilenabstand und den Rändern auf den Bildschirm passt.</string>
     <string name="speech_chunk_title">Abschnitt für Sprachausgabe und Übersetzung</string>
     <string name="speech_chunk_hint">Sprachausgabe, Übersetzung und KI arbeiten in jedem Modus in Textabschnitten – ein großes Buch hängt nicht.</string>
+    <string name="fix_breaks_menu">Zeilenumbrüche und Absätze korrigieren…</string>
+    <string name="fix_breaks_title">Zeilenumbrüche und Absätze</string>
+    <string name="fix_breaks_hint">Verbindet mitten im Satz abgebrochene Zeilen, stellt durch Silbentrennung zerrissene Wörter wieder her, trennt verklebte Absätze und entfernt Seitenzahlen und Kopfzeilen. Lesezeichen, Zitate und Leseposition bleiben erhalten.</string>
+    <string name="fix_breaks_check">Korrekturen suchen</string>
+    <string name="fix_breaks_check_ai">Zweifelsfälle mit KI prüfen</string>
+    <string name="fix_breaks_ai_needs_model">Wählen Sie ein Modell, um Zweifelsfälle mit dem neuronalen Netz zu prüfen. Ohne Modell gelten nur die eingebauten Regeln.</string>
+    <string name="fix_breaks_none">Nichts zu korrigieren</string>
+    <string name="fix_breaks_joined">Zeilen verbunden: %1$s</string>
+    <string name="fix_breaks_hyphens">Getrennte Wörter wiederhergestellt: %1$s</string>
+    <string name="fix_breaks_split">Verklebte Absätze getrennt: %1$s</string>
+    <string name="fix_breaks_removed">Seitenzahlen und Kopfzeilen entfernt: %1$s</string>
+    <string name="fix_breaks_spaces">Leerzeichen korrigiert: %1$s</string>
+    <string name="fix_breaks_before">Vorher</string>
+    <string name="fix_breaks_after">Nachher</string>
+    <string name="fix_breaks_apply">Korrekturen anwenden</string>
+    <string name="fix_breaks_failed">Der Text konnte nicht korrigiert werden</string>
 </resources>

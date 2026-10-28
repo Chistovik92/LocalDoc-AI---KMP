@@ -46,9 +46,6 @@ data class SpeechSegment(val block: Int, val start: Int, val end: Int, val text:
 object SpeechSegmenter {
     private const val MAX_SEGMENT = 350
     private const val MIN_SEGMENT = 25
-    // Конец предложения — только если дальше заглавная буква, цифра, кавычка или тире
-    // (не режем «т. е. и», «рус. дореф. название»)
-    private val SENTENCE_END = Regex("(?<=[.!?…])[\"»”)]*\\s+(?=[\"«„“(\\[A-ZА-ЯЁ0-9—–-])")
     private val URL = Regex("https?://\\S+|www\\.\\S+")
 
     /** [firstBlockIndex] — номер первого блока списка в книге: страница озвучивается отдельно от остальных. */
@@ -67,13 +64,7 @@ object SpeechSegmenter {
 
     /** Диапазоны предложений в тексте; короткие склеиваются, длинные режутся по знакам препинания. */
     internal fun sentenceRanges(text: String): List<Pair<Int, Int>> {
-        val raw = ArrayList<Pair<Int, Int>>()
-        var start = 0
-        SENTENCE_END.findAll(text).forEach { m ->
-            raw.add(start to m.range.first)
-            start = m.range.last + 1
-        }
-        if (start < text.length) raw.add(start to text.length)
+        val raw = SentenceSplitter.ranges(text)
 
         val merged = ArrayList<Pair<Int, Int>>()
         for (r in raw) {

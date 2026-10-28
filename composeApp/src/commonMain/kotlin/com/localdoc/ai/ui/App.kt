@@ -276,6 +276,8 @@ fun App() {
             var pdfAsText by remember(reading.entryId) { mutableStateOf(false) }
             // Позиция общая для обоих режимов: при переключении чтение продолжается с того же места
             var currentBlock by remember(reading.entryId) { mutableStateOf(reading.startBlock) }
+            // Исправленный текст пересоздаёт читалку: её позиция хранится в состоянии, привязанном к старым номерам блоков
+            var repairEpoch by remember(reading.entryId) { mutableStateOf(0) }
             if (reading.book.pdfFile != null && !pdfAsText) {
                 PdfPagesScreen(
                     book = reading.book,
@@ -288,7 +290,7 @@ fun App() {
                     onBack = { openBook = null },
                     onShowText = { pdfAsText = true }
                 )
-            } else
+            } else key(repairEpoch) {
             ReaderView(
                 book = reading.book,
                 docKey = bookKey(reading.entryId),
@@ -304,10 +306,20 @@ fun App() {
                             ?.let { openBook = OpenBook(reading.entryId, it, reading.startBlock) }
                     }
                 },
+                onTextRepaired = { repair ->
+                    scope.launch {
+                        AppGraph.library.replaceBlocks(reading.entryId, repair)?.let { (fixed, block) ->
+                            currentBlock = block
+                            repairEpoch++
+                            openBook = OpenBook(reading.entryId, fixed, block)
+                        }
+                    }
+                },
                 onBack = { openBook = null },
                 onOpenAssistant = { openBook = null; tab = Tab.Assistant },
                 onOpenModels = ::openModels
             )
+            }
             DownloadBanner(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 72.dp))
             }
             }

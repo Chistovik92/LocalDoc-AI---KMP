@@ -171,11 +171,11 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
     }
 
     fun importText(text: String, title: String): Book =
-        PlainTextParser.parse(text, title).copy(source = "Вставленный текст")
+        TextRepair.repairBook(PlainTextParser.parse(text, title)).copy(source = "Вставленный текст")
 
     private suspend fun importPdf(pathOrUri: String, title: String): Book {
         val parsed = pdfExtractor.extract(pathOrUri)
-        val book = PdfTextAdapter.toBook(parsed.title.substringBeforeLast('.').ifBlank { title }, parsed.content, pathOrUri)
+        val book = TextRepair.repairBook(PdfTextAdapter.toBook(parsed.title.substringBeforeLast('.').ifBlank { title }, parsed.content, pathOrUri))
         return withPageImages(book, pathOrUri)
     }
 
@@ -209,6 +209,11 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
     companion object {
         private const val MAX_FILE_BYTES = 150 * 1024 * 1024
 
+        /** Форматы, где строки часто оборваны жёстким переносом: TXT, DOC/WPS/RTF и веб-страницы. */
+        private val RAGGED_FORMATS = setOf(
+            BookFormat.TEXT, BookFormat.DOC, BookFormat.WPS, BookFormat.RTF, BookFormat.HTML, BookFormat.WEB
+        )
+
         private fun friendlyMessage(name: String, t: Throwable): String =
             (t as? IllegalStateException)?.message?.takeIf { it.isNotBlank() }
                 ?: "Файл «$name» повреждён или слишком велик для разбора."
@@ -238,7 +243,9 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
                 BookFormat.TEXT -> PlainTextParser.parse(TextDecoder.decode(bytes), title)
                 BookFormat.PDF -> error("PDF разбирается платформенным экстрактором")
             }
-            val clean = book.withoutAds()
+            // Источники с «рваным» текстом (строки обрезаны посреди предложения, колонтитулы, слипшиеся абзацы) чинятся сразу
+            val repaired = if (format in RAGGED_FORMATS) TextRepair.repairBook(book) else book
+            val clean = repaired.withoutAds()
             require(clean.blocks.isNotEmpty()) { "В файле не найден текст" }
             return clean.copy(source = source)
         }

@@ -664,4 +664,20 @@
     <string name="screen_page_explanation">Сторінка — стільки тексту, скільки вміщується на екран за вибраних шрифту, інтервалу й полів.</string>
     <string name="speech_chunk_title">Порція для озвучування й перекладу</string>
     <string name="speech_chunk_hint">Озвучування, переклад і ШІ працюють порціями тексту в будь-якому режимі — велика книга не зависає.</string>
+    <string name="fix_breaks_menu">Виправити переноси й абзаци…</string>
+    <string name="fix_breaks_title">Переноси й абзаци</string>
+    <string name="fix_breaks_hint">Склеїть рядки, обірвані посеред речення, поверне слова, розірвані переносом, розділить злиплі абзаци та прибере номери сторінок і колонтитули. Закладки, цитати й місце читання збережуться.</string>
+    <string name="fix_breaks_check">Знайти виправлення</string>
+    <string name="fix_breaks_check_ai">Перевірити спірні місця за допомогою ШІ</string>
+    <string name="fix_breaks_ai_needs_model">Щоб перевірити спірні місця нейромережею, виберіть модель. Без неї діють лише програмні правила.</string>
+    <string name="fix_breaks_none">Виправляти нічого</string>
+    <string name="fix_breaks_joined">Склеєно рядків: %1$s</string>
+    <string name="fix_breaks_hyphens">Слів із переносом відновлено: %1$s</string>
+    <string name="fix_breaks_split">Злиплих абзаців розділено: %1$s</string>
+    <string name="fix_breaks_removed">Прибрано номерів сторінок і колонтитулів: %1$s</string>
+    <string name="fix_breaks_spaces">Виправлено пробілів: %1$s</string>
+    <string name="fix_breaks_before">Було</string>
+    <string name="fix_breaks_after">Стало</string>
+    <string name="fix_breaks_apply">Застосувати виправлення</string>
+    <string name="fix_breaks_failed">Не вдалося виправити текст</string>
 </resources>
