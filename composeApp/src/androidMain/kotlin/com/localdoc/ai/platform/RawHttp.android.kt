@@ -109,7 +109,7 @@ internal class TlsGuard private constructor(private val request: RawRequest) {
             try {
                 system.checkServerTrusted(chain, authType)
             } catch (e: CertificateException) {
-                rejected = RejectedCertificate(fingerprintOf(leaf), problemOf(e))
+                rejected = RejectedCertificate(fingerprintOf(leaf), problemOf(e, chain))
                 throw e
             }
         }
@@ -143,14 +143,23 @@ internal class TlsGuard private constructor(private val request: RawRequest) {
 
         fun fingerprintOf(certificate: X509Certificate): String = sha256Hex(certificate.encoded)
 
-        fun problemOf(error: CertificateException): CertificateProblem {
+        /**
+         * Причина отказа: сначала по самому сертификату (срок действия, самоподписанный или цепочка без известного
+         * центра), текст исключения системы на разных версиях Android отличается и ненадёжен.
+         */
+        fun problemOf(error: CertificateException, chain: Array<X509Certificate>): CertificateProblem {
+            val leaf = chain.first()
+            try {
+                leaf.checkValidity()
+            } catch (e: CertificateExpiredException) {
+                return CertificateProblem.EXPIRED
+            } catch (e: CertificateNotYetValidException) {
+                return CertificateProblem.NOT_YET_VALID
+            }
+            if (chain.size == 1 || leaf.issuerX500Principal == leaf.subjectX500Principal) return CertificateProblem.UNKNOWN_ISSUER
             var cause: Throwable? = error
             while (cause != null) {
-                when {
-                    cause is CertificateExpiredException -> return CertificateProblem.EXPIRED
-                    cause is CertificateNotYetValidException -> return CertificateProblem.NOT_YET_VALID
-                    cause.message.orEmpty().contains("Trust anchor", ignoreCase = true) -> return CertificateProblem.UNKNOWN_ISSUER
-                }
+                if (cause.message.orEmpty().contains("Trust anchor", ignoreCase = true)) return CertificateProblem.UNKNOWN_ISSUER
                 cause = cause.cause
             }
             return CertificateProblem.OTHER

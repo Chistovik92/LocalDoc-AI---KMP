@@ -3,6 +3,8 @@ package com.localdoc.ai.parser
 import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Document
 import com.localdoc.ai.book.ArticleExtractor
+import com.localdoc.ai.book.Block
+import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.DownloadLinkFinder
 import com.localdoc.ai.book.BookFormat
@@ -108,7 +110,7 @@ class WebArticleParser(private val http: () -> WebHttp = { error("HTTP-клие�
         val title = doc.select("h1").firstOrNull()?.text()?.trim().orEmpty().ifBlank { doc.title() }.ifBlank { url }
         val images = ImageCollector()
         val cover = PageCover.find(doc, url, images)
-        val blocks = ArticleExtractor.extract(doc, HtmlImageResolver(url, images))
+        val blocks = stripPageChrome(ArticleExtractor.extract(doc, HtmlImageResolver(url, images)))
         val book = Book(
             title = title,
             author = hostOf(url),
@@ -122,6 +124,28 @@ class WebArticleParser(private val http: () -> WebHttp = { error("HTTP-клие�
     }
 
     companion object {
+        private const val CHROME_EDGE_BLOCKS = 6
+        private val CHROME_LABELS = setOf(
+            "bookmark", "bookmarks", "add to bookmarks", "chapters list", "chapter list", "table of contents", "contents",
+            "next chapter", "previous chapter", "prev chapter", "next", "prev", "previous",
+            "закладка", "в закладки", "добавить в закладки", "список глав", "оглавление", "содержание",
+            "следующая глава", "предыдущая глава", "далее", "назад"
+        )
+
+        /**
+         * Кнопки сайта («Bookmark», «Chapters list», «Next chapter»…) попадают в текст отдельными строками по краям
+         * страницы и при постраничном листании занимают целую страницу. Убираются только отдельные строки из
+         * [CHROME_LABELS] в первых и последних [CHROME_EDGE_BLOCKS] блоках; текст главы не затрагивается.
+         */
+        internal fun stripPageChrome(blocks: List<Block>): List<Block> {
+            val kept = blocks.filterIndexed { index, block ->
+                val atEdge = index < CHROME_EDGE_BLOCKS || index >= blocks.size - CHROME_EDGE_BLOCKS
+                val label = block.text.trim().trim('«', '»', '[', ']', '|', '•', '·', '→', '←').trim().lowercase()
+                !(atEdge && block.type != BlockType.IMAGE && label in CHROME_LABELS)
+            }
+            return kept.ifEmpty { blocks }
+        }
+
         private const val LOGIN_WALL_TEXT = 1500
         private const val MAX_TOC_PAGES = 60
 

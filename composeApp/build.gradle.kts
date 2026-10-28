@@ -124,6 +124,8 @@ val releaseSigning = loadReleaseSigning()
 
 android {
     namespace = "com.localdoc.ai"
+    // API 37 (Android 17) AGP 8.7 не собирает (платформа SDK называется «android-37.0»): приложение работает на Android 17
+    // через обратную совместимость (targetSdk 35); сборка против 37 — после обновления AGP
     compileSdk = 36
 
     defaultConfig {
