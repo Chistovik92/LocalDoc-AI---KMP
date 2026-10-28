@@ -418,7 +418,10 @@
     <string name="end_of_chapter_speech_stopped">Конец главы — озвучка остановлена.</string>
     <string name="keep_reading">Читать дальше</string>
     <string name="next_chapter">Следующая глава</string>
-    <string name="back_2">← Назад</string>
+    <string name="previous_chapter">Предыдущая глава</string>
+    <string name="go_to_previous_chapter">Перейти к предыдущей главе</string>
+    <string name="go_to_next_chapter">Перейти к следующей главе</string>
+    <string name="open_table_of_contents">Открыть оглавление</string>
     <string name="next">Далее →</string>
     <string name="sleep_timer">Таймер сна</string>
     <string name="until_the_end_of_the_chapter">до конца главы</string>

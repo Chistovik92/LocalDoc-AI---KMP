@@ -418,7 +418,10 @@
     <string name="end_of_chapter_speech_stopped">Fin del capítulo: la narración se ha detenido.</string>
     <string name="keep_reading">Seguir leyendo</string>
     <string name="next_chapter">Capítulo siguiente</string>
-    <string name="back_2">← Atrás</string>
+    <string name="previous_chapter">Capítulo anterior</string>
+    <string name="go_to_previous_chapter">Ir al capítulo anterior</string>
+    <string name="go_to_next_chapter">Ir al capítulo siguiente</string>
+    <string name="open_table_of_contents">Abrir el índice</string>
     <string name="next">Siguiente →</string>
     <string name="sleep_timer">Temporizador de sueño</string>
     <string name="until_the_end_of_the_chapter">hasta el final del capítulo</string>

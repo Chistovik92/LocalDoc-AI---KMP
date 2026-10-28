@@ -9,7 +9,6 @@ import com.localdoc.ai.resources.auto_advance_on
 import com.localdoc.ai.resources.auto_advance_to_the_next_chapter_2
 import com.localdoc.ai.resources.auto_scroll
 import com.localdoc.ai.resources.back
-import com.localdoc.ai.resources.back_2
 import com.localdoc.ai.resources.bookmarks
 import com.localdoc.ai.resources.briefly_retell_this_passage_in_3
 import com.localdoc.ai.resources.brightness
@@ -31,6 +30,10 @@ import com.localdoc.ai.resources.main_points
 import com.localdoc.ai.resources.more
 import com.localdoc.ai.resources.next
 import com.localdoc.ai.resources.next_chapter
+import com.localdoc.ai.resources.previous_chapter
+import com.localdoc.ai.resources.go_to_previous_chapter
+import com.localdoc.ai.resources.go_to_next_chapter
+import com.localdoc.ai.resources.open_table_of_contents
 import com.localdoc.ai.resources.note_saved
 import com.localdoc.ai.resources.p
 import com.localdoc.ai.resources.page_of_2
@@ -122,6 +125,19 @@ import com.localdoc.ai.domain.OrientationLock
 import com.localdoc.ai.domain.PageTurn
 import com.localdoc.ai.domain.TapAction
 import com.localdoc.ai.domain.autoScrollDelta
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.localdoc.ai.domain.ChapterButtons
+import com.localdoc.ai.domain.ChapterListBlock
+import com.localdoc.ai.domain.pinnedChapterBlock
+import com.localdoc.ai.domain.chapterListBlock
+import com.localdoc.ai.domain.bottomPanelVisible
+import com.localdoc.ai.domain.chapterButtons
+import com.localdoc.ai.domain.chromeAfterPageTurn
+import com.localdoc.ai.domain.chromeAfterPlaybackChange
+import com.localdoc.ai.domain.chromeAfterScroll
+import com.localdoc.ai.domain.chromeAfterToggle
+import com.localdoc.ai.domain.screenPagesEnabled
 import com.localdoc.ai.domain.brightnessAfterDrag
 import com.localdoc.ai.domain.needsFullRefresh
 import com.localdoc.ai.domain.pageAnimationEnabled
@@ -306,7 +322,7 @@ fun ReaderView(
     val target = Languages.byCode(translationSettings.targetLanguage)
     // Перевод показывается постранично в любом режиме: так он не мешает прокрутке и озвучке
     // «Постранично» — страницы по размеру экрана; перевод остаётся на порциях прежнего вида (BookPager)
-    val screenMode = settings.paged && !translating
+    val screenMode = screenPagesEnabled(settings.paged, translating, book.format)
     val pagedDisplay = translating
     // Позиция переживает смену размера страницы: новая разбивка открывается на том же блоке
     var anchorBlock by remember { mutableStateOf(startBlock) }
@@ -437,16 +453,19 @@ fun ReaderView(
         var last = 0
         snapshotFlow { listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset }
             .collectLatest { pos ->
-                if (pos > last + 400) uiVisible = false
-                if (pos < last - 1200) uiVisible = true
+                uiVisible = chromeAfterScroll(uiVisible, last, pos)
                 last = pos
             }
     }
 
+    // Озвучка началась — это чтение: панели (и плеер вместе с ними) прячутся, возвращаются касанием по центру
+    LaunchedEffect(isMine) { if (isMine) uiVisible = chromeAfterPlaybackChange(uiVisible, playing = true) }
+
     // Автопереход: дочитали главу прокруткой до кнопок «Далее» — через пару секунд открывается следующая
     val hasFooter = chapterNavigation != null && (!pagedDisplay || page >= pager.size - 1)
+    // Кнопки глав закреплены, поэтому «дочитали» — это конец списка
     val footerVisible by remember(itemCount, hasFooter) {
-        derivedStateOf { hasFooter && listState.layoutInfo.visibleItemsInfo.any { it.index == itemCount } }
+        derivedStateOf { hasFooter && !screenMode && !listState.canScrollForward }
     }
     var scrolledByUser by remember(docKey) { mutableStateOf(false) }
     LaunchedEffect(listState) {
@@ -647,6 +666,7 @@ fun ReaderView(
     val animate = pageAnimationEnabled(settings.pageAnimation, settings.eInk, reducedMotion)
 
     fun turn(forward: Boolean) {
+        uiVisible = chromeAfterPageTurn()
         scope.launch {
             if (screenMode) {
                 val ref = screenRef ?: return@launch
@@ -679,7 +699,7 @@ fun ReaderView(
             return
         }
         when (tapAction(x, width, settings.tapZones, settings.tapZoneWidth)) {
-            TapAction.MENU -> uiVisible = !uiVisible
+            TapAction.MENU -> uiVisible = chromeAfterToggle(uiVisible)
             TapAction.NEXT -> turn(true)
             TapAction.PREVIOUS -> turn(false)
         }
@@ -822,6 +842,16 @@ fun ReaderView(
                 }
                 .pointerInput(Unit) { detectTapGestures { offset -> tapNow(offset.x, size.width.toFloat()) } }
 
+    val webChapterBlock = chapterListBlock(
+        isWeb = book.format == com.localdoc.ai.book.BookFormat.WEB,
+        hasNavigation = chapterNavigation != null,
+        hasPrevious = chapterNavigation?.hasPrevious == true,
+        hasNext = chapterNavigation?.hasNext == true,
+        hasContents = chapterNavigation?.onTableOfContents != null
+    )
+    val pinnedBlock = pinnedChapterBlock(webChapterBlock, scrollListing = !screenMode, panelsVisible = bottomPanelVisible(uiVisible))
+    val chromePadding = if (webChapterBlock != null && !screenMode) CHAPTER_BLOCK_DP.dp else 0.dp
+
     Box(
         modifier = Modifier.fillMaxSize().background(paper.background).readerHotkeys { hotkey ->
             when (hotkey) {
@@ -854,7 +884,7 @@ fun ReaderView(
             )
         } else LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(top = 88.dp, bottom = 240.dp),
+            contentPadding = PaddingValues(top = 88.dp + chromePadding, bottom = 240.dp + chromePadding),
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -876,9 +906,6 @@ fun ReaderView(
                         modifier = Modifier.widthIn(max = 720.dp).padding(horizontal = settings.margin.dp)
                     )
                 }
-            }
-            if (chapterNavigation != null && (!pagedDisplay || page >= pager.size - 1)) {
-                item { ChapterFooter(chapterNavigation, paper) }
             }
         }
         } }
@@ -1010,6 +1037,7 @@ fun ReaderView(
                             }
                         }
                     }
+                    if (pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
                     if (translating) {
                         val done = translatedBlocks?.count { it != null } ?: 0
                         val total = pageInfo.blockCount
@@ -1031,7 +1059,7 @@ fun ReaderView(
                 .fillMaxWidth()
                 .then(
                     // Подложка, чтобы кнопки ИИ не лежали поверх текста
-                    if (uiVisible || isMine) {
+                    if (bottomPanelVisible(uiVisible) || (isMine && player.stoppedAt != null)) {
                         Modifier.background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     } else Modifier
                 )
@@ -1062,14 +1090,31 @@ fun ReaderView(
                     }
                 }
             }
-            if (isMine) {
-                PlayerBar(state = player, title = chapterTitle ?: book.title, onVoiceSettings = { showVoice = true })
-            } else {
-                AnimatedVisibility(
-                    visible = uiVisible,
-                    enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
-                    exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
-                ) {
+            val chapterButtonsState = chapterButtons(
+                hasNavigation = chapterNavigation != null,
+                hasPrevious = chapterNavigation?.hasPrevious == true,
+                hasNext = chapterNavigation?.hasNext == true,
+                pagedListing = screenMode
+            )
+            if (pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
+            AnimatedVisibility(
+                visible = bottomPanelVisible(uiVisible) && chapterButtonsState != null,
+                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+            ) {
+                if (chapterNavigation != null && chapterButtonsState != null) {
+                    ChapterButtonsRow(chapterNavigation, chapterButtonsState)
+                }
+            }
+            // Плеер прячется вместе с панелями; управление озвучкой возвращается касанием по центру
+            AnimatedVisibility(
+                visible = bottomPanelVisible(uiVisible),
+                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+            ) {
+                if (isMine) {
+                    PlayerBar(state = player, title = chapterTitle ?: book.title, onVoiceSettings = { showVoice = true })
+                } else {
                     PageBar(
                         page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
                         pageCount = if (screenMode) screenLayout.total else pager.size,
@@ -1225,6 +1270,9 @@ private fun annotationMarks(book: Book, annotations: List<Annotation>): Map<Int,
 private const val AI_WAIT_FOR_TRANSLATION_MS = 60_000L
 private const val AUTO_NEXT_DELAY_MS = 2_500L
 
+/** Высота закреплённого блока кнопок глав, dp: на столько списку добавляется отступ сверху и снизу. */
+private const val CHAPTER_BLOCK_DP = 56
+
 /** Листание зоной или кнопкой прокручивает почти экран: последняя строка остаётся на виду. */
 private const val SCREEN_SCROLL_FRACTION = 0.9f
 private const val TURN_KEY_BLOCK = 1_000_000L
@@ -1291,19 +1339,60 @@ private fun ChapterEndCard(stop: ReadAloudStop, hasNextPage: Boolean, onContinue
     }
 }
 
+/** Две кнопки нижней панели: к предыдущей и к следующей главе; недоступная отключена. */
+@Composable
+private fun ChapterButtonsRow(nav: ChapterNavigation, state: ChapterButtons) {
+    val previousLabel = stringResource(Res.string.previous_chapter)
+    val nextLabel = stringResource(Res.string.next_chapter)
+    val previousDescription = stringResource(Res.string.go_to_previous_chapter)
+    val nextDescription = stringResource(Res.string.go_to_next_chapter)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        OutlinedButton(
+            onClick = nav.onPrevious,
+            enabled = state.previousEnabled,
+            modifier = Modifier.weight(1f).semantics { contentDescription = previousDescription }
+        ) { Text(previousLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        OutlinedButton(
+            onClick = nav.onNext,
+            enabled = state.nextEnabled,
+            modifier = Modifier.weight(1f).semantics { contentDescription = nextDescription }
+        ) { Text(nextLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ChapterFooter(nav: ChapterNavigation, paper: PaperColors) {
+private fun ChapterBlock(nav: ChapterNavigation, state: ChapterListBlock, paper: PaperColors, verticalPadding: androidx.compose.ui.unit.Dp) {
+    val previousDescription = stringResource(Res.string.go_to_previous_chapter)
+    val nextDescription = stringResource(Res.string.go_to_next_chapter)
+    val contentsDescription = stringResource(Res.string.open_table_of_contents)
     // Текст кнопок — строго в одну строку; если не помещаются, переносится сама кнопка
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = verticalPadding)
     ) {
-        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text(stringResource(Res.string.back_2), maxLines = 1, softWrap = false) }
-        nav.onTableOfContents?.let { TextButton(onClick = it) { Text(stringResource(Res.string.contents), color = paper.text, maxLines = 1, softWrap = false) } }
-        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text(stringResource(Res.string.next), maxLines = 1, softWrap = false) }
+        OutlinedButton(
+            onClick = nav.onPrevious,
+            enabled = state.previousEnabled,
+            modifier = Modifier.semantics { contentDescription = previousDescription }
+        ) { Text(stringResource(Res.string.previous_chapter), maxLines = 1, softWrap = false) }
+        val openContents = nav.onTableOfContents
+        if (state.showContents && openContents != null) {
+            TextButton(onClick = openContents, modifier = Modifier.semantics { contentDescription = contentsDescription }) {
+                Text(stringResource(Res.string.contents), color = paper.text, maxLines = 1, softWrap = false)
+            }
+        }
+        Button(
+            onClick = nav.onNext,
+            enabled = state.nextEnabled,
+            modifier = Modifier.semantics { contentDescription = nextDescription }
+        ) { Text(stringResource(Res.string.next_chapter), maxLines = 1, softWrap = false) }
     }
 }
 
