@@ -125,6 +125,8 @@ class WebHttp(
                 headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
                 headers["Accept-Language"] = "ru,en;q=0.8"
                 headers.putAll(extra)
+                // Данные для входа (Basic и др.) предназначены только хосту первого запроса, но не тому, куда он перенаправил
+                if (hostOf(url) != hostOf(startUrl)) headers.keys.removeAll { it.lowercase() in CREDENTIAL_HEADERS }
                 if (previous != null && "Referer" !in headers) headers["Referer"] = previous!!
                 cookies.header(url)?.let { headers["Cookie"] = it }
                 if (payload == null) headers.remove("Content-Type")
@@ -144,6 +146,7 @@ class WebHttp(
             if (response.status in REDIRECT_CODES && !location.isNullOrBlank()) {
                 val next = WebNavigationDetector.resolveUrl(url, location)?.let(::requireHttp)
                     ?: throw IllegalStateException("Некорректное перенаправление")
+                NetSafety.checkRedirect(url, next)
                 // 301/302/303 после POST превращаются в GET; 307/308 повторяют запрос как есть
                 if (response.status in listOf(301, 302, 303) && verb != "GET") { verb = "GET"; payload = null }
                 previous = url
@@ -190,6 +193,7 @@ class WebHttp(
         const val MAX_ROBOTS_BYTES = 512L * 1024
         private val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
         private val RATE_LIMITED = setOf(429, 503)
+        private val CREDENTIAL_HEADERS = setOf("authorization", "proxy-authorization")
 
         /** Сайт (с портом) из адреса — ключ очереди запросов. */
         internal fun hostOf(url: String): String =

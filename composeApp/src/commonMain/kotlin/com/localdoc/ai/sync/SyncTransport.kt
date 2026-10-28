@@ -1,6 +1,7 @@
 package com.localdoc.ai.sync
 
 import com.localdoc.ai.net.HttpTransport
+import com.localdoc.ai.net.NetSafety
 import com.localdoc.ai.platform.RawRequest
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -44,7 +45,20 @@ class WebDavTransport(
     private val auth = if (user.isEmpty()) emptyMap() else
         mapOf("Authorization" to "Basic " + Base64.encode("$user:$password".encodeToByteArray()))
 
+    /**
+     * Пароль уходит только по https; открытый http допустим для сервера в домашней сети (NAS, Nextcloud в локалке).
+     * Проверка здесь, а не в конструкторе: ошибка должна дойти до экрана как обычный сбой синхронизации.
+     */
+    private fun requireSecureUrl() {
+        val secure = fileUrl.startsWith("https://", ignoreCase = true)
+        val plainLocal = fileUrl.startsWith("http://", ignoreCase = true) && NetSafety.isInternalHost(NetSafety.hostOf(fileUrl))
+        if (!secure && !plainLocal) {
+            throw SyncTransportException("Пароль нельзя отправлять по незащищённому соединению: используйте адрес https://")
+        }
+    }
+
     override suspend fun download(): RemoteFile? {
+        requireSecureUrl()
         val response = call(RawRequest(fileUrl, "GET", auth))
         return when (response.status) {
             404 -> null
@@ -54,6 +68,7 @@ class WebDavTransport(
     }
 
     override suspend fun upload(bytes: ByteArray, previousVersion: String?): String {
+        requireSecureUrl()
         val condition = when {
             previousVersion == null -> mapOf("If-None-Match" to "*")
             previousVersion.isEmpty() -> emptyMap()
