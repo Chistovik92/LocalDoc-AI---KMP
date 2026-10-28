@@ -46,7 +46,7 @@ object TextRepair {
         RegexOption.IGNORE_CASE
     )
     private val CHAPTER_START = Regex(
-        "^(глава|часть|раздел|пролог|эпилог|книга|том|chapter|part|book|prologue|epilogue|section|volume|kapitel|teil|capítulo|parte|розділ|частина)\\b",
+        "^(глава|часть|раздел|пролог|эпилог|книга|том|рисунок|рис|таблица|табл|схема|график|пример|листинг|урок|задача|упражнение|вопрос|шаг|chapter|part|book|prologue|epilogue|section|volume|figure|fig|table|example|listing|lesson|exercise|question|step|kapitel|teil|capítulo|parte|розділ|частина)\\b",
         RegexOption.IGNORE_CASE
     )
     private val DIGITS = Regex("\\d+")
