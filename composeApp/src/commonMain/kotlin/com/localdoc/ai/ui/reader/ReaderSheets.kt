@@ -292,7 +292,13 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
         SectionLabel("Режим чтения")
         SwitchRow("Постранично (вместо прокрутки)", settings.paged) { v -> update { it.copy(paged = v) } }
         Text(
-            "Озвучка, перевод и ИИ работают по страницам в любом режиме — большая книга не зависает.",
+            "Страница — столько текста, сколько помещается на экран при выбранных шрифте, интервале и полях.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SectionLabel("Порция для озвучки и перевода")
+        Text(
+            "Озвучка, перевод и ИИ работают порциями текста в любом режиме — большая книга не зависает.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
