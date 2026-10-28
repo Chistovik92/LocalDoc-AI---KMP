@@ -254,7 +254,14 @@ class WebSession(
             tocUrl = runCatching { pipeline().pickNavigationLink(doc.links, "оглавление (список всех глав)") }.getOrNull()
         }
         val fromPage = if (tocUrl != null) parser.loadTableOfContents(tocUrl) else emptyList()
-        return fromPage.ifEmpty { if (doc.links.isNotEmpty()) chapterLikeLinks(doc.links, doc.book.source) else emptyList() }
+        // Ссылки страницы ГЛАВЫ («Назад», «Далее», ближайшие главы) оглавлением не считаются — иначе скачивание
+        // пошло бы только по ним; без оглавления книга идёт от первой главы по ссылкам «Назад» и «Далее»
+        return fromPage.ifEmpty {
+            // Страница книги с адресом вида /book/123 — не глава: её список глав остаётся оглавлением
+            if (doc.links.isNotEmpty() && !NovelTitles.looksLikeChapter(doc.book.title, doc.book.source)) {
+                chapterLikeLinks(doc.links, doc.book.source)
+            } else emptyList()
+        }
     }
 
     fun clearError() {
