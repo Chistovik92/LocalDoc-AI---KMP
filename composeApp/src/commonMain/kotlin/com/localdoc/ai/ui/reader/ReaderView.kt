@@ -31,6 +31,9 @@ import com.localdoc.ai.resources.main_points
 import com.localdoc.ai.resources.more
 import com.localdoc.ai.resources.next
 import com.localdoc.ai.resources.next_chapter
+import com.localdoc.ai.resources.previous_chapter
+import com.localdoc.ai.resources.go_to_previous_chapter
+import com.localdoc.ai.resources.go_to_next_chapter
 import com.localdoc.ai.resources.note_saved
 import com.localdoc.ai.resources.p
 import com.localdoc.ai.resources.page_of_2
@@ -122,6 +125,16 @@ import com.localdoc.ai.domain.OrientationLock
 import com.localdoc.ai.domain.PageTurn
 import com.localdoc.ai.domain.TapAction
 import com.localdoc.ai.domain.autoScrollDelta
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.localdoc.ai.domain.ChapterButtons
+import com.localdoc.ai.domain.bottomPanelVisible
+import com.localdoc.ai.domain.chapterButtons
+import com.localdoc.ai.domain.chromeAfterPageTurn
+import com.localdoc.ai.domain.chromeAfterPlaybackChange
+import com.localdoc.ai.domain.chromeAfterScroll
+import com.localdoc.ai.domain.chromeAfterToggle
+import com.localdoc.ai.domain.screenPagesEnabled
 import com.localdoc.ai.domain.brightnessAfterDrag
 import com.localdoc.ai.domain.needsFullRefresh
 import com.localdoc.ai.domain.pageAnimationEnabled
@@ -306,7 +319,7 @@ fun ReaderView(
     val target = Languages.byCode(translationSettings.targetLanguage)
     // Перевод показывается постранично в любом режиме: так он не мешает прокрутке и озвучке
     // «Постранично» — страницы по размеру экрана; перевод остаётся на порциях прежнего вида (BookPager)
-    val screenMode = settings.paged && !translating
+    val screenMode = screenPagesEnabled(settings.paged, translating, book.format)
     val pagedDisplay = translating
     // Позиция переживает смену размера страницы: новая разбивка открывается на том же блоке
     var anchorBlock by remember { mutableStateOf(startBlock) }
@@ -437,11 +450,13 @@ fun ReaderView(
         var last = 0
         snapshotFlow { listState.firstVisibleItemIndex * 10_000 + listState.firstVisibleItemScrollOffset }
             .collectLatest { pos ->
-                if (pos > last + 400) uiVisible = false
-                if (pos < last - 1200) uiVisible = true
+                uiVisible = chromeAfterScroll(uiVisible, last, pos)
                 last = pos
             }
     }
+
+    // Озвучка началась — это чтение: панели (и плеер вместе с ними) прячутся, возвращаются касанием по центру
+    LaunchedEffect(isMine) { if (isMine) uiVisible = chromeAfterPlaybackChange(uiVisible, playing = true) }
 
     // Автопереход: дочитали главу прокруткой до кнопок «Далее» — через пару секунд открывается следующая
     val hasFooter = chapterNavigation != null && (!pagedDisplay || page >= pager.size - 1)
@@ -647,6 +662,7 @@ fun ReaderView(
     val animate = pageAnimationEnabled(settings.pageAnimation, settings.eInk, reducedMotion)
 
     fun turn(forward: Boolean) {
+        uiVisible = chromeAfterPageTurn()
         scope.launch {
             if (screenMode) {
                 val ref = screenRef ?: return@launch
@@ -679,7 +695,7 @@ fun ReaderView(
             return
         }
         when (tapAction(x, width, settings.tapZones, settings.tapZoneWidth)) {
-            TapAction.MENU -> uiVisible = !uiVisible
+            TapAction.MENU -> uiVisible = chromeAfterToggle(uiVisible)
             TapAction.NEXT -> turn(true)
             TapAction.PREVIOUS -> turn(false)
         }
@@ -1031,7 +1047,7 @@ fun ReaderView(
                 .fillMaxWidth()
                 .then(
                     // Подложка, чтобы кнопки ИИ не лежали поверх текста
-                    if (uiVisible || isMine) {
+                    if (bottomPanelVisible(uiVisible) || (isMine && player.stoppedAt != null)) {
                         Modifier.background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     } else Modifier
                 )
@@ -1062,14 +1078,30 @@ fun ReaderView(
                     }
                 }
             }
-            if (isMine) {
-                PlayerBar(state = player, title = chapterTitle ?: book.title, onVoiceSettings = { showVoice = true })
-            } else {
-                AnimatedVisibility(
-                    visible = uiVisible,
-                    enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
-                    exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
-                ) {
+            val chapterButtonsState = chapterButtons(
+                hasNavigation = chapterNavigation != null,
+                hasPrevious = chapterNavigation?.hasPrevious == true,
+                hasNext = chapterNavigation?.hasNext == true,
+                pagedListing = screenMode || pagedDisplay
+            )
+            AnimatedVisibility(
+                visible = bottomPanelVisible(uiVisible) && chapterButtonsState != null,
+                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+            ) {
+                if (chapterNavigation != null && chapterButtonsState != null) {
+                    ChapterButtonsRow(chapterNavigation, chapterButtonsState)
+                }
+            }
+            // Плеер прячется вместе с панелями; управление озвучкой возвращается касанием по центру
+            AnimatedVisibility(
+                visible = bottomPanelVisible(uiVisible),
+                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+            ) {
+                if (isMine) {
+                    PlayerBar(state = player, title = chapterTitle ?: book.title, onVoiceSettings = { showVoice = true })
+                } else {
                     PageBar(
                         page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
                         pageCount = if (screenMode) screenLayout.total else pager.size,
@@ -1288,6 +1320,31 @@ private fun ChapterEndCard(stop: ReadAloudStop, hasNextPage: Boolean, onContinue
                 hasNextPage -> TextButton(onClick = onNextPage) { Text(stringResource(Res.string.next_chapter)) }
             }
         }
+    }
+}
+
+/** Две кнопки нижней панели: к предыдущей и к следующей главе; недоступная отключена. */
+@Composable
+private fun ChapterButtonsRow(nav: ChapterNavigation, state: ChapterButtons) {
+    val previousLabel = stringResource(Res.string.previous_chapter)
+    val nextLabel = stringResource(Res.string.next_chapter)
+    val previousDescription = stringResource(Res.string.go_to_previous_chapter)
+    val nextDescription = stringResource(Res.string.go_to_next_chapter)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        OutlinedButton(
+            onClick = nav.onPrevious,
+            enabled = state.previousEnabled,
+            modifier = Modifier.weight(1f).semantics { contentDescription = previousDescription }
+        ) { Text(previousLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        OutlinedButton(
+            onClick = nav.onNext,
+            enabled = state.nextEnabled,
+            modifier = Modifier.weight(1f).semantics { contentDescription = nextDescription }
+        ) { Text(nextLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
 }
 

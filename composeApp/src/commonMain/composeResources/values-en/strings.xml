@@ -418,6 +418,9 @@
     <string name="end_of_chapter_speech_stopped">End of chapter — speech stopped.</string>
     <string name="keep_reading">Keep reading</string>
     <string name="next_chapter">Next chapter</string>
+    <string name="previous_chapter">Previous chapter</string>
+    <string name="go_to_previous_chapter">Go to the previous chapter</string>
+    <string name="go_to_next_chapter">Go to the next chapter</string>
     <string name="back_2">← Back</string>
     <string name="next">Next →</string>
     <string name="sleep_timer">Sleep timer</string>

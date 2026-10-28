@@ -418,6 +418,9 @@
     <string name="end_of_chapter_speech_stopped">Кінець розділу — озвучування зупинено.</string>
     <string name="keep_reading">Читати далі</string>
     <string name="next_chapter">Наступний розділ</string>
+    <string name="previous_chapter">Попередній розділ</string>
+    <string name="go_to_previous_chapter">Перейти до попереднього розділу</string>
+    <string name="go_to_next_chapter">Перейти до наступного розділу</string>
     <string name="back_2">← Назад</string>
     <string name="next">Далі →</string>
     <string name="sleep_timer">Таймер сну</string>

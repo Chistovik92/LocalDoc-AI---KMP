@@ -418,6 +418,9 @@
     <string name="end_of_chapter_speech_stopped">Kapitelende – die Sprachausgabe wurde gestoppt.</string>
     <string name="keep_reading">Weiterlesen</string>
     <string name="next_chapter">Nächstes Kapitel</string>
+    <string name="previous_chapter">Vorheriges Kapitel</string>
+    <string name="go_to_previous_chapter">Zum vorherigen Kapitel</string>
+    <string name="go_to_next_chapter">Zum nächsten Kapitel</string>
     <string name="back_2">← Zurück</string>
     <string name="next">Weiter →</string>
     <string name="sleep_timer">Schlaf-Timer</string>
