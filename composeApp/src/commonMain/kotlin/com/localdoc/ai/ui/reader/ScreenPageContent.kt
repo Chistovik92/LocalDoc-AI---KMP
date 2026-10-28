@@ -1,5 +1,8 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.page_of_total
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -181,8 +184,9 @@ private suspend fun layoutBook(book: Book, spec: PageSpec, measurer: ComposePage
 }
 
 /** Метка внизу страницы: «N из M»; «~» — число страниц ещё уточняется. */
+@Composable
 internal fun pageLabel(ordinal: Int, exact: Boolean, total: Int, complete: Boolean): String =
-    (if (exact) "" else "~") + "${ordinal + 1} из " + (if (complete) "" else "~") + total
+    stringResource(Res.string.page_of_total, (if (exact) "" else "~") + (ordinal + 1), (if (complete) "" else "~") + total)
 
 /**
  * Одна экранная страница: куски блоков по смещениям, без прокрутки. Область страницы сообщает свой размер

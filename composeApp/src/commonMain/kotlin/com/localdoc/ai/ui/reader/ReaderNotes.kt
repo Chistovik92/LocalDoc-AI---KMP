@@ -1,5 +1,30 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.add_to_dictionary
+import com.localdoc.ai.resources.ask_the_model
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.chapter
+import com.localdoc.ai.resources.copy
+import com.localdoc.ai.resources.could_not_get_the_meaning
+import com.localdoc.ai.resources.delete
+import com.localdoc.ai.resources.edit_note_2
+import com.localdoc.ai.resources.load_a_model
+import com.localdoc.ai.resources.meaning
+import com.localdoc.ai.resources.model_not_loaded_type_the_meaning
+import com.localdoc.ai.resources.note
+import com.localdoc.ai.resources.quote
+import com.localdoc.ai.resources.save
+import com.localdoc.ai.resources.search_the_web
+import com.localdoc.ai.resources.the_model_is_working_out_the
+import com.localdoc.ai.resources.translation_2
+import com.localdoc.ai.resources.update_in_dictionary
+import com.localdoc.ai.resources.wikipedia
+import com.localdoc.ai.resources.word
+import com.localdoc.ai.resources.your_thoughts_about_this_place
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -54,13 +79,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Что можно сделать с выделенным в читалке текстом. */
-internal enum class SelectionAction(val label: String) {
-    QUOTE("Цитата"),
-    NOTE("Заметка"),
-    WORD("Слово"),
+internal enum class SelectionAction(val label: StringResource) {
+    QUOTE(Res.string.quote),
+    NOTE(Res.string.note),
+    WORD(Res.string.word),
     /** Отметить выделенное («Глава 5», «Пролог») как начало главы. */
-    CHAPTER("Глава"),
-    COPY("Копировать")
+    CHAPTER(Res.string.chapter),
+    COPY(Res.string.copy)
 }
 
 /**
@@ -140,7 +165,7 @@ internal fun SelectionActionBar(
                 if (!canAnnotate && (action == SelectionAction.QUOTE || action == SelectionAction.NOTE)) return@forEach
                 if (!canMarkChapter && action == SelectionAction.CHAPTER) return@forEach
                 TextButton(onClick = { onAction(action) }) {
-                    Text(action.label, color = MaterialTheme.colorScheme.inversePrimary, maxLines = 1, softWrap = false)
+                    Text(stringResource(action.label), color = MaterialTheme.colorScheme.inversePrimary, maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -184,7 +209,7 @@ internal fun NoteDialog(
     var color by remember { mutableStateOf(initialColor) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial.isBlank()) "Заметка" else "Правка заметки") },
+        title = { Text(if (initial.isBlank()) stringResource(Res.string.note) else stringResource(Res.string.edit_note_2)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ColorPicker(color) { color = it }
@@ -198,19 +223,19 @@ internal fun NoteDialog(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    placeholder = { Text("Ваши мысли об этом месте") },
+                    placeholder = { Text(stringResource(Res.string.your_thoughts_about_this_place)) },
                     maxLines = 8,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(text, color) }) { Text("Сохранить") } },
+        confirmButton = { TextButton(onClick = { onSave(text, color) }) { Text(stringResource(Res.string.save)) } },
         dismissButton = {
             Row {
                 if (onDelete != null) {
-                    TextButton(onClick = onDelete) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = onDelete) { Text(stringResource(Res.string.delete), color = MaterialTheme.colorScheme.error) }
                 }
-                TextButton(onClick = onDismiss) { Text("Отмена") }
+                TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
             }
         }
     )
@@ -222,6 +247,7 @@ private fun ColorPicker(selected: AnnotationColor, onSelect: (AnnotationColor) -
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         AnnotationColor.entries.forEach { color ->
             val chosen = color == selected
+            val colorName = stringResource(color.label)
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -230,7 +256,7 @@ private fun ColorPicker(selected: AnnotationColor, onSelect: (AnnotationColor) -
                         BorderStroke(if (chosen) 3.dp else 1.dp, if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
                         CircleShape
                     )
-                    .semantics { contentDescription = color.label }
+                    .semantics { contentDescription = colorName }
                     .clickable { onSelect(color) }
             )
         }
@@ -278,7 +304,7 @@ internal fun WordLookupSheet(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Не удалось получить значение"
+            error = e.message ?: getString(Res.string.could_not_get_the_meaning)
         } finally {
             AppGraph.translator.release()
             loading = false
@@ -295,13 +321,13 @@ internal fun WordLookupSheet(
             OutlinedTextField(
                 value = meaning,
                 onValueChange = { meaning = it },
-                label = { Text(if (target != null) "Перевод: ${target.name}" else "Значение") },
+                label = { Text(if (target != null) stringResource(Res.string.translation_2, target.name) else stringResource(Res.string.meaning)) },
                 supportingText = {
                     Text(
                         when {
-                            loading -> "Модель подбирает значение…"
+                            loading -> stringResource(Res.string.the_model_is_working_out_the)
                             error != null -> error.orEmpty()
-                            !modelReady && saved == null -> "Модель не загружена — введите значение сами или загрузите модель"
+                            !modelReady && saved == null -> stringResource(Res.string.model_not_loaded_type_the_meaning)
                             else -> ""
                         }
                     )
@@ -316,21 +342,21 @@ internal fun WordLookupSheet(
                         AppGraph.dictionary.save(word, meaning, sentence, entryId, bookTitle, target?.code.orEmpty())
                         onDismiss()
                     }
-                ) { Text(if (saved != null) "Обновить в словаре" else "В словарь", maxLines = 1, softWrap = false) }
+                ) { Text(if (saved != null) stringResource(Res.string.update_in_dictionary) else stringResource(Res.string.add_to_dictionary), maxLines = 1, softWrap = false) }
                 if (modelReady) {
                     TextButton(enabled = !loading, onClick = { attempt = maxOf(attempt, 0) + 1 }) {
-                        Text("Спросить модель", maxLines = 1, softWrap = false)
+                        Text(stringResource(Res.string.ask_the_model), maxLines = 1, softWrap = false)
                     }
                 } else {
-                    TextButton(onClick = { onDismiss(); onOpenModels() }) { Text("Загрузить модель", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { onDismiss(); onOpenModels() }) { Text(stringResource(Res.string.load_a_model), maxLines = 1, softWrap = false) }
                 }
                 // Википедия — на языке слова: язык оригинала книги, иначе определяется по предложению
                 val wordLanguage = sourceLanguage ?: LanguageDetector.detect(sentence.ifBlank { word })
                 TextButton(onClick = { PlatformActions.openUrl(WordLinks.webSearch(word)) }) {
-                    Text("Найти в интернете", maxLines = 1, softWrap = false)
+                    Text(stringResource(Res.string.search_the_web), maxLines = 1, softWrap = false)
                 }
                 TextButton(onClick = { PlatformActions.openUrl(WordLinks.wikipedia(word, wordLanguage)) }) {
-                    Text("Википедия", maxLines = 1, softWrap = false)
+                    Text(stringResource(Res.string.wikipedia), maxLines = 1, softWrap = false)
                 }
             }
         }

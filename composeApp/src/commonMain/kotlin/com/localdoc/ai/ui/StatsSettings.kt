@@ -1,5 +1,29 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.h_min
+import com.localdoc.ai.resources.last_7_days
+import com.localdoc.ai.resources.last_days
+import com.localdoc.ai.resources.less_than_a_minute
+import com.localdoc.ai.resources.min
+import com.localdoc.ai.resources.n_0_min
+import com.localdoc.ai.resources.no_data_yet
+import com.localdoc.ai.resources.open_a_book_and_read_or
+import com.localdoc.ai.resources.reading_and_listening_time_is_counted
+import com.localdoc.ai.resources.reset
+import com.localdoc.ai.resources.reset_statistics
+import com.localdoc.ai.resources.reset_the_statistics
+import com.localdoc.ai.resources.speed
+import com.localdoc.ai.resources.streak
+import com.localdoc.ai.resources.time_speed_and_streak_will_be
+import com.localdoc.ai.resources.today
+import com.localdoc.ai.resources.total
+import com.localdoc.ai.resources.words_2
+import com.localdoc.ai.resources.wpm
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import com.localdoc.ai.resources.days_count
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,13 +59,14 @@ import com.localdoc.ai.stats.ReadingSummary
 private const val CHART_DAYS = 14
 
 /** «1 ч 05 мин» / «12 мин» / «меньше минуты». */
+@Composable
 internal fun formatReadingTime(ms: Long): String {
     val minutes = ms / 60_000
     return when {
-        minutes >= 60 -> "${minutes / 60} ч ${(minutes % 60).toString().padStart(2, '0')} мин"
-        minutes >= 1 -> "$minutes мин"
-        ms > 0 -> "меньше минуты"
-        else -> "0 мин"
+        minutes >= 60 -> stringResource(Res.string.h_min, minutes / 60, (minutes % 60).toString().padStart(2, '0'))
+        minutes >= 1 -> stringResource(Res.string.min, minutes)
+        ms > 0 -> stringResource(Res.string.less_than_a_minute)
+        else -> stringResource(Res.string.n_0_min)
     }
 }
 
@@ -54,55 +79,47 @@ fun StatsSection() {
     val summary = remember(stats) { ReadingSummary.of(stats, DateMath.dayOf(now, localUtcOffsetMillis(now))) }
 
     Text(
-        "Считается время чтения и озвучки, когда страницы листаются или звучат предложения. Паузы, фон и простой дольше " +
-            "трёх минут не засчитываются. Статистика хранится на устройстве и входит в резервную копию.",
+        stringResource(Res.string.reading_and_listening_time_is_counted),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     if (summary.totalMs == 0L) {
         EmptyState(
             icon = Icons.Default.BarChart,
-            title = "Пока нет данных",
-            text = "Откройте книгу и почитайте или послушайте — статистика появится здесь."
+            title = stringResource(Res.string.no_data_yet),
+            text = stringResource(Res.string.open_a_book_and_read_or)
         )
         return
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        StatCard("Сегодня", formatReadingTime(summary.todayMs), Modifier.weight(1f))
-        StatCard("За 7 дней", formatReadingTime(summary.weekMs), Modifier.weight(1f))
+        StatCard(stringResource(Res.string.today), formatReadingTime(summary.todayMs), Modifier.weight(1f))
+        StatCard(stringResource(Res.string.last_7_days), formatReadingTime(summary.weekMs), Modifier.weight(1f))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        StatCard("Скорость", if (summary.wordsPerMinute > 0) "${summary.wordsPerMinute} сл/мин" else "—", Modifier.weight(1f))
-        StatCard("Серия", daysLabel(summary.streakDays), Modifier.weight(1f))
+        StatCard(stringResource(Res.string.speed), if (summary.wordsPerMinute > 0) stringResource(Res.string.wpm, summary.wordsPerMinute) else "—", Modifier.weight(1f))
+        StatCard(stringResource(Res.string.streak), daysLabel(summary.streakDays), Modifier.weight(1f))
     }
-    StatCard("Всего", "${formatReadingTime(summary.totalMs)} · ${summary.totalWords} слов", Modifier.fillMaxWidth())
+    StatCard(stringResource(Res.string.total), stringResource(Res.string.words_2, formatReadingTime(summary.totalMs), summary.totalWords), Modifier.fillMaxWidth())
 
-    Text("Последние $CHART_DAYS дней", style = MaterialTheme.typography.titleSmall)
+    Text(stringResource(Res.string.last_days, CHART_DAYS), style = MaterialTheme.typography.titleSmall)
     DaysChart(summary)
 
-    OutlinedButton(onClick = { confirmReset = true }) { Text("Сбросить статистику") }
+    OutlinedButton(onClick = { confirmReset = true }) { Text(stringResource(Res.string.reset_statistics)) }
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
-            title = { Text("Сбросить статистику?") },
-            text = { Text("Время, скорость и серия обнулятся. Книги и закладки не затрагиваются.") },
+            title = { Text(stringResource(Res.string.reset_the_statistics)) },
+            text = { Text(stringResource(Res.string.time_speed_and_streak_will_be)) },
             confirmButton = {
-                TextButton(onClick = { AppGraph.resetReadingStats(); confirmReset = false }) { Text("Сбросить") }
+                TextButton(onClick = { AppGraph.resetReadingStats(); confirmReset = false }) { Text(stringResource(Res.string.reset)) }
             },
-            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(Res.string.cancel)) } }
         )
     }
 }
 
-private fun daysLabel(days: Int): String {
-    val word = when {
-        days % 100 in 11..14 -> "дней"
-        days % 10 == 1 -> "день"
-        days % 10 in 2..4 -> "дня"
-        else -> "дней"
-    }
-    return "$days $word"
-}
+@Composable
+private fun daysLabel(days: Int): String = pluralStringResource(Res.plurals.days_count, days, days)
 
 @Composable
 private fun StatCard(title: String, value: String, modifier: Modifier = Modifier) {

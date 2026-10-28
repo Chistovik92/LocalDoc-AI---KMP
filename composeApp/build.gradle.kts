@@ -191,3 +191,8 @@ android {
         abortOnError = false
     }
 }
+
+compose.resources {
+    packageOfResClass = "com.localdoc.ai.resources"
+    generateResClass = always
+}

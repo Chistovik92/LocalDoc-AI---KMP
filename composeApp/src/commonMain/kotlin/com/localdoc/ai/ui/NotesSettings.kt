@@ -1,5 +1,32 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.app_version
+import com.localdoc.ai.resources.backup_from_books
+import com.localdoc.ai.resources.backup_saved
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.could_not_create_the_backup
+import com.localdoc.ai.resources.could_not_read_the_file
+import com.localdoc.ai.resources.create_backup
+import com.localdoc.ai.resources.delete_word
+import com.localdoc.ai.resources.file_saved
+import com.localdoc.ai.resources.my_dictionary_md
+import com.localdoc.ai.resources.no_quotes_yet
+import com.localdoc.ai.resources.replace
+import com.localdoc.ai.resources.restore_from_file
+import com.localdoc.ai.resources.restore_from_the_backup
+import com.localdoc.ai.resources.restored_books
+import com.localdoc.ai.resources.select_a_word_in_the_reader
+import com.localdoc.ai.resources.select_text_in_the_reader_and
+import com.localdoc.ai.resources.the_backup_contains_the_library_with
+import com.localdoc.ai.resources.the_current_library_bookmarks_notes_and
+import com.localdoc.ai.resources.the_dictionary_is_empty
+import com.localdoc.ai.resources.to_epub
+import com.localdoc.ai.resources.to_markdown
+import com.localdoc.ai.resources.words
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.unknown_error_lower
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -57,14 +84,15 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NotesSection(onOpen: (Annotation) -> Unit) {
+    val scope = rememberCoroutineScope()
     val all by AppGraph.annotations.all.collectAsState()
     var message by remember { mutableStateOf<String?>(null) }
     var edit by remember { mutableStateOf<Annotation?>(null) }
     if (all.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Edit,
-            title = "Цитат пока нет",
-            text = "Выделите текст в читалке и выберите «Цитата» или «Заметка» — они появятся здесь и в выгрузке для заметочников."
+            title = stringResource(Res.string.no_quotes_yet),
+            text = stringResource(Res.string.select_text_in_the_reader_and)
         )
         return
     }
@@ -77,11 +105,11 @@ fun NotesSection(onOpen: (Annotation) -> Unit) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportBookNotes(entryId, title, AppGraph.library.entry(entryId)?.author.orEmpty(), false) { message = it } }) {
-                            Text("В Markdown", maxLines = 1, softWrap = false)
+                        OutlinedButton(onClick = { exportBookNotes(scope, entryId, title, AppGraph.library.entry(entryId)?.author.orEmpty(), false) { message = it } }) {
+                            Text(stringResource(Res.string.to_markdown), maxLines = 1, softWrap = false)
                         }
-                        OutlinedButton(onClick = { exportBookNotes(entryId, title, AppGraph.library.entry(entryId)?.author.orEmpty(), true) { message = it } }) {
-                            Text("В EPUB", maxLines = 1, softWrap = false)
+                        OutlinedButton(onClick = { exportBookNotes(scope, entryId, title, AppGraph.library.entry(entryId)?.author.orEmpty(), true) { message = it } }) {
+                            Text(stringResource(Res.string.to_epub), maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -114,25 +142,27 @@ fun DictionarySection() {
     if (words.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Translate,
-            title = "Словарь пуст",
-            text = "Выделите слово в читалке и нажмите «Слово»: модель переведёт его в контексте, а вы сохраните в личный список."
+            title = stringResource(Res.string.the_dictionary_is_empty),
+            text = stringResource(Res.string.select_a_word_in_the_reader)
         )
         return
     }
     LazyColumn(contentPadding = PaddingValues(bottom = 32.dp), modifier = Modifier.fillMaxSize()) {
         item(key = "export") {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                val dictionaryFileName = stringResource(Res.string.my_dictionary_md)
+                val fileSavedText = stringResource(Res.string.file_saved)
                 OutlinedButton(onClick = {
                     val bytes = AnnotationExport.dictionaryMarkdown(words).encodeToByteArray()
-                    AppGraph.fileSaver.save("Мой словарь.md", "text/markdown", bytes) { result ->
+                    AppGraph.fileSaver.save(dictionaryFileName, "text/markdown", bytes) { result ->
                         message = when (result) {
-                            is SaveResult.Saved -> "Файл сохранён"
+                            is SaveResult.Saved -> fileSavedText
                             SaveResult.Cancelled -> null
                             is SaveResult.Failed -> result.message
                         }
                     }
-                }) { Text("В Markdown", maxLines = 1, softWrap = false) }
-                Text(message ?: "Слов: ${words.size}", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp))
+                }) { Text(stringResource(Res.string.to_markdown), maxLines = 1, softWrap = false) }
+                Text(message ?: stringResource(Res.string.words, words.size), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp))
             }
         }
         items(words, key = { it.id }) { word ->
@@ -147,7 +177,7 @@ fun DictionarySection() {
                         }
                     }
                 },
-                trailingContent = { IconButton(onClick = { AppGraph.dictionary.remove(word.id) }) { Icon(Icons.Default.Delete, contentDescription = "Удалить слово") } },
+                trailingContent = { IconButton(onClick = { AppGraph.dictionary.remove(word.id) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.delete_word)) } },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
@@ -161,11 +191,11 @@ fun BackupSection() {
     val picker = remember { FilePicker() }
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    val backupSavedText = stringResource(Res.string.backup_saved)
     var pending by remember { mutableStateOf<Pair<ByteArray, BackupCheck.Ok>?>(null) }
 
     Text(
-        "Копия содержит библиотеку с прогрессом чтения, закладки, цитаты и заметки, словарь и настройки читалки, озвучки и перевода — " +
-            "одним файлом. Пароли и сессии сайтов, скачанные модели и голоса в копию не попадают.",
+        stringResource(Res.string.the_backup_contains_the_library_with),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -180,7 +210,7 @@ fun BackupSection() {
                     AppGraph.fileSaver.save(BackupFormat.suggestedName(nowMillis()), BackupFormat.MIME, bytes) { result ->
                         busy = false
                         message = when (result) {
-                            is SaveResult.Saved -> "Копия сохранена"
+                            is SaveResult.Saved -> backupSavedText
                             SaveResult.Cancelled -> null
                             is SaveResult.Failed -> result.message
                         }
@@ -189,12 +219,12 @@ fun BackupSection() {
                     throw e
                 } catch (e: Exception) {
                     busy = false
-                    message = "Не удалось создать копию: ${e.message ?: "ошибка"}"
+                    message = getString(Res.string.could_not_create_the_backup, e.message ?: getString(Res.string.unknown_error_lower))
                 }
             }
         },
         modifier = Modifier.fillMaxWidth()
-    ) { Text("Создать копию…") }
+    ) { Text(stringResource(Res.string.create_backup)) }
     OutlinedButton(
         enabled = !busy,
         onClick = {
@@ -213,7 +243,7 @@ fun BackupSection() {
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        message = "Не удалось прочитать файл: ${e.message ?: "ошибка"}"
+                        message = getString(Res.string.could_not_read_the_file, e.message ?: getString(Res.string.unknown_error_lower))
                     } finally {
                         busy = false
                     }
@@ -221,19 +251,19 @@ fun BackupSection() {
             }
         },
         modifier = Modifier.fillMaxWidth()
-    ) { Text("Восстановить из файла…") }
+    ) { Text(stringResource(Res.string.restore_from_file)) }
     message?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
 
     pending?.let { (bytes, check) ->
         val manifest = check.manifest
         AlertDialog(
             onDismissRequest = { pending = null },
-            title = { Text("Восстановить из копии?") },
+            title = { Text(stringResource(Res.string.restore_from_the_backup)) },
             text = {
                 Text(
-                    "Копия от ${BackupFormat.isoDate(manifest.createdAt)}: книг — ${manifest.books}" +
-                        manifest.appVersion.takeIf { it.isNotBlank() }?.let { ", версия приложения $it" }.orEmpty() +
-                        ".\n\nТекущая библиотека, закладки, заметки и настройки будут заменены данными из копии."
+                    stringResource(Res.string.backup_from_books, BackupFormat.isoDate(manifest.createdAt), manifest.books) +
+                        manifest.appVersion.takeIf { it.isNotBlank() }?.let { stringResource(Res.string.app_version, it) }.orEmpty() +
+                        stringResource(Res.string.the_current_library_bookmarks_notes_and)
                 )
             },
             confirmButton = {
@@ -244,13 +274,13 @@ fun BackupSection() {
                         val result = withContext(IoDispatcher) { AppGraph.restoreBackup(bytes) }
                         busy = false
                         message = when (result) {
-                            is RestoreResult.Restored -> "Восстановлено: книг — ${result.manifest.books}"
+                            is RestoreResult.Restored -> getString(Res.string.restored_books, result.manifest.books)
                             is RestoreResult.Failed -> result.message
                         }
                     }
-                }) { Text("Заменить") }
+                }) { Text(stringResource(Res.string.replace)) }
             },
-            dismissButton = { TextButton(onClick = { pending = null }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { pending = null }) { Text(stringResource(Res.string.cancel)) } }
         )
     }
 }

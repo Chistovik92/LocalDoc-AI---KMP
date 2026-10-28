@@ -1,5 +1,21 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.cancel_2
+import com.localdoc.ai.resources.checking_file_integrity
+import com.localdoc.ai.resources.delete_the_model
+import com.localdoc.ai.resources.download_mb
+import com.localdoc.ai.resources.error
+import com.localdoc.ai.resources.of_mb_2
+import com.localdoc.ai.resources.repeat
+import com.localdoc.ai.resources.smart_book_search
+import com.localdoc.ai.resources.smart_search_is_on
+import com.localdoc.ai.resources.starting_the_model_and_measuring_speed
+import com.localdoc.ai.resources.the_model_is_downloaded_but_turned
+import com.localdoc.ai.resources.the_model_was_turned_off_automatically
+import com.localdoc.ai.resources.the_multilingual_e5_small_model_finds
+import com.localdoc.ai.resources.use_the_model
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,31 +56,30 @@ fun SemanticSearchCard(modifier: Modifier = Modifier) {
 
     Surface(shape = MaterialTheme.shapes.large, tonalElevation = 2.dp, modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Умный поиск по книге", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(Res.string.smart_book_search), style = MaterialTheme.typography.titleMedium)
             Text(
-                "Модель multilingual-e5-small находит фрагменты по смыслу, а не по словам. " +
-                    "Скачивается один раз (≈$sizeMb МБ), работает офлайн. Без неё используется обычный поиск.",
+                stringResource(Res.string.the_multilingual_e5_small_model_finds, sizeMb),
                 style = MaterialTheme.typography.bodySmall
             )
             when (val s = state) {
-                SemanticModelState.NotInstalled -> Button(onClick = { manager.download() }) { Text("Скачать ≈$sizeMb МБ") }
+                SemanticModelState.NotInstalled -> Button(onClick = { manager.download() }) { Text(stringResource(Res.string.download_mb, sizeMb)) }
                 is SemanticModelState.Downloading -> {
                     val fraction = if (s.totalBytes > 0) s.downloadedBytes.toFloat() / s.totalBytes else 0f
                     LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
-                    Text("${s.downloadedBytes / (1024 * 1024)} из ${s.totalBytes / (1024 * 1024)} МБ", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { manager.cancel() }) { Text("Отменить") }
+                    Text(stringResource(Res.string.of_mb_2, s.downloadedBytes / (1024 * 1024), s.totalBytes / (1024 * 1024)), style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { manager.cancel() }) { Text(stringResource(Res.string.cancel_2)) }
                 }
-                SemanticModelState.Verifying -> Text("Проверяем целостность файлов…")
-                SemanticModelState.Loading -> Text("Запускаем модель и измеряем скорость…")
+                SemanticModelState.Verifying -> Text(stringResource(Res.string.checking_file_integrity))
+                SemanticModelState.Loading -> Text(stringResource(Res.string.starting_the_model_and_measuring_speed))
                 is SemanticModelState.Unsupported -> Text(s.reason, style = MaterialTheme.typography.bodySmall)
                 is SemanticModelState.Rejected ->
-                    Installed("Модель отключена автоматически: ${s.reason}. Работает обычный поиск.", enabled, onEnabled, onDelete)
+                    Installed(stringResource(Res.string.the_model_was_turned_off_automatically, s.reason), enabled, onEnabled, onDelete)
                 is SemanticModelState.Failed -> {
-                    Text("Ошибка: ${s.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { manager.download() }) { Text("Повторить") }
+                    Text(stringResource(Res.string.error, s.message), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = { manager.download() }) { Text(stringResource(Res.string.repeat)) }
                 }
-                SemanticModelState.Ready -> Installed("Умный поиск включён.", enabled, onEnabled, onDelete)
-                SemanticModelState.Disabled -> Installed("Модель скачана, но выключена.", enabled, onEnabled, onDelete)
+                SemanticModelState.Ready -> Installed(stringResource(Res.string.smart_search_is_on), enabled, onEnabled, onDelete)
+                SemanticModelState.Disabled -> Installed(stringResource(Res.string.the_model_is_downloaded_but_turned), enabled, onEnabled, onDelete)
             }
         }
     }
@@ -75,7 +90,7 @@ private fun Installed(message: String, enabled: Boolean, onEnabled: (Boolean) ->
     Text(message, style = MaterialTheme.typography.bodySmall)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Switch(checked = enabled, onCheckedChange = onEnabled)
-        Text("Использовать модель")
+        Text(stringResource(Res.string.use_the_model))
     }
-    OutlinedButton(onClick = onDelete) { Text("Удалить модель") }
+    OutlinedButton(onClick = onDelete) { Text(stringResource(Res.string.delete_the_model)) }
 }

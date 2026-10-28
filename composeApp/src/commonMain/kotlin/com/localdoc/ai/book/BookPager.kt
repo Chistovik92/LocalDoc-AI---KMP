@@ -1,5 +1,10 @@
 package com.localdoc.ai.book
 
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.page_large
+import com.localdoc.ai.resources.page_medium
+import com.localdoc.ai.resources.page_small
+import org.jetbrains.compose.resources.StringResource
 import kotlinx.serialization.Serializable
 
 /** Страница книги: полуинтервал блоков [startBlock, endBlock). */
@@ -10,10 +15,10 @@ data class BookPage(val index: Int, val startBlock: Int, val endBlock: Int) {
 
 /** Порция текста для озвучки, перевода и ИИ (не экранная страница — та считается в [ScreenPager]). */
 @Serializable
-enum class PageSize(val label: String, val chars: Int) {
-    SMALL("Малая", 1_500),
-    MEDIUM("Средняя", 3_000),
-    LARGE("Крупная", 6_000)
+enum class PageSize(val label: StringResource, val chars: Int) {
+    SMALL(Res.string.page_small, 1_500),
+    MEDIUM(Res.string.page_medium, 3_000),
+    LARGE(Res.string.page_large, 6_000)
 }
 
 /**

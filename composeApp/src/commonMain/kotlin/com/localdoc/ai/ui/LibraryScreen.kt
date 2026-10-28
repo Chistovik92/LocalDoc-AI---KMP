@@ -2,6 +2,45 @@
 
 package com.localdoc.ai.ui
 
+import androidx.compose.ui.semantics.Role
+import com.localdoc.ai.resources.add
+import com.localdoc.ai.resources.add_a_book_or_document_epub
+import com.localdoc.ai.resources.add_to_the_library
+import com.localdoc.ai.resources.all
+import com.localdoc.ai.resources.articles_and_web_novels_in_reading
+import com.localdoc.ai.resources.books
+import com.localdoc.ai.resources.clear
+import com.localdoc.ai.resources.continue_reading
+import com.localdoc.ai.resources.copied_text_becomes_a_document
+import com.localdoc.ai.resources.delete_all_chapters
+import com.localdoc.ai.resources.delete_chapter
+import com.localdoc.ai.resources.documents_and_text
+import com.localdoc.ai.resources.download_the_whole_book
+import com.localdoc.ai.resources.file_from_the_device
+import com.localdoc.ai.resources.find_books_on_the_device
+import com.localdoc.ai.resources.find_on_the_device
+import com.localdoc.ai.resources.last_opened
+import com.localdoc.ai.resources.listen
+import com.localdoc.ai.resources.not_started
+import com.localdoc.ai.resources.nothing_found
+import com.localdoc.ai.resources.open_a_file
+import com.localdoc.ai.resources.paste_text
+import com.localdoc.ai.resources.read
+import com.localdoc.ai.resources.remove_from_the_library
+import com.localdoc.ai.resources.save_as
+import com.localdoc.ai.resources.search_in_book_text
+import com.localdoc.ai.resources.search_the_library
+import com.localdoc.ai.resources.the_whole_device_a_folder_or
+import com.localdoc.ai.resources.web
+import com.localdoc.ai.resources.web_page
+import com.localdoc.ai.resources.web_page_by_link
+import com.localdoc.ai.resources.your_library_is_empty
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.pdf
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import com.localdoc.ai.resources.chapters_count
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -81,18 +120,18 @@ import com.localdoc.ai.book.shelfKey
 import com.localdoc.ai.domain.AppGraph
 
 /** Фильтры библиотеки по типу источника. */
-private enum class LibraryFilter(val label: String, val formats: Set<BookFormat>?) {
-    ALL("Все", null),
-    BOOKS("Книги", setOf(BookFormat.EPUB, BookFormat.FB2, BookFormat.MOBI, BookFormat.CBZ)),
-    PDF("PDF", setOf(BookFormat.PDF)),
+private enum class LibraryFilter(val label: StringResource, val formats: Set<BookFormat>?) {
+    ALL(Res.string.all, null),
+    BOOKS(Res.string.books, setOf(BookFormat.EPUB, BookFormat.FB2, BookFormat.MOBI, BookFormat.CBZ)),
+    PDF(Res.string.pdf, setOf(BookFormat.PDF)),
     TEXT(
-        "Документы и текст",
+        Res.string.documents_and_text,
         setOf(
             BookFormat.DOCX, BookFormat.DOC, BookFormat.ODT, BookFormat.RTF, BookFormat.WPS, BookFormat.PAGES,
             BookFormat.XML, BookFormat.TEXT, BookFormat.MARKDOWN
         )
     ),
-    WEB("Веб", setOf(BookFormat.WEB, BookFormat.HTML))
+    WEB(Res.string.web, setOf(BookFormat.WEB, BookFormat.HTML))
 }
 
 /** Вкладка «Книги» в стиле Google Play Книг: поиск, «Продолжить чтение», полка обложек. */
@@ -137,11 +176,11 @@ fun LibraryScreen(
                 GooglePillField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = "Поиск в библиотеке",
+                    placeholder = stringResource(Res.string.search_the_library),
                     leadingIcon = Icons.Default.Search,
                     trailing = {
                         if (query.isNotEmpty()) {
-                            IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "Очистить") }
+                            IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.clear)) }
                         } else {
                             IconButton(onClick = onOpenModels) {
                                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
@@ -157,7 +196,7 @@ fun LibraryScreen(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     AssistChip(
                         onClick = { showContentSearch = true },
-                        label = { Text("Искать «${query.trim()}» в тексте книг", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        label = { Text(stringResource(Res.string.search_in_book_text, query.trim()), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
                     )
                 }
@@ -167,13 +206,13 @@ fun LibraryScreen(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     EmptyState(
                         icon = Icons.AutoMirrored.Filled.MenuBook,
-                        title = "Ваша библиотека пуста",
-                        text = "Добавьте книгу или документ — EPUB, FB2, PDF, DOCX, RTF, TXT и другие — найдите их на устройстве или откройте веб-страницу. Всё читается и озвучивается прямо на устройстве."
+                        title = stringResource(Res.string.your_library_is_empty),
+                        text = stringResource(Res.string.add_a_book_or_document_epub)
                     ) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onPickFile) { Text("Открыть файл", maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = onOpenCatalog) { Text("Найти на устройстве", maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = onOpenWeb) { Text("Веб-страница", maxLines = 1, softWrap = false) }
+                            Button(onClick = onPickFile) { Text(stringResource(Res.string.open_a_file), maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = onOpenCatalog) { Text(stringResource(Res.string.find_on_the_device), maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = onOpenWeb) { Text(stringResource(Res.string.web_page), maxLines = 1, softWrap = false) }
                         }
                     }
                 }
@@ -186,7 +225,7 @@ fun LibraryScreen(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                         LibraryFilter.entries.forEach { f ->
-                            FilterChip(selected = filter == f, onClick = { filter = f }, label = { Text(f.label) })
+                            FilterChip(selected = filter == f, onClick = { filter = f }, label = { Text(stringResource(f.label)) })
                         }
                     }
                 }
@@ -208,7 +247,7 @@ fun LibraryScreen(
                 }
                 if (filtered.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text("Ничего не найдено", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+                        Text(stringResource(Res.string.nothing_found), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
                     }
                 }
             }
@@ -217,7 +256,7 @@ fun LibraryScreen(
         ExtendedFloatingActionButton(
             onClick = { showAdd = true },
             icon = { Icon(Icons.Default.Add, contentDescription = null) },
-            text = { Text("Добавить") },
+            text = { Text(stringResource(Res.string.add)) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
         )
     }
@@ -245,11 +284,11 @@ fun LibraryScreen(
     if (showAdd) {
         ModalBottomSheet(onDismissRequest = { showAdd = false }) {
           Column(Modifier.verticalScroll(rememberScrollState())) {
-            Text("Добавить в библиотеку", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-            AddOption(Icons.Default.FileOpen, "Файл с устройства", "EPUB, FB2, PDF, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML, XML") { showAdd = false; onPickFile() }
-            AddOption(Icons.Default.FolderOpen, "Найти книги на устройстве", "Всё устройство, папка или SD-карта: полки по авторам, жанрам и годам") { showAdd = false; onOpenCatalog() }
-            AddOption(Icons.Default.Language, "Веб-страница по ссылке", "Статьи и веб-новеллы в режиме чтения") { showAdd = false; onOpenWeb() }
-            AddOption(Icons.Default.ContentPaste, "Вставить текст", "Скопированный фрагмент станет документом") { showAdd = false; onPasteText() }
+            Text(stringResource(Res.string.add_to_the_library), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            AddOption(Icons.Default.FileOpen, stringResource(Res.string.file_from_the_device), "EPUB, FB2, PDF, DOCX, DOC, ODT, RTF, WPS, Pages, TXT, Markdown, HTML, XML") { showAdd = false; onPickFile() }
+            AddOption(Icons.Default.FolderOpen, stringResource(Res.string.find_books_on_the_device), stringResource(Res.string.the_whole_device_a_folder_or)) { showAdd = false; onOpenCatalog() }
+            AddOption(Icons.Default.Language, stringResource(Res.string.web_page_by_link), stringResource(Res.string.articles_and_web_novels_in_reading)) { showAdd = false; onOpenWeb() }
+            AddOption(Icons.Default.ContentPaste, stringResource(Res.string.paste_text), stringResource(Res.string.copied_text_becomes_a_document)) { showAdd = false; onPasteText() }
             Spacer(Modifier.height(32.dp))
           }
         }
@@ -263,7 +302,7 @@ private fun AddOption(icon: ImageVector, title: String, subtitle: String, onClic
         supportingContent = { Text(subtitle) },
         leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick)
     )
 }
 
@@ -275,12 +314,12 @@ private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: 
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(28.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)
+        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onOpen)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             BookCover(novel ?: entry.title, entry.author, entry.format, Modifier.width(72.dp), cover = entry.cover, entryId = entry.id)
             Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-                Text("Продолжить чтение", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(Res.string.continue_reading), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Text(novel ?: entry.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                 val subtitle = if (novel != null) entry.chapterLabel() else entry.author
                 if (subtitle.isNotBlank()) {
@@ -289,10 +328,10 @@ private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: 
                 LinearProgressIndicator(progress = { entry.progress }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
                 // Узкий экран: кнопки переносятся целиком, текст внутри не ломается по буквам
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onOpen) { Text("Читать", maxLines = 1, softWrap = false) }
+                    Button(onClick = onOpen) { Text(stringResource(Res.string.read), maxLines = 1, softWrap = false) }
                     FilledTonalButton(onClick = onListen) {
                         Icon(Icons.Default.Headphones, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                        Text("Слушать", maxLines = 1, softWrap = false)
+                        Text(stringResource(Res.string.listen), maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -310,12 +349,12 @@ private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: (
             BookCover(novel.title, novel.host, BookFormat.WEB, Modifier.fillMaxWidth(), cover = novel.mostRecent.cover, entryId = novel.mostRecent.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text("Скачать книгу целиком…") },
+                    text = { Text(stringResource(Res.string.download_the_whole_book)) },
                     leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
                     onClick = { menu = false; onDownload() }
                 )
                 DropdownMenuItem(
-                    text = { Text("Удалить все главы") },
+                    text = { Text(stringResource(Res.string.delete_all_chapters)) },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                     onClick = { menu = false; onDelete() }
                 )
@@ -347,14 +386,14 @@ private fun NovelChaptersSheet(novel: LibraryItem.Novel, onDismiss: () -> Unit, 
                     supportingContent = {
                         Text(
                             when {
-                                last -> "Последняя открытая · ${(chapter.progress * 100).toInt()}%"
+                                last -> stringResource(Res.string.last_opened, (chapter.progress * 100).toInt())
                                 chapter.progress > 0f -> "${(chapter.progress * 100).toInt()}%"
-                                else -> "Не начата"
+                                else -> stringResource(Res.string.not_started)
                             }
                         )
                     },
                     trailingContent = {
-                        IconButton(onClick = { onDelete(chapter) }) { Icon(Icons.Default.Delete, contentDescription = "Удалить главу") }
+                        IconButton(onClick = { onDelete(chapter) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.delete_chapter)) }
                     },
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                     modifier = Modifier.clickable { onOpen(chapter) }
@@ -366,15 +405,8 @@ private fun NovelChaptersSheet(novel: LibraryItem.Novel, onDismiss: () -> Unit, 
 }
 
 /** «1 глава», «2 главы», «5 глав», «21 глава». */
-private fun chaptersCount(n: Int): String {
-    val word = when {
-        n % 100 in 11..14 -> "глав"
-        n % 10 == 1 -> "глава"
-        n % 10 in 2..4 -> "главы"
-        else -> "глав"
-    }
-    return "$n $word"
-}
+@Composable
+private fun chaptersCount(n: Int): String = pluralStringResource(Res.plurals.chapters_count, n, n)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -385,12 +417,12 @@ private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit
             BookCover(entry.title, entry.author, entry.format, Modifier.fillMaxWidth(), cover = entry.cover, entryId = entry.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text(if (entry.format == BookFormat.WEB) "Скачать книгу целиком…" else "Сохранить как…") },
+                    text = { Text(if (entry.format == BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as)) },
                     leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
                     onClick = { menu = false; onSaveAs() }
                 )
                 DropdownMenuItem(
-                    text = { Text("Удалить из библиотеки") },
+                    text = { Text(stringResource(Res.string.remove_from_the_library)) },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                     onClick = { menu = false; onDelete() }
                 )

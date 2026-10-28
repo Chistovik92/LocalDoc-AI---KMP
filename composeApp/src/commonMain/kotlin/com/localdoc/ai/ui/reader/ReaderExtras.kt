@@ -2,6 +2,30 @@
 
 package com.localdoc.ai.ui.reader
 
+import androidx.compose.ui.semantics.Role
+import com.localdoc.ai.resources.ask_ai
+import com.localdoc.ai.resources.choose_a_model
+import com.localdoc.ai.resources.close
+import com.localdoc.ai.resources.delete_bookmark
+import com.localdoc.ai.resources.detect_automatically
+import com.localdoc.ai.resources.listen
+import com.localdoc.ai.resources.next_page
+import com.localdoc.ai.resources.no_bookmarks_yet_tap_the_bookmark
+import com.localdoc.ai.resources.no_text
+import com.localdoc.ai.resources.not_selected
+import com.localdoc.ai.resources.original_language
+import com.localdoc.ai.resources.page_of
+import com.localdoc.ai.resources.pages_are_translated_one_by_one
+import com.localdoc.ai.resources.previous_page
+import com.localdoc.ai.resources.speech_reads_the_translation_in_the
+import com.localdoc.ai.resources.translate_automatically
+import com.localdoc.ai.resources.translate_text
+import com.localdoc.ai.resources.translation
+import com.localdoc.ai.resources.translation_is_done_by_a_local
+import com.localdoc.ai.resources.translation_language
+import com.localdoc.ai.resources.turn_translation_on_when_the_book
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -63,14 +87,14 @@ internal fun LanguagePickerDialog(title: String, selected: String?, allowAuto: B
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
                 if (allowAuto) {
-                    item { LanguageRow("Определять автоматически", "", selected == null) { onPick(null) } }
+                    item { LanguageRow(stringResource(Res.string.detect_automatically), "", selected == null) { onPick(null) } }
                 }
                 items(Languages.all, key = { it.code }) { language ->
                     LanguageRow(language.name, language.native, selected == language.code) { onPick(language.code) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть", maxLines = 1, softWrap = false) } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.close), maxLines = 1, softWrap = false) } }
     )
 }
 
@@ -81,7 +105,7 @@ private fun LanguageRow(title: String, subtitle: String, selected: Boolean, onCl
         supportingContent = if (subtitle.isNotBlank() && subtitle != title) ({ Text(subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }) else null,
         leadingContent = { RadioButton(selected = selected, onClick = onClick) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick)
     )
 }
 
@@ -96,29 +120,29 @@ internal fun TranslationSettingsContent() {
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ListItem(
-            headlineContent = { Text("Язык перевода") },
-            supportingContent = { Text(target?.let { if (it.native == it.name) it.name else "${it.name} · ${it.native}" } ?: "Не выбран", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            headlineContent = { Text(stringResource(Res.string.translation_language)) },
+            supportingContent = { Text(target?.let { if (it.native == it.name) it.name else "${it.name} · ${it.native}" } ?: stringResource(Res.string.not_selected), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clickable { pickTarget = true }
         )
         ListItem(
-            headlineContent = { Text("Язык оригинала") },
-            supportingContent = { Text(source?.name ?: "Определять автоматически", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            headlineContent = { Text(stringResource(Res.string.original_language)) },
+            supportingContent = { Text(source?.name ?: stringResource(Res.string.detect_automatically), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clickable { pickSource = true }
         )
-        SwitchLine("Переводить автоматически", "Включать перевод, когда язык книги отличается от языка перевода", settings.autoTranslate) { v ->
+        SwitchLine(stringResource(Res.string.translate_automatically), stringResource(Res.string.turn_translation_on_when_the_book), settings.autoTranslate) { v ->
             AppGraph.translationSettings.update { it.copy(autoTranslate = v) }
         }
     }
     if (pickTarget) {
-        LanguagePickerDialog("Язык перевода", settings.targetLanguage, allowAuto = false, onPick = { code ->
+        LanguagePickerDialog(stringResource(Res.string.translation_language), settings.targetLanguage, allowAuto = false, onPick = { code ->
             if (code != null) AppGraph.translationSettings.update { it.copy(targetLanguage = code) }
             pickTarget = false
         }, onDismiss = { pickTarget = false })
     }
     if (pickSource) {
-        LanguagePickerDialog("Язык оригинала", settings.sourceLanguage, allowAuto = true, onPick = { code ->
+        LanguagePickerDialog(stringResource(Res.string.original_language), settings.sourceLanguage, allowAuto = true, onPick = { code ->
             AppGraph.translationSettings.update { it.copy(sourceLanguage = code) }
             pickSource = false
         }, onDismiss = { pickSource = false })
@@ -156,22 +180,22 @@ internal fun TranslateSheet(
     val modelId by AppGraph.loadedModelId.collectAsState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(modifier = Modifier.padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Перевод", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp))
+            Text(stringResource(Res.string.translation), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp))
             if (modelId == null) {
                 Text(
-                    "Перевод выполняет локальная нейросеть — сначала загрузите модель.",
+                    stringResource(Res.string.translation_is_done_by_a_local),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
-                Button(onClick = onOpenModels, modifier = Modifier.padding(horizontal = 24.dp)) { Text("Выбрать модель", maxLines = 1, softWrap = false) }
+                Button(onClick = onOpenModels, modifier = Modifier.padding(horizontal = 24.dp)) { Text(stringResource(Res.string.choose_a_model), maxLines = 1, softWrap = false) }
             }
-            SwitchLine("Переводить текст", "Страницы переводятся по одной; соседняя готовится заранее", enabled, onToggle)
+            SwitchLine(stringResource(Res.string.translate_text), stringResource(Res.string.pages_are_translated_one_by_one), enabled, onToggle)
             TranslationSettingsContent()
             status?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp))
             }
             Text(
-                "Озвучка читает перевод голосом выбранного языка. Голоса — в Настройки → Озвучка и голоса.",
+                stringResource(Res.string.speech_reads_the_translation_in_the),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp)
@@ -195,7 +219,7 @@ internal fun BookmarksSheet(
         Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         if (bookmarks.isEmpty()) {
             Text(
-                "Закладок пока нет. Нажмите значок закладки в верхней панели читалки, чтобы запомнить место.",
+                stringResource(Res.string.no_bookmarks_yet_tap_the_bookmark),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp).padding(bottom = 24.dp)
@@ -205,9 +229,9 @@ internal fun BookmarksSheet(
                 items(bookmarks, key = { it.id }) { mark ->
                     ListItem(
                         overlineContent = if (showBookTitle) ({ Text(mark.bookTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }) else null,
-                        headlineContent = { Text(mark.excerpt.ifBlank { "Без текста" }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        headlineContent = { Text(mark.excerpt.ifBlank { stringResource(Res.string.no_text) }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         supportingContent = mark.chapter.takeIf { it.isNotBlank() }?.let { c -> ({ Text(c, maxLines = 1, overflow = TextOverflow.Ellipsis) }) },
-                        trailingContent = { IconButton(onClick = { onDelete(mark) }) { Icon(Icons.Default.Delete, contentDescription = "Удалить закладку") } },
+                        trailingContent = { IconButton(onClick = { onDelete(mark) }) { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.delete_bookmark)) } },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                         modifier = Modifier.clickable { onJump(mark) }
                     )
@@ -255,11 +279,11 @@ internal fun PageBar(
             ) {
                 if (showPageButtons) {
                     IconButton(onClick = { onSeek(page - 1) }, enabled = page > 0) {
-                        Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "Предыдущая страница")
+                        Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = stringResource(Res.string.previous_page))
                     }
                 }
                 Text(
-                    "Стр. ${shownPage + 1} из $pageCount",
+                    stringResource(Res.string.page_of, shownPage + 1, pageCount),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -267,14 +291,14 @@ internal fun PageBar(
                 )
                 if (showPageButtons) {
                     IconButton(onClick = { onSeek(page + 1) }, enabled = page < lastPage) {
-                        Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "Следующая страница")
+                        Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = stringResource(Res.string.next_page))
                     }
                 }
-                FilledTonalIconButton(onClick = onListen) { Icon(Icons.Default.Headphones, contentDescription = "Слушать") }
+                FilledTonalIconButton(onClick = onListen) { Icon(Icons.Default.Headphones, contentDescription = stringResource(Res.string.listen)) }
                 ExtendedFloatingActionButton(
                     onClick = onAskAi,
                     icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
-                    text = { Text("Спросить ИИ", maxLines = 1, softWrap = false) },
+                    text = { Text(stringResource(Res.string.ask_ai), maxLines = 1, softWrap = false) },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )

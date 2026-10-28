@@ -13,7 +13,7 @@ enum class BookFormat(val label: String) {
     MARKDOWN("Markdown"),
     TEXT("TXT"),
     HTML("HTML"),
-    WEB("Веб"),
+    WEB("Web"),
     DOCX("DOCX"),
     DOC("DOC"),
     ODT("ODT"),

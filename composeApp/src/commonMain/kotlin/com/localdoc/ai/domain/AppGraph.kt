@@ -158,6 +158,7 @@ object AppGraph {
     )
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
     val translationSettings = PersistedSetting(kv, "translation_settings", TranslationSettings.serializer(), TranslationSettings())
+    val accessibilitySettings = PersistedSetting(kv, "accessibility_settings", AccessibilitySettings.serializer(), AccessibilitySettings())
 
     /** Статистика чтения: время, слова и скорость по дням; хранится локально и входит в резервную копию. */
     val readingStatsSetting = PersistedSetting(kv, BackupFormat.KEY_READING_STATS, ReadingStats.serializer(), ReadingStats())

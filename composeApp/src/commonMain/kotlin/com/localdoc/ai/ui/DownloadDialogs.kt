@@ -2,6 +2,21 @@
 
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.add_the_book_to_the_library
+import com.localdoc.ai.resources.another_download_is_already_in_progress
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.close
+import com.localdoc.ai.resources.done
+import com.localdoc.ai.resources.download
+import com.localdoc.ai.resources.download_the_book
+import com.localdoc.ai.resources.file_format
+import com.localdoc.ai.resources.of
+import com.localdoc.ai.resources.save
+import com.localdoc.ai.resources.save_as
+import com.localdoc.ai.resources.the_whole_work_the_app_finds
+import com.localdoc.ai.resources.this_page_only
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -51,21 +66,21 @@ fun SaveAsDialog(entry: BookEntry, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isWeb) "Скачать книгу" else "Сохранить как…", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        title = { Text(if (isWeb) stringResource(Res.string.download_the_book) else stringResource(Res.string.save_as), maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(entry.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (isWeb) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = whole, onClick = { whole = true })
-                        Text("Всё произведение: приложение само найдёт оглавление или готовый файл и соберёт книгу с главами", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(Res.string.the_whole_work_the_app_finds), style = MaterialTheme.typography.bodyMedium)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = !whole, onClick = { whole = false })
-                        Text("Только эта страница", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(Res.string.this_page_only), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                Text("Формат файла", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(Res.string.file_format), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     ExportFormat.entries.forEach { f ->
                         FilterChip(selected = format == f, onClick = { format = f }, label = { Text(f.label, maxLines = 1, softWrap = false) })
@@ -74,11 +89,11 @@ fun SaveAsDialog(entry: BookEntry, onDismiss: () -> Unit) {
                 if (isWeb && whole) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = addToLibrary, onCheckedChange = { addToLibrary = it })
-                        Text("Добавить книгу в библиотеку", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(Res.string.add_the_book_to_the_library), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 if (busy) {
-                    Text("Сейчас уже идёт другая загрузка — дождитесь её завершения.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(Res.string.another_download_is_already_in_progress), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -89,9 +104,9 @@ fun SaveAsDialog(entry: BookEntry, onDismiss: () -> Unit) {
                     if (isWeb && whole) AppGraph.downloads.downloadWhole(entry, format, addToLibrary) else AppGraph.downloads.convert(entry, format)
                     onDismiss()
                 }
-            ) { Text(if (isWeb && whole) "Скачать" else "Сохранить", maxLines = 1, softWrap = false) }
+            ) { Text(if (isWeb && whole) stringResource(Res.string.download) else stringResource(Res.string.save), maxLines = 1, softWrap = false) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена", maxLines = 1, softWrap = false) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) } }
     )
 }
 
@@ -111,7 +126,7 @@ fun DownloadBanner(modifier: Modifier = Modifier) {
             val p = current.progress
             val phaseText = buildString {
                 append(p.phase.label)
-                if (p.total > 0) append(" · ${p.done} из ${p.total}")
+                if (p.total > 0) append(" " + stringResource(Res.string.of, p.done, p.total))
                 p.message?.takeIf { it.isNotBlank() && p.total == 0 }?.let { append(" · ").append(it) }
             }
             Text(phaseText, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -119,13 +134,13 @@ fun DownloadBanner(modifier: Modifier = Modifier) {
                 if (p.total > 0) LinearProgressIndicator(progress = { (p.done.toFloat() / p.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = { AppGraph.downloads.cancel() }, colors = bannerButtonColors()) { Text("Отмена", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { AppGraph.downloads.cancel() }, colors = bannerButtonColors()) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) }
                 }
             } else {
                 current.summary?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = { AppGraph.downloads.dismiss() }, colors = bannerButtonColors()) {
-                        Text(if (p.phase == DownloadPhase.DONE) "Готово" else "Закрыть", maxLines = 1, softWrap = false)
+                        Text(if (p.phase == DownloadPhase.DONE) stringResource(Res.string.done) else stringResource(Res.string.close), maxLines = 1, softWrap = false)
                     }
                 }
             }

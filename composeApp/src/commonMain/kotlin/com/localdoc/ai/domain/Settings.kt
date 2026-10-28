@@ -1,5 +1,19 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.orientation_landscape
+import com.localdoc.ai.resources.orientation_portrait
+import com.localdoc.ai.resources.theme_auto
+import org.jetbrains.compose.resources.StringResource
+import com.localdoc.ai.resources.tap_edges
+import com.localdoc.ai.resources.tap_edges_reversed
+import com.localdoc.ai.resources.tap_menu_only
+import com.localdoc.ai.resources.font_sans
+import com.localdoc.ai.resources.font_serif
+import com.localdoc.ai.resources.theme_dark
+import com.localdoc.ai.resources.theme_light
+import com.localdoc.ai.resources.theme_night
+import com.localdoc.ai.resources.theme_sepia
 import com.localdoc.ai.book.PageSize
 import com.localdoc.ai.platform.KeyValueStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,22 +25,22 @@ import kotlinx.serialization.json.Json
 
 /** Цвет «бумаги» в читалке. */
 @Serializable
-enum class ReaderTheme(val label: String) { SYSTEM("Авто"), LIGHT("Светлая"), SEPIA("Сепия"), DARK("Тёмная"), BLACK("Ночь") }
+enum class ReaderTheme(val label: StringResource) { SYSTEM(Res.string.theme_auto), LIGHT(Res.string.theme_light), SEPIA(Res.string.theme_sepia), DARK(Res.string.theme_dark), BLACK(Res.string.theme_night) }
 
 @Serializable
-enum class ReaderFont(val label: String) { SERIF("С засечками"), SANS("Без засечек") }
+enum class ReaderFont(val label: StringResource) { SERIF(Res.string.font_serif), SANS(Res.string.font_sans) }
 
 /** Зоны касания: края листают, центр открывает меню. */
 @Serializable
-enum class TapZones(val label: String) {
-    EDGES("Правый край — дальше, левый — назад"),
-    EDGES_REVERSED("Левый край — дальше, правый — назад"),
-    MENU_ONLY("Только меню по нажатию")
+enum class TapZones(val label: StringResource) {
+    EDGES(Res.string.tap_edges),
+    EDGES_REVERSED(Res.string.tap_edges_reversed),
+    MENU_ONLY(Res.string.tap_menu_only)
 }
 
 /** Блокировка ориентации экрана в читалке. */
 @Serializable
-enum class OrientationLock(val label: String) { AUTO("Авто"), PORTRAIT("Книжная"), LANDSCAPE("Альбомная") }
+enum class OrientationLock(val label: StringResource) { AUTO(Res.string.theme_auto), PORTRAIT(Res.string.orientation_portrait), LANDSCAPE(Res.string.orientation_landscape) }
 
 @Serializable
 data class ReaderSettings(

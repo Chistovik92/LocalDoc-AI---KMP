@@ -1,5 +1,25 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.b
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.clear
+import com.localdoc.ai.resources.delete
+import com.localdoc.ai.resources.downloaded_novel_pages
+import com.localdoc.ai.resources.forget
+import com.localdoc.ai.resources.forget_2
+import com.localdoc.ai.resources.forget_site
+import com.localdoc.ai.resources.if_a_site_asks_you_to
+import com.localdoc.ai.resources.image_cache
+import com.localdoc.ai.resources.images_from_the_internet_are_cached
+import com.localdoc.ai.resources.kb
+import com.localdoc.ai.resources.mb_2
+import com.localdoc.ai.resources.no_sign_ins_yet
+import com.localdoc.ai.resources.session_active
+import com.localdoc.ai.resources.sign_in_again
+import com.localdoc.ai.resources.sign_ins_to_web_novel_and
+import com.localdoc.ai.resources.the_saved_login_password_and_session
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,16 +59,15 @@ fun SitesSection() {
     LaunchedEffect(Unit) { AppGraph.siteVault.refresh() }
 
     Text(
-        "Входы на сайты веб-новелл и книг. Пароли лежат в защищённом хранилище устройства (Android Keystore / iOS Keychain), " +
-            "сессии (cookie) зашифрованы, в резервные копии ничего не попадает. Капчу и защиту сайтов приложение не обходит.",
+        stringResource(Res.string.sign_ins_to_web_novel_and),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     if (sites.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Lock,
-            title = "Входов пока нет",
-            text = "Если сайт попросит войти, приложение предложит ввести логин и пароль или войти во встроенном браузере."
+            title = stringResource(Res.string.no_sign_ins_yet),
+            text = stringResource(Res.string.if_a_site_asks_you_to)
         )
     }
     sites.forEach { site ->
@@ -57,30 +76,30 @@ fun SitesSection() {
                 Column(Modifier.weight(1f)) {
                     Text(site.host, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        site.login + if (site.hasSession) " · сессия активна" else " · нужно войти заново",
+                        site.login + if (site.hasSession) " " + stringResource(Res.string.session_active) else " " + stringResource(Res.string.sign_in_again),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                OutlinedButton(onClick = { confirm = site.host }) { Text("Забыть сайт", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { confirm = site.host }) { Text(stringResource(Res.string.forget_site), maxLines = 1, softWrap = false) }
             }
         }
     }
     confirm?.let { host ->
         AlertDialog(
             onDismissRequest = { confirm = null },
-            title = { Text("Забыть $host?") },
-            text = { Text("Будут удалены сохранённые логин и пароль и сессия на этом сайте. Скачанные книги останутся.") },
+            title = { Text(stringResource(Res.string.forget, host)) },
+            text = { Text(stringResource(Res.string.the_saved_login_password_and_session)) },
             confirmButton = {
                 TextButton(onClick = {
                     AppGraph.siteAuth.forget(host)
                     clearBrowserCookies(host)
                     confirm = null
-                }) { Text("Забыть", maxLines = 1, softWrap = false) }
+                }) { Text(stringResource(Res.string.forget_2), maxLines = 1, softWrap = false) }
             },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Отмена", maxLines = 1, softWrap = false) } }
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) } }
         )
     }
 }
@@ -94,18 +113,17 @@ fun StorageSection() {
     LaunchedEffect(Unit) { novelBytes = withContext(Dispatchers.Default) { novelFolderBytes() } }
 
     Text(
-        "Картинки из интернета кэшируются на диске (не больше 160 МБ, старые удаляются сами). Страницы скачиваемых " +
-            "веб-новелл хранятся в отдельной папке приложения, пока вы не соберёте из них книгу; после обрыва загрузка продолжается с этого места.",
+        stringResource(Res.string.images_from_the_internet_are_cached),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-    StorageRow("Кэш картинок", imageBytes, "Очистить") {
+    StorageRow(stringResource(Res.string.image_cache), imageBytes, stringResource(Res.string.clear)) {
         scope.launch {
             AppGraph.images.clearCache()
             imageBytes = AppGraph.images.cacheBytes()
         }
     }
-    StorageRow("Скачанные страницы новелл", novelBytes, "Удалить") {
+    StorageRow(stringResource(Res.string.downloaded_novel_pages), novelBytes, stringResource(Res.string.delete)) {
         scope.launch {
             withContext(Dispatchers.Default) { AppGraph.files.deleteAppFiles("novels/") }
             novelBytes = 0
@@ -129,11 +147,12 @@ private fun StorageRow(title: String, bytes: Long, action: String, onClick: () -
 }
 
 /** «12,3 МБ», «850 КБ». */
+@Composable
 fun formatBytes(bytes: Long): String = when {
-    bytes < 1024 -> "$bytes Б"
-    bytes < 1024 * 1024 -> "${bytes / 1024} КБ"
+    bytes < 1024 -> stringResource(Res.string.b, bytes)
+    bytes < 1024 * 1024 -> stringResource(Res.string.kb, bytes / 1024)
     else -> {
         val tenths = bytes * 10 / (1024 * 1024)
-        "${tenths / 10},${tenths % 10} МБ"
+        stringResource(Res.string.mb_2, tenths / 10, tenths % 10)
     }
 }

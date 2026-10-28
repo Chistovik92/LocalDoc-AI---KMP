@@ -1,6 +1,9 @@
 package com.localdoc.ai.ui
 
 import androidx.compose.foundation.Image
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.illustration
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -59,7 +62,7 @@ fun BookImage(entryId: String?, ref: String, caption: String, referer: String?, 
         when (state) {
             is ImageState.Ready -> Image(
                 bitmap = state.bitmap,
-                contentDescription = caption.ifBlank { null },
+                contentDescription = caption.ifBlank { stringResource(Res.string.illustration) },
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).clip(RoundedCornerShape(8.dp))
             )
