@@ -85,6 +85,21 @@ class PerformanceAuditTest {
     }
 
     @Test
+    fun `invalidation inside a sync batch is saved at once`() = runTest {
+        val files = MemoryFiles()
+        var manifest: String? = null
+        val index = FullTextIndex(files, { manifest }, { manifest = it })
+        index.index("old", "sig", listOf("старый текст"))
+        index.batch {
+            index.index("new", "sig", listOf("новый текст"))
+            index.invalidate("old")
+            // Процесс может оборваться до конца группы: пометка «книга изменилась» уже должна быть на диске
+            assertTrue("\"old\"" !in manifest.orEmpty(), manifest)
+        }
+        assertTrue("\"new\"" in manifest.orEmpty(), manifest)
+    }
+
+    @Test
     fun `library list of 5000 entries serializes quickly`() {
         val entries = (0 until 5000).map {
             BookEntry("id$it", "Название книги номер $it", "Автор $it", BookFormat.FB2, "content://source/$it", 1000, progressBlock = it % 1000)

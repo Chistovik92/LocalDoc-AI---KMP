@@ -90,11 +90,16 @@ class FullTextIndex(
         }
     }
 
+    /** Запись после индексации: внутри [batch] откладывается до его конца. */
     private fun persistManifest() {
-        if (batchDepth > 0) {
-            manifestDirty = true
-            return
-        }
+        if (batchDepth > 0) manifestDirty = true else flushManifest()
+    }
+
+    /**
+     * Немедленная запись. Нужна удалению и инвалидации: если процесс оборвётся до конца группы, отложенная запись
+     * потеряла бы «книга изменилась», и устаревший индекс считался бы актуальным (подпись книги не меняется).
+     */
+    private fun flushManifest() {
         manifestDirty = false
         saveManifest(json.encodeToString(manifestSerializer, manifest))
     }
@@ -123,12 +128,12 @@ class FullTextIndex(
     fun remove(docId: String) {
         files.deleteAll(fileName(docId))
         cache.remove(docId)
-        if (manifest.remove(docId) != null) persistManifest()
+        if (manifest.remove(docId) != null) flushManifest()
     }
 
     /** Забывает документ: при следующей синхронизации он будет проиндексирован заново. */
     fun invalidate(docId: String) {
-        if (manifest.remove(docId) != null) persistManifest()
+        if (manifest.remove(docId) != null) flushManifest()
         cache.remove(docId)
     }
 
@@ -137,7 +142,7 @@ class FullTextIndex(
         manifest.keys.toList().forEach { files.deleteAll(fileName(it)) }
         manifest.clear()
         cache.clear()
-        persistManifest()
+        flushManifest()
     }
 
     /**
