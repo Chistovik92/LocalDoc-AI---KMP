@@ -1,5 +1,11 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.battery_use_the_microphone_and_recognition
+import com.localdoc.ai.resources.next_back_pause_continue_next_paragraph
+import com.localdoc.ai.resources.voice_commands
+import com.localdoc.ai.resources.voice_control
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
@@ -16,19 +22,16 @@ internal fun VoiceControlSection() {
     val settings by AppGraph.voiceControlSettings.value.collectAsState()
     val status by AppGraph.voiceControl.status.collectAsState()
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SectionLabel("Голосовое управление")
+        SectionLabel(stringResource(Res.string.voice_control))
         SwitchLine(
-            "Команды голосом",
-            "«Дальше», «назад», «пауза», «продолжай», «абзац дальше». Микрофон слушает только пока открыт плеер озвучки; " +
-                "распознавание идёт на устройстве, звук никуда не отправляется. Работает лучше в наушниках: " +
-                "микрофон может слышать саму озвучку.",
+            stringResource(Res.string.voice_commands),
+            stringResource(Res.string.next_back_pause_continue_next_paragraph),
             settings.enabled
         ) { on ->
             if (on) AppGraph.voiceControl.enable { } else AppGraph.voiceControl.disable()
         }
         Text(
-            "Расход батареи: микрофон и распознавание работают постоянно, пока звучит книга, — ориентировочно на 5–10 % " +
-                "заряда в час сверх самой озвучки; зависит от устройства. Вне плеера расход нулевой.",
+            stringResource(Res.string.battery_use_the_microphone_and_recognition),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -1,5 +1,28 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.apply
+import com.localdoc.ai.resources.chapters_and_table_of_contents
+import com.localdoc.ai.resources.chapters_found
+import com.localdoc.ai.resources.chapters_in_the_table_of_contents
+import com.localdoc.ai.resources.choose_a_model
+import com.localdoc.ai.resources.come_up_with_chapter_titles_slower
+import com.localdoc.ai.resources.comma_separated_chapter_and_part_are
+import com.localdoc.ai.resources.could_not_split_the_book
+import com.localdoc.ai.resources.find_chapters_by_these_words
+import com.localdoc.ai.resources.from_paragraph_of
+import com.localdoc.ai.resources.nothing_found_for_these_words
+import com.localdoc.ai.resources.remove_from_the_table_of_contents
+import com.localdoc.ai.resources.save_as
+import com.localdoc.ai.resources.split_into_chapters_with_ai
+import com.localdoc.ai.resources.stop
+import com.localdoc.ai.resources.stopped
+import com.localdoc.ai.resources.table_of_contents_saved
+import com.localdoc.ai.resources.to_get_a_file_with_the
+import com.localdoc.ai.resources.to_split_a_book_without_headings
+import com.localdoc.ai.resources.words_that_chapters_start_with
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,12 +93,15 @@ internal fun ChaptersSheet(
     var job by remember { mutableStateOf<Job?>(null) }
     val changed = draft != book.chapters
     val busy = progress != null
+    val nothingFoundText = stringResource(Res.string.nothing_found_for_these_words)
+    val chaptersFoundFormat = stringResource(Res.string.chapters_found, "%1\$s")
+    val contentsSavedText = stringResource(Res.string.table_of_contents_saved)
 
     fun findByWords() {
         AppGraph.readerSettings.update { it.copy(chapterWords = words.trim()) }
         val found = ChapterDetector.detect(book.blocks, ChapterKeywords.parse(words))
         draft = found
-        message = if (found.isEmpty()) "По этим словам ничего не найдено" else "Найдено глав: ${found.size}"
+        message = if (found.isEmpty()) nothingFoundText else chaptersFoundFormat.replace("%1\$s", found.size.toString())
     }
 
     fun splitWithModel() {
@@ -86,12 +112,12 @@ internal fun ChaptersSheet(
             try {
                 val planner = ChapterPlanner(AppGraph.chapterModel, ChapterPlanner.Settings(titles = withTitles))
                 draft = planner.plan(book.blocks, draft) { progress = it }
-                message = "Глав в оглавлении: ${draft.size}"
+                message = getString(Res.string.chapters_in_the_table_of_contents, draft.size)
             } catch (e: CancellationException) {
-                message = "Остановлено"
+                message = getString(Res.string.stopped)
                 throw e
             } catch (e: Exception) {
-                message = e.message ?: "Не удалось разбить книгу"
+                message = e.message ?: getString(Res.string.could_not_split_the_book)
             } finally {
                 progress = null
             }
@@ -103,36 +129,36 @@ internal fun ChaptersSheet(
             modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Главы и оглавление", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(Res.string.chapters_and_table_of_contents), style = MaterialTheme.typography.titleLarge)
 
             OutlinedTextField(
                 value = words,
                 onValueChange = { words = it },
-                label = { Text("Слова, с которых начинаются главы") },
-                supportingText = { Text("Через запятую. «Глава», «Часть» ищутся с номером, «Пролог», «Эпилог» — сами по себе.") },
+                label = { Text(stringResource(Res.string.words_that_chapters_start_with)) },
+                supportingText = { Text(stringResource(Res.string.comma_separated_chapter_and_part_are)) },
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedButton(onClick = ::findByWords, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                Text("Найти главы по этим словам")
+                Text(stringResource(Res.string.find_chapters_by_these_words))
             }
 
             if (loadedModel == null) {
                 Text(
-                    "Чтобы разбить книгу без заголовков на главы, загрузите модель.",
+                    stringResource(Res.string.to_split_a_book_without_headings),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TextButton(onClick = onOpenModels) { Text("Выбрать модель") }
+                TextButton(onClick = onOpenModels) { Text(stringResource(Res.string.choose_a_model)) }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Switch(checked = withTitles, onCheckedChange = { withTitles = it }, enabled = !busy)
-                    Text("Придумать названия глав (дольше)", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(Res.string.come_up_with_chapter_titles_slower), style = MaterialTheme.typography.bodyMedium)
                 }
                 if (busy) {
                     LinearProgressIndicator(progress = { progress ?: 0f }, modifier = Modifier.fillMaxWidth())
-                    OutlinedButton(onClick = { job?.cancel() }, modifier = Modifier.fillMaxWidth()) { Text("Остановить") }
+                    OutlinedButton(onClick = { job?.cancel() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.stop)) }
                 } else {
-                    Button(onClick = ::splitWithModel, modifier = Modifier.fillMaxWidth()) { Text("Разбить на главы нейросетью") }
+                    Button(onClick = ::splitWithModel, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.split_into_chapters_with_ai)) }
                 }
             }
 
@@ -143,10 +169,10 @@ internal fun ChaptersSheet(
                     itemsIndexed(draft) { _, chapter ->
                         ListItem(
                             headlineContent = { Text(chapter.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = { Text("с абзаца ${chapter.startBlock + 1} из ${book.blocks.size}") },
+                            supportingContent = { Text(stringResource(Res.string.from_paragraph_of, chapter.startBlock + 1, book.blocks.size)) },
                             trailingContent = {
                                 IconButton(onClick = { draft = draft - chapter }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Убрать из оглавления")
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.remove_from_the_table_of_contents))
                                 }
                             }
                         )
@@ -155,13 +181,13 @@ internal fun ChaptersSheet(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { onApply(draft); message = "Оглавление сохранено" }, enabled = changed && !busy) { Text("Применить") }
+                Button(onClick = { onApply(draft); message = contentsSavedText }, enabled = changed && !busy) { Text(stringResource(Res.string.apply)) }
                 if (canSaveAs && book.chapters.isNotEmpty() && !changed) {
-                    OutlinedButton(onClick = onSaveAs) { Text("Сохранить как…") }
+                    OutlinedButton(onClick = onSaveAs) { Text(stringResource(Res.string.save_as)) }
                 }
             }
             Text(
-                "Чтобы получить файл с оглавлением: примените главы и выберите «Сохранить как…» — в EPUB и FB2 оглавление запишется в файл.",
+                stringResource(Res.string.to_get_a_file_with_the),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

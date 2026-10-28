@@ -1,5 +1,62 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.a_word_or_phrase_from_the
+import com.localdoc.ai.resources.add_bookmark
+import com.localdoc.ai.resources.ask
+import com.localdoc.ai.resources.auto_advance_on
+import com.localdoc.ai.resources.auto_advance_to_the_next_chapter_2
+import com.localdoc.ai.resources.auto_scroll
+import com.localdoc.ai.resources.back
+import com.localdoc.ai.resources.back_2
+import com.localdoc.ai.resources.bookmarks
+import com.localdoc.ai.resources.briefly_retell_this_passage_in_3
+import com.localdoc.ai.resources.brightness
+import com.localdoc.ai.resources.chapter_start_marked
+import com.localdoc.ai.resources.chapters_and_contents
+import com.localdoc.ai.resources.contents
+import com.localdoc.ai.resources.copied
+import com.localdoc.ai.resources.could_not_get_the_selected_text
+import com.localdoc.ai.resources.download_the_whole_book
+import com.localdoc.ai.resources.end_of_chapter_speech_stopped
+import com.localdoc.ai.resources.explain
+import com.localdoc.ai.resources.explain_a_term
+import com.localdoc.ai.resources.explain_in_plain_words_what_means
+import com.localdoc.ai.resources.find_the_main_points
+import com.localdoc.ai.resources.find_the_main_points_in_this
+import com.localdoc.ai.resources.font_and_background
+import com.localdoc.ai.resources.keep_reading
+import com.localdoc.ai.resources.main_points
+import com.localdoc.ai.resources.more
+import com.localdoc.ai.resources.next
+import com.localdoc.ai.resources.next_chapter
+import com.localdoc.ai.resources.note_saved
+import com.localdoc.ai.resources.p
+import com.localdoc.ai.resources.page_of_2
+import com.localdoc.ai.resources.quote_saved
+import com.localdoc.ai.resources.quotes_and_notes
+import com.localdoc.ai.resources.read_by_scrolling
+import com.localdoc.ai.resources.read_page_by_page
+import com.localdoc.ai.resources.remove_bookmark
+import com.localdoc.ai.resources.repeat
+import com.localdoc.ai.resources.save_as
+import com.localdoc.ai.resources.select_a_single_word_or_a
+import com.localdoc.ai.resources.stop_auto_scroll
+import com.localdoc.ai.resources.summarize_the_page
+import com.localdoc.ai.resources.summary
+import com.localdoc.ai.resources.term
+import com.localdoc.ai.resources.the_chapter_has_ended_speech_is
+import com.localdoc.ai.resources.this_place_could_not_be_marked
+import com.localdoc.ai.resources.this_place_could_not_be_saved
+import com.localdoc.ai.resources.translating_the_page_of
+import com.localdoc.ai.resources.translation_2
+import com.localdoc.ai.resources.translation_3
+import com.localdoc.ai.resources.translation_on
+import com.localdoc.ai.resources.turn_off
+import com.localdoc.ai.resources.voice_and_speech
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -187,10 +244,10 @@ fun paperColors(theme: ReaderTheme): PaperColors {
 }
 
 /** Действия ИИ-суфлёра над открытым текстом. */
-internal enum class ReaderAiAction(val label: String, val shortLabel: String, val icon: ImageVector) {
-    SUMMARIZE_PAGE("Суммаризировать страницу", "Пересказ", Icons.Default.Summarize),
-    EXPLAIN_TERM("Объяснить термин", "Термин", Icons.Default.Lightbulb),
-    KEY_POINTS("Найти главное", "Главное", Icons.Default.TravelExplore)
+internal enum class ReaderAiAction(val label: StringResource, val shortLabel: StringResource, val icon: ImageVector) {
+    SUMMARIZE_PAGE(Res.string.summarize_the_page, Res.string.summary, Icons.Default.Summarize),
+    EXPLAIN_TERM(Res.string.explain_a_term, Res.string.term, Icons.Default.Lightbulb),
+    KEY_POINTS(Res.string.find_the_main_points, Res.string.main_points, Icons.Default.TravelExplore)
 }
 
 /** Навигация по соседним главам (веб-новеллы). */
@@ -444,18 +501,18 @@ fun ReaderView(
         scope.launch {
             val selected = readSelection(clipboard, copy, keepInClipboard = action == SelectionAction.COPY)
             if (selected == null) {
-                notice = "Не удалось получить выделенный текст"
+                notice = getString(Res.string.could_not_get_the_selected_text)
                 return@launch
             }
             when (action) {
-                SelectionAction.COPY -> notice = "Скопировано"
+                SelectionAction.COPY -> notice = getString(Res.string.copied)
                 SelectionAction.QUOTE, SelectionAction.NOTE -> {
                     val anchor = locateSelection(selected)
                     when {
-                        entry == null || anchor == null -> notice = "Это место не удалось сохранить: выделите текст книги"
+                        entry == null || anchor == null -> notice = getString(Res.string.this_place_could_not_be_saved)
                         action == SelectionAction.QUOTE -> {
                             AppGraph.annotations.add(entry, anchor)
-                            notice = "Цитата сохранена"
+                            notice = getString(Res.string.quote_saved)
                         }
                         else -> noteDraft = anchor
                     }
@@ -464,18 +521,18 @@ fun ReaderView(
                     val at = locateSelection(selected)?.block
                     val title = selected.trim().replace(Regex("\\s+"), " ").take(90)
                     if (onChaptersChanged == null || at == null || title.isEmpty()) {
-                        notice = "Это место не удалось отметить: выделите текст книги"
+                        notice = getString(Res.string.this_place_could_not_be_marked)
                     } else {
                         onChaptersChanged(
                             (book.chapters.filter { it.startBlock != at } + com.localdoc.ai.book.Chapter(title, at)).sortedBy { it.startBlock }
                         )
-                        notice = "Начало главы отмечено"
+                        notice = getString(Res.string.chapter_start_marked)
                     }
                 }
                 SelectionAction.WORD -> {
                     val word = WordSelection.wordOf(selected)
                     if (word == null) {
-                        notice = "Выделите одно слово или короткое выражение"
+                        notice = getString(Res.string.select_a_single_word_or_a)
                     } else {
                         val block = locateSelection(word)?.block ?: currentBlock
                         wordLookup = word to WordSelection.sentenceAround(book.blocks.getOrNull(block)?.text.orEmpty(), word)
@@ -491,22 +548,23 @@ fun ReaderView(
     fun runAi(action: ReaderAiAction, term: String? = null) {
         showAi = true
         if (AppGraph.isGenerating.value || AppGraph.loadedModelId.value == null) return
+        scope.launch {
         val pageText = pageBlocks(page).joinToString("\n\n") { it.text }
         val (fragment, prompt, label) = when (action) {
-            ReaderAiAction.SUMMARIZE_PAGE -> Triple(pageText, "Кратко перескажи этот фрагмент в 3–5 пунктах.", action.label)
+            ReaderAiAction.SUMMARIZE_PAGE -> Triple(pageText, getString(Res.string.briefly_retell_this_passage_in_3), getString(action.label))
             ReaderAiAction.KEY_POINTS -> {
                 val start = book.chapters.getOrNull(chapterIndex)?.startBlock ?: 0
                 val end = book.chapters.getOrNull(chapterIndex + 1)?.startBlock ?: book.blocks.size
                 Triple(
                     book.blocks.subList(start.coerceAtMost(end), end).joinToString("\n\n") { it.text },
-                    "Найди главное в этом тексте: ключевые события, идеи, персонажей и выводы — списком.",
-                    action.label + (chapterTitle?.let { " — $it" } ?: "")
+                    getString(Res.string.find_the_main_points_in_this),
+                    getString(action.label) + (chapterTitle?.let { " — $it" } ?: "")
                 )
             }
             ReaderAiAction.EXPLAIN_TERM -> Triple(
                 pageText,
-                "Объясни простыми словами, что означает «$term» в контексте этого фрагмента. Если в тексте нет пояснения — дай общее определение.",
-                "Объяснить: $term"
+                getString(Res.string.explain_in_plain_words_what_means, term.orEmpty()),
+                getString(Res.string.explain, term.orEmpty())
             )
         }
         AppGraph.addMessage(ChatMessage(ChatMessage.Role.USER, label))
@@ -526,6 +584,7 @@ fun ReaderView(
             } finally {
                 if (!handedOver) AppGraph.translator.release()
             }
+        }
         }
     }
 
@@ -736,7 +795,7 @@ fun ReaderView(
                                 change.consume()
                                 live = brightnessAfterDrag(live, dy, size.height.toFloat())
                                 ScreenControls.setBrightness(live)
-                                notice = "Яркость ${(live * 100).toInt()}%"
+                                scope.launch { notice = getString(Res.string.brightness, (live * 100).toInt()) }
                             }
                         )
                     }
@@ -773,14 +832,14 @@ fun ReaderView(
                         modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 4.dp, vertical = 8.dp)
                     ) {
                         if (onBack != null) {
-                            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back)) }
                         } else {
                             Spacer(Modifier.width(12.dp))
                         }
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
                             Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                listOfNotNull(chapterTitle, "стр. ${page + 1}/${pager.size}", "$percent%").joinToString(" · "),
+                                listOfNotNull(chapterTitle, stringResource(Res.string.p, page + 1, pager.size), "$percent%").joinToString(" · "),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -800,50 +859,50 @@ fun ReaderView(
                             }) {
                                 Icon(
                                     if (pageBookmark != null) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                    contentDescription = if (pageBookmark != null) "Убрать закладку" else "Добавить закладку",
+                                    contentDescription = if (pageBookmark != null) stringResource(Res.string.remove_bookmark) else stringResource(Res.string.add_bookmark),
                                     tint = if (pageBookmark != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                        IconButton(onClick = { showVoice = true }) { Icon(Icons.Default.RecordVoiceOver, contentDescription = "Голос и озвучка") }
+                        IconButton(onClick = { showVoice = true }) { Icon(Icons.Default.RecordVoiceOver, contentDescription = stringResource(Res.string.voice_and_speech)) }
                         Box {
-                            IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "Ещё") }
+                            IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.more)) }
                             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                                 if (book.chapters.isNotEmpty()) {
-                                    DropdownMenuItem(text = { Text("Оглавление") }, onClick = { showMenu = false; showToc = true })
+                                    DropdownMenuItem(text = { Text(stringResource(Res.string.contents)) }, onClick = { showMenu = false; showToc = true })
                                 }
                                 if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
-                                    DropdownMenuItem(text = { Text("Главы и оглавление…") }, onClick = { showMenu = false; showChapters = true })
+                                    DropdownMenuItem(text = { Text(stringResource(Res.string.chapters_and_contents)) }, onClick = { showMenu = false; showChapters = true })
                                 }
-                                DropdownMenuItem(text = { Text("Закладки") }, onClick = { showMenu = false; showBookmarks = true })
+                                DropdownMenuItem(text = { Text(stringResource(Res.string.bookmarks)) }, onClick = { showMenu = false; showBookmarks = true })
                                 if (entry != null) {
                                     DropdownMenuItem(
-                                        text = { Text("Цитаты и заметки" + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "") },
+                                        text = { Text(stringResource(Res.string.quotes_and_notes) + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "") },
                                         onClick = { showMenu = false; showAnnotations = true }
                                     )
                                 }
                                 DropdownMenuItem(
-                                    text = { Text(if (translating) "Перевод: включён" else "Перевод…") },
+                                    text = { Text(if (translating) stringResource(Res.string.translation_on) else stringResource(Res.string.translation_3)) },
                                     onClick = { showMenu = false; showTranslate = true }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(if (settings.paged) "Читать прокруткой" else "Читать по страницам") },
+                                    text = { Text(if (settings.paged) stringResource(Res.string.read_by_scrolling) else stringResource(Res.string.read_page_by_page)) },
                                     onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(if (autoScroll) "Остановить автопрокрутку" else "Автопрокрутка") },
+                                    text = { Text(if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll)) },
                                     onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
                                 )
-                                DropdownMenuItem(text = { Text("Шрифт и фон") }, onClick = { showMenu = false; showSettings = true })
+                                DropdownMenuItem(text = { Text(stringResource(Res.string.font_and_background)) }, onClick = { showMenu = false; showSettings = true })
                                 if (entry != null) {
                                     DropdownMenuItem(
-                                        text = { Text(if (book.format == com.localdoc.ai.book.BookFormat.WEB) "Скачать книгу целиком…" else "Сохранить как…") },
+                                        text = { Text(if (book.format == com.localdoc.ai.book.BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as)) },
                                         onClick = { showMenu = false; showSaveAs = true }
                                     )
                                 }
                                 if (chapterNavigation != null) {
                                     DropdownMenuItem(
-                                        text = { Text(if (settings.autoNext) "Автопереход: включён" else "Автопереход к следующей главе") },
+                                        text = { Text(if (settings.autoNext) stringResource(Res.string.auto_advance_on) else stringResource(Res.string.auto_advance_to_the_next_chapter_2)) },
                                         onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(autoNext = !it.autoNext) } }
                                     )
                                 }
@@ -854,7 +913,7 @@ fun ReaderView(
                         val done = translatedBlocks?.count { it != null } ?: 0
                         val total = pageInfo.blockCount
                         TranslationBanner(
-                            text = translationError ?: if (done >= total) "Перевод: ${target?.name.orEmpty()}" else "Переводим страницу… $done из $total",
+                            text = translationError ?: if (done >= total) stringResource(Res.string.translation_2, target?.name.orEmpty()) else stringResource(Res.string.translating_the_page_of, done, total),
                             isError = translationError != null,
                             onRetry = { retry++ },
                             onOff = { startTranslation(false) }
@@ -896,7 +955,7 @@ fun ReaderView(
                     modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     ReaderAiAction.entries.forEach { action ->
-                        AiChip(action.shortLabel, action.icon) {
+                        AiChip(stringResource(action.shortLabel), action.icon) {
                             if (action == ReaderAiAction.EXPLAIN_TERM) askTerm = true else runAi(action)
                         }
                     }
@@ -955,7 +1014,7 @@ fun ReaderView(
     if (showTranslate) {
         TranslateSheet(
             enabled = translating,
-            status = if (translating) translationError ?: "Страница ${page + 1} из ${pager.size}" else null,
+            status = if (translating) translationError ?: stringResource(Res.string.page_of_2, page + 1, pager.size) else null,
             onToggle = ::startTranslation,
             onDismiss = { showTranslate = false },
             onOpenModels = { showTranslate = false; onOpenModels() }
@@ -963,7 +1022,7 @@ fun ReaderView(
     }
     if (showBookmarks) {
         BookmarksSheet(
-            title = "Закладки",
+            title = stringResource(Res.string.bookmarks),
             bookmarks = bookmarks.filter { it.entryId == entryId }.sortedBy { it.block },
             showBookTitle = false,
             onJump = { mark -> showBookmarks = false; goToBlock(mark.resolveBlock(book)) },
@@ -980,7 +1039,7 @@ fun ReaderView(
             },
             onEdit = { noteEdit = it },
             onDelete = { AppGraph.annotations.remove(it.id) },
-            onExport = { epub -> exportBookNotes(entryId, book.title, book.author, epub) { message -> if (message != null) notice = message } },
+            onExport = { epub -> exportBookNotes(scope, entryId, book.title, book.author, epub) { message -> if (message != null) notice = message } },
             onDismiss = { showAnnotations = false }
         )
     }
@@ -993,7 +1052,7 @@ fun ReaderView(
             onSave = { text, color ->
                 entry?.let { AppGraph.annotations.add(it, anchor, text, color) }
                 noteDraft = null
-                notice = "Заметка сохранена"
+                scope.launch { notice = getString(Res.string.note_saved) }
             }
         )
     }
@@ -1035,9 +1094,9 @@ fun ReaderView(
     }
     TextInputDialog(
         visible = askTerm,
-        title = "Объяснить термин",
-        placeholder = "Слово или выражение из текста",
-        confirmLabel = "Спросить",
+        title = stringResource(Res.string.explain_a_term),
+        placeholder = stringResource(Res.string.a_word_or_phrase_from_the),
+        confirmLabel = stringResource(Res.string.ask),
         onDismiss = { askTerm = false },
         onConfirm = { term ->
             askTerm = false
@@ -1091,8 +1150,8 @@ private fun TranslationBanner(text: String, isError: Boolean, onRetry: () -> Uni
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            if (isError) TextButton(onClick = onRetry) { Text("Повторить", maxLines = 1, softWrap = false) }
-            TextButton(onClick = onOff) { Text("Выключить", maxLines = 1, softWrap = false) }
+            if (isError) TextButton(onClick = onRetry) { Text(stringResource(Res.string.repeat), maxLines = 1, softWrap = false) }
+            TextButton(onClick = onOff) { Text(stringResource(Res.string.turn_off), maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -1118,14 +1177,14 @@ private fun ChapterEndCard(stop: ReadAloudStop, hasNextPage: Boolean, onContinue
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)) {
             Text(
-                if (stop == ReadAloudStop.CHAPTER_END) "Глава закончилась — озвучка на паузе." else "Конец главы — озвучка остановлена.",
+                if (stop == ReadAloudStop.CHAPTER_END) stringResource(Res.string.the_chapter_has_ended_speech_is) else stringResource(Res.string.end_of_chapter_speech_stopped),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.weight(1f)
             )
             when {
-                stop == ReadAloudStop.CHAPTER_END -> TextButton(onClick = onContinue) { Text("Читать дальше") }
-                hasNextPage -> TextButton(onClick = onNextPage) { Text("Следующая глава") }
+                stop == ReadAloudStop.CHAPTER_END -> TextButton(onClick = onContinue) { Text(stringResource(Res.string.keep_reading)) }
+                hasNextPage -> TextButton(onClick = onNextPage) { Text(stringResource(Res.string.next_chapter)) }
             }
         }
     }
@@ -1141,9 +1200,9 @@ private fun ChapterFooter(nav: ChapterNavigation, paper: PaperColors) {
         itemVerticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp)
     ) {
-        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text("← Назад", maxLines = 1, softWrap = false) }
-        nav.onTableOfContents?.let { TextButton(onClick = it) { Text("Оглавление", color = paper.text, maxLines = 1, softWrap = false) } }
-        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text("Далее →", maxLines = 1, softWrap = false) }
+        OutlinedButton(onClick = nav.onPrevious, enabled = nav.hasPrevious) { Text(stringResource(Res.string.back_2), maxLines = 1, softWrap = false) }
+        nav.onTableOfContents?.let { TextButton(onClick = it) { Text(stringResource(Res.string.contents), color = paper.text, maxLines = 1, softWrap = false) } }
+        Button(onClick = nav.onNext, enabled = nav.hasNext) { Text(stringResource(Res.string.next), maxLines = 1, softWrap = false) }
     }
 }
 

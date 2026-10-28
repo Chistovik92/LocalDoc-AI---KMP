@@ -2,6 +2,46 @@
 
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.about_the_app
+import com.localdoc.ai.resources.active
+import com.localdoc.ai.resources.all_models
+import com.localdoc.ai.resources.best_for_russian
+import com.localdoc.ai.resources.cancel_2
+import com.localdoc.ai.resources.cancel_download
+import com.localdoc.ai.resources.check_for_updates
+import com.localdoc.ai.resources.could_not_load_probably_not_enough
+import com.localdoc.ai.resources.delete
+import com.localdoc.ai.resources.download_and_install
+import com.localdoc.ai.resources.download_error
+import com.localdoc.ai.resources.downloading_mb
+import com.localdoc.ai.resources.from_gb_ram
+import com.localdoc.ai.resources.install
+import com.localdoc.ai.resources.license
+import com.localdoc.ai.resources.loading
+import com.localdoc.ai.resources.localdoc_ai_a_reader_for_books
+import com.localdoc.ai.resources.n_12_gb_ram
+import com.localdoc.ai.resources.no_model_selected
+import com.localdoc.ai.resources.of_mb
+import com.localdoc.ai.resources.offline
+import com.localdoc.ai.resources.on_device_neural_networks
+import com.localdoc.ai.resources.open_the_release_page
+import com.localdoc.ai.resources.private
+import com.localdoc.ai.resources.quality
+import com.localdoc.ai.resources.recommended
+import com.localdoc.ai.resources.russian
+import com.localdoc.ai.resources.speed
+import com.localdoc.ai.resources.summaries_explanations_and_answers_about_boo
+import com.localdoc.ai.resources.top_pick
+import com.localdoc.ai.resources.unload
+import com.localdoc.ai.resources.up_to_4_gb_ram
+import com.localdoc.ai.resources.up_to_6_gb_ram
+import com.localdoc.ai.resources.up_to_8_gb_ram
+import com.localdoc.ai.resources.use
+import com.localdoc.ai.resources.version_is_available
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -67,12 +107,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Фильтр каталога по объёму ОЗУ телефона. */
-private enum class RamFilter(val label: String) {
-    ALL("Все модели"),
-    RAM4("До 4 ГБ ОЗУ"),
-    RAM6("До 6 ГБ ОЗУ"),
-    RAM8("До 8 ГБ ОЗУ"),
-    RAM12("12+ ГБ ОЗУ");
+private enum class RamFilter(val label: StringResource) {
+    ALL(Res.string.all_models),
+    RAM4(Res.string.up_to_4_gb_ram),
+    RAM6(Res.string.up_to_6_gb_ram),
+    RAM8(Res.string.up_to_8_gb_ram),
+    RAM12(Res.string.n_12_gb_ram);
 
     fun accepts(spec: ModelSpec): Boolean = when (this) {
         ALL -> true
@@ -123,11 +163,11 @@ fun ModelsScreen() {
         item { SemanticSearchCard() }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                RamFilter.entries.forEach { f -> FilterChip(selected = ramFilter == f, onClick = { ramFilter = f }, label = { Text(f.label) }) }
+                RamFilter.entries.forEach { f -> FilterChip(selected = ramFilter == f, onClick = { ramFilter = f }, label = { Text(stringResource(f.label)) }) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                FilterChip(selected = onlyRecommended, onClick = { onlyRecommended = !onlyRecommended }, label = { Text("★ Рекомендуемые") })
-                FilterChip(selected = russianFirst, onClick = { russianFirst = !russianFirst }, label = { Text("Лучший русский") })
+                FilterChip(selected = onlyRecommended, onClick = { onlyRecommended = !onlyRecommended }, label = { Text(stringResource(Res.string.recommended)) })
+                FilterChip(selected = russianFirst, onClick = { russianFirst = !russianFirst }, label = { Text(stringResource(Res.string.best_for_russian)) })
             }
             loadError?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
@@ -163,7 +203,7 @@ fun ModelsScreen() {
                         } else {
                             // load() выгружает прежнюю модель до загрузки новой
                             AppGraph.setLoaded(null)
-                            loadError = "Не удалось загрузить «${spec.name}» — вероятно, не хватает памяти. Попробуйте модель поменьше."
+                            loadError = getString(Res.string.could_not_load_probably_not_enough, spec.name)
                         }
                         busyModelId = null
                     }
@@ -191,9 +231,9 @@ private fun Hero(loadedId: String?) {
     Box(modifier = Modifier.fillMaxWidth().background(GoogleColors.AiGradient, RoundedCornerShape(28.dp)).padding(24.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Default.Memory, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
-            Text("Нейросети на устройстве", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            Text(stringResource(Res.string.on_device_neural_networks), style = MaterialTheme.typography.headlineSmall, color = Color.White)
             Text(
-                "Пересказы, объяснения и ответы по книгам — без интернета и без отправки текста в облако.",
+                stringResource(Res.string.summaries_explanations_and_answers_about_boo),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.9f)
             )
@@ -202,9 +242,9 @@ private fun Hero(loadedId: String?) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(top = 4.dp)
             ) {
-                HeroBadge(Icons.Default.WifiOff, "Офлайн")
-                HeroBadge(Icons.Default.Security, "Приватно")
-                HeroBadge(Icons.Default.CheckCircle, active?.name ?: "Модель не выбрана")
+                HeroBadge(Icons.Default.WifiOff, stringResource(Res.string.offline))
+                HeroBadge(Icons.Default.Security, stringResource(Res.string.private))
+                HeroBadge(Icons.Default.CheckCircle, active?.name ?: stringResource(Res.string.no_model_selected))
             }
         }
     }
@@ -253,27 +293,27 @@ private fun ModelCard(
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(spec.name, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "${spec.family.vendor} · ${spec.parameters} · ${formatSize(spec.sizeMb)} · от ${spec.minRamGb} ГБ ОЗУ",
+                        stringResource(Res.string.from_gb_ram, spec.family.vendor, spec.parameters, formatSize(spec.sizeMb), spec.minRamGb),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 when {
-                    isLoaded -> Pill("Активна", MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-                    spec.recommended -> Pill("★ Выбор", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+                    isLoaded -> Pill(stringResource(Res.string.active), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                    spec.recommended -> Pill(stringResource(Res.string.top_pick), MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
                 }
             }
 
             Text(spec.description, style = MaterialTheme.typography.bodyMedium)
 
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                Rating("Качество", spec.quality, GoogleColors.Blue)
-                Rating("Скорость", spec.speed, GoogleColors.Green)
-                Rating("Русский", spec.russian, GoogleColors.Red)
+                Rating(stringResource(Res.string.quality), spec.quality, GoogleColors.Blue)
+                Rating(stringResource(Res.string.speed), spec.speed, GoogleColors.Green)
+                Rating(stringResource(Res.string.russian), spec.russian, GoogleColors.Red)
             }
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                (spec.tags + "Лицензия: ${spec.license}").forEach { tag ->
+                (spec.tags + stringResource(Res.string.license, spec.license)).forEach { tag ->
                     Surface(color = familyColor.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
                         Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
@@ -285,8 +325,8 @@ private fun ModelCard(
                     val fraction = if (state.totalBytes > 0) state.downloadedBytes.toFloat() / state.totalBytes else null
                     Column {
                         Text(
-                            "Загрузка: ${state.downloadedBytes / (1024 * 1024)} МБ" +
-                                (state.totalBytes.takeIf { it > 0 }?.let { " из ${it / (1024 * 1024)} МБ" } ?: "") +
+                            stringResource(Res.string.downloading_mb, state.downloadedBytes / (1024 * 1024)) +
+                                (state.totalBytes.takeIf { it > 0 }?.let { " " + stringResource(Res.string.of_mb, it / (1024 * 1024)) } ?: "") +
                                 (fraction?.let { " · ${(it * 100).toInt()}%" } ?: ""),
                             style = MaterialTheme.typography.labelMedium
                         )
@@ -297,28 +337,28 @@ private fun ModelCard(
                         }
                     }
                 }
-                is DownloadState.Failed -> Text("Ошибка загрузки: ${state.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                is DownloadState.Failed -> Text(stringResource(Res.string.download_error, state.message), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 else -> Unit
             }
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 when {
-                    state is DownloadState.Progress -> TextButton(onClick = onCancel) { Text("Отменить") }
-                    downloaded && isLoaded -> OutlinedButton(onClick = onUnload, enabled = busy == null) { Text("Выгрузить") }
+                    state is DownloadState.Progress -> TextButton(onClick = onCancel) { Text(stringResource(Res.string.cancel_2)) }
+                    downloaded && isLoaded -> OutlinedButton(onClick = onUnload, enabled = busy == null) { Text(stringResource(Res.string.unload)) }
                     downloaded -> {
                         Button(onClick = onLoad, enabled = busy == null) {
                             if (busy == spec.id) {
                                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                                 Spacer(Modifier.width(8.dp))
                             }
-                            Text(if (busy == spec.id) "Загрузка…" else "Использовать", maxLines = 1, softWrap = false)
+                            Text(if (busy == spec.id) stringResource(Res.string.loading) else stringResource(Res.string.use), maxLines = 1, softWrap = false)
                         }
-                        TextButton(onClick = onDelete, enabled = busy == null) { Text("Удалить") }
+                        TextButton(onClick = onDelete, enabled = busy == null) { Text(stringResource(Res.string.delete)) }
                     }
                     else -> FilledTonalButton(onClick = onDownload, enabled = busy == null) {
                         Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Установить · ${formatSize(spec.sizeMb)}", maxLines = 1, softWrap = false)
+                        Text(stringResource(Res.string.install, formatSize(spec.sizeMb)), maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -350,10 +390,10 @@ internal fun AboutSection() {
     val download by updates.download.collectAsState()
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("О приложении", style = MaterialTheme.typography.titleMedium)
-            Text("LocalDoc AI ${PlatformActions.appVersion} — читалка книг и веб-страниц с локальным ИИ и озвучкой.", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(Res.string.about_the_app), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(Res.string.localdoc_ai_a_reader_for_books, PlatformActions.appVersion), style = MaterialTheme.typography.bodyMedium)
             update?.let { found ->
-                Text("Доступна версия ${found.version}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(Res.string.version_is_available, found.version), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                 if (found.notes.isNotBlank()) {
                     Text(found.notes.take(600), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -363,13 +403,13 @@ internal fun AboutSection() {
                     Spacer(Modifier.width(8.dp))
                     Text(
                         when {
-                            busy -> "Загрузка…"
-                            found.downloadUrl != null -> "Скачать и установить"
-                            else -> "Открыть страницу релиза"
+                            busy -> stringResource(Res.string.loading)
+                            found.downloadUrl != null -> stringResource(Res.string.download_and_install)
+                            else -> stringResource(Res.string.open_the_release_page)
                         }
                     )
                 }
-                if (busy) OutlinedButton(onClick = updates::cancelDownload) { Text("Отменить загрузку") }
+                if (busy) OutlinedButton(onClick = updates::cancelDownload) { Text(stringResource(Res.string.cancel_download)) }
             }
             UpdateProgressInfo(download, status)
             OutlinedButton(onClick = { updates.check(silent = false) }, enabled = !checking) {
@@ -377,7 +417,7 @@ internal fun AboutSection() {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("Проверить обновления")
+                Text(stringResource(Res.string.check_for_updates))
             }
             Spacer(Modifier.height(4.dp))
         }

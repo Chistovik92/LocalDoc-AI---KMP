@@ -1,5 +1,11 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.back
+import com.localdoc.ai.resources.page
+import com.localdoc.ai.resources.text_mode
+import com.localdoc.ai.resources.the_page_did_not_open
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -127,9 +133,9 @@ fun PdfPagesScreen(
                 modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()
             ) {
                 Row(Modifier.statusBarsPadding().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back)) }
                     Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onShowText) { Icon(Icons.Default.TextFields, contentDescription = "Режим «текст»") }
+                    IconButton(onClick = onShowText) { Icon(Icons.Default.TextFields, contentDescription = stringResource(Res.string.text_mode)) }
                 }
             }
             Surface(
@@ -208,13 +214,13 @@ private fun PdfPageView(source: PdfPageSource, index: Int, widthPx: Int, onZoomC
         when {
             image != null -> Image(
                 bitmap = image,
-                contentDescription = "Страница ${index + 1}",
+                contentDescription = stringResource(Res.string.page, index + 1),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().graphicsLayer(
                     scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y
                 )
             )
-            failed -> Icon(Icons.Default.BrokenImage, contentDescription = "Страница не открылась", tint = Color.White)
+            failed -> Icon(Icons.Default.BrokenImage, contentDescription = stringResource(Res.string.the_page_did_not_open), tint = Color.White)
             else -> CircularProgressIndicator(color = Color.White)
         }
     }

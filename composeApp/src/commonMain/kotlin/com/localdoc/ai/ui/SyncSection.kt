@@ -1,5 +1,30 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.a_backup_is_saved_on_the
+import com.localdoc.ai.resources.books_pending
+import com.localdoc.ai.resources.done_received_sent_conflicts
+import com.localdoc.ai.resources.encryption_password
+import com.localdoc.ai.resources.error_2
+import com.localdoc.ai.resources.every_days
+import com.localdoc.ai.resources.icloud_and_google_drive_not_available
+import com.localdoc.ai.resources.keep_this_device_s_data
+import com.localdoc.ai.resources.last_backups_kept_backups_are_stored
+import com.localdoc.ai.resources.login
+import com.localdoc.ai.resources.make_a_backup_automatically
+import com.localdoc.ai.resources.merge_anyway
+import com.localdoc.ai.resources.not_applied
+import com.localdoc.ai.resources.reading_progress_bookmarks_quotes_and_collec
+import com.localdoc.ai.resources.scheduled_backup
+import com.localdoc.ai.resources.server_password
+import com.localdoc.ai.resources.sync_2
+import com.localdoc.ai.resources.sync_stopped
+import com.localdoc.ai.resources.syncing
+import com.localdoc.ai.resources.take_the_data_from_the_cloud
+import com.localdoc.ai.resources.the_file_in_the_cloud_was
+import com.localdoc.ai.resources.webdav_folder_address
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -66,53 +91,51 @@ fun SyncSection() {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SyncOutcome.Failed(e.message ?: "ошибка")
+                SyncOutcome.Failed(e.message ?: getString(Res.string.error_2))
             }
             busy = false
             when (outcome) {
                 is SyncOutcome.Done ->
-                    message = "Готово: получено ${outcome.pulled}, отправлено ${outcome.pushed}, конфликтов ${outcome.conflicts}" +
-                        (if (outcome.deferred > 0) ", ждут книги: ${outcome.deferred}" else "") +
-                        (if (outcome.failedKinds.isNotEmpty()) ". Не применено: ${outcome.failedKinds.joinToString()}" else "")
+                    message = getString(Res.string.done_received_sent_conflicts, outcome.pulled, outcome.pushed, outcome.conflicts) +
+                        (if (outcome.deferred > 0) getString(Res.string.books_pending, outcome.deferred) else "") +
+                        (if (outcome.failedKinds.isNotEmpty()) getString(Res.string.not_applied, outcome.failedKinds.joinToString()) else "")
                 is SyncOutcome.Diverged -> diverged = outcome.message
                 is SyncOutcome.WrongPassword -> message = outcome.message
-                is SyncOutcome.TooNew -> message = "Файл в облаке создан более новой версией LocalDoc. Обновите приложение."
+                is SyncOutcome.TooNew -> message = getString(Res.string.the_file_in_the_cloud_was)
                 is SyncOutcome.Failed -> message = outcome.message
             }
         }
     }
 
     Text(
-        "Прогресс чтения, закладки, цитаты и подборки сохраняются в одном файле на вашем WebDAV-сервере (Nextcloud, ownCloud и др.), " +
-            "зашифрованном паролем на устройстве. Пароль шифрования нужно ввести одинаковым на всех устройствах — " +
-            "его нельзя восстановить. Пароли сайтов не синхронизируются.",
+        stringResource(Res.string.reading_progress_bookmarks_quotes_and_collec),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-    OutlinedTextField(url, { url = it }, label = { Text("Адрес папки WebDAV") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(user, { user = it }, label = { Text("Логин") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(url, { url = it }, label = { Text(stringResource(Res.string.webdav_folder_address)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(user, { user = it }, label = { Text(stringResource(Res.string.login)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(
-        password, { password = it }, label = { Text("Пароль сервера") }, singleLine = true,
+        password, { password = it }, label = { Text(stringResource(Res.string.server_password)) }, singleLine = true,
         visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth()
     )
     OutlinedTextField(
-        encryption, { encryption = it }, label = { Text("Пароль шифрования") }, singleLine = true,
+        encryption, { encryption = it }, label = { Text(stringResource(Res.string.encryption_password)) }, singleLine = true,
         visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth()
     )
     Button(
         enabled = !busy && url.isNotBlank() && encryption.isNotEmpty(),
         onClick = { run(null) },
         modifier = Modifier.fillMaxWidth()
-    ) { Text(if (busy) "Синхронизируем…" else "Синхронизировать") }
+    ) { Text(if (busy) stringResource(Res.string.syncing) else stringResource(Res.string.sync_2)) }
     message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     diverged?.let {
-        Text("Синхронизация остановлена: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-        Text("Перед любым выбором на устройстве сохраняется резервная копия.", style = MaterialTheme.typography.bodySmall)
-        OutlinedButton(onClick = { run(DivergenceChoice.MERGE) }, modifier = Modifier.fillMaxWidth()) { Text("Всё равно слить") }
-        OutlinedButton(onClick = { run(DivergenceChoice.KEEP_LOCAL) }, modifier = Modifier.fillMaxWidth()) { Text("Оставить данные этого устройства") }
-        OutlinedButton(onClick = { run(DivergenceChoice.USE_REMOTE) }, modifier = Modifier.fillMaxWidth()) { Text("Взять данные из облака") }
+        Text(stringResource(Res.string.sync_stopped, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        Text(stringResource(Res.string.a_backup_is_saved_on_the), style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = { run(DivergenceChoice.MERGE) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.merge_anyway)) }
+        OutlinedButton(onClick = { run(DivergenceChoice.KEEP_LOCAL) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.keep_this_device_s_data)) }
+        OutlinedButton(onClick = { run(DivergenceChoice.USE_REMOTE) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.take_the_data_from_the_cloud)) }
     }
-    Text("iCloud и Google Drive: пока недоступны.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(stringResource(Res.string.icloud_and_google_drive_not_available), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
     ScheduledBackupCard()
 }
@@ -125,20 +148,19 @@ private fun ScheduledBackupCard() {
         AppGraph.scheduledBackup.update(next)
         settings = AppGraph.scheduledBackup.settings()
     }
-    Text("Копия по расписанию", style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(Res.string.scheduled_backup), style = MaterialTheme.typography.titleMedium)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("Делать копию автоматически", modifier = Modifier.weight(1f))
+        Text(stringResource(Res.string.make_a_backup_automatically), modifier = Modifier.weight(1f))
         Switch(checked = settings.enabled, onCheckedChange = { change(settings.copy(enabled = it)) })
     }
     if (settings.enabled) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Раз в ${settings.everyDays} дн.", modifier = Modifier.weight(1f))
+            Text(stringResource(Res.string.every_days, settings.everyDays), modifier = Modifier.weight(1f))
             OutlinedButton(onClick = { change(settings.copy(everyDays = (settings.everyDays - 1).coerceAtLeast(1))) }) { Text("−") }
             OutlinedButton(onClick = { change(settings.copy(everyDays = settings.everyDays + 1)) }) { Text("+") }
         }
         Text(
-            "Хранится последних копий: ${settings.keep}. Копии лежат в памяти приложения и пропадают при его удалении — " +
-                "для надёжности иногда сохраняйте копию файлом в разделе «Резервная копия».",
+            stringResource(Res.string.last_backups_kept_backups_are_stored, settings.keep),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }

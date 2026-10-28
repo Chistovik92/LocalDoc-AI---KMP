@@ -1,5 +1,27 @@
 package com.localdoc.ai.ui
 
+import com.localdoc.ai.resources.add
+import com.localdoc.ai.resources.add_a_catalog
+import com.localdoc.ai.resources.added_to_the_library_2
+import com.localdoc.ai.resources.address_for_example_http_192_168
+import com.localdoc.ai.resources.an_http_or_https_address_is
+import com.localdoc.ai.resources.back
+import com.localdoc.ai.resources.cancel
+import com.localdoc.ai.resources.could_not_load_the_catalog
+import com.localdoc.ai.resources.download_2
+import com.localdoc.ai.resources.downloading
+import com.localdoc.ai.resources.loading_2
+import com.localdoc.ai.resources.name
+import com.localdoc.ai.resources.new_opds_catalog
+import com.localdoc.ai.resources.nothing_here_yet
+import com.localdoc.ai.resources.opds_catalogs_open_libraries_project_gutenbe
+import com.localdoc.ai.resources.remove
+import com.localdoc.ai.resources.search
+import com.localdoc.ai.resources.search_the_catalog
+import com.localdoc.ai.resources.show_more
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -52,8 +74,10 @@ fun OpdsSection() {
     var downloading by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
 
+    val loadFailedText = stringResource(Res.string.could_not_load_the_catalog)
+
     fun fail(e: Exception) {
-        error = e.message ?: "Не удалось загрузить каталог"
+        error = e.message ?: loadFailedText
     }
 
     fun load(url: String, replace: Boolean = false) {
@@ -118,7 +142,7 @@ fun OpdsSection() {
             try {
                 val file = AppGraph.opds.download(best, entry.title)
                 AppGraph.importDownloaded(file, best.url)
-                message = "«${entry.title}» добавлена в библиотеку (${best.label})"
+                message = getString(Res.string.added_to_the_library_2, entry.title, best.label)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -144,7 +168,7 @@ fun OpdsSection() {
     val feed = stack.lastOrNull()
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { back() }) { Text("Назад", maxLines = 1, softWrap = false) }
+            TextButton(onClick = { back() }) { Text(stringResource(Res.string.back), maxLines = 1, softWrap = false) }
             Text(feed?.title?.ifBlank { open.title } ?: open.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (stack.firstOrNull()?.search != null) {
@@ -153,13 +177,13 @@ fun OpdsSection() {
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,
-                    label = { Text("Поиск по каталогу") },
+                    label = { Text(stringResource(Res.string.search_the_catalog)) },
                     modifier = Modifier.weight(1f)
                 )
-                Button(onClick = { search() }, enabled = !loading && query.isNotBlank()) { Text("Найти", maxLines = 1, softWrap = false) }
+                Button(onClick = { search() }, enabled = !loading && query.isNotBlank()) { Text(stringResource(Res.string.search), maxLines = 1, softWrap = false) }
             }
         }
-        if (loading) Text("Загружаем…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (loading) Text(stringResource(Res.string.loading_2), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         if (feed != null) {
@@ -167,9 +191,9 @@ fun OpdsSection() {
                 items(feed.entries) { entry ->
                     EntryRow(entry, downloading == entry.id, onOpen = { entry.navigationUrl?.let { load(it) } }, onDownload = { download(entry) })
                 }
-                if (feed.entries.isEmpty() && !loading) item { Text("Здесь пока ничего нет", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (feed.entries.isEmpty() && !loading) item { Text(stringResource(Res.string.nothing_here_yet), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 if (feed.nextUrl != null) item {
-                    OutlinedButton(onClick = { more(feed) }, enabled = !loading, modifier = Modifier.fillMaxWidth()) { Text("Показать ещё", maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = { more(feed) }, enabled = !loading, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.show_more), maxLines = 1, softWrap = false) }
                 }
             }
         }
@@ -182,8 +206,7 @@ private fun CatalogList(onOpen: (OpdsCatalog) -> Unit) {
     var adding by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            "Каталоги OPDS: открытые библиотеки (Project Gutenberg и подобные) и ваши серверы, например Calibre. " +
-                "Подключайте только каталоги, откуда вы вправе скачивать книги. Закрытые паролем каталоги пока не поддерживаются.",
+            stringResource(Res.string.opds_catalogs_open_libraries_project_gutenbe),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -199,12 +222,12 @@ private fun CatalogList(onOpen: (OpdsCatalog) -> Unit) {
                             Text(c.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(c.url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        if (!c.builtin) TextButton(onClick = { AppGraph.opdsCatalogs.remove(c.id) }) { Text("Убрать", maxLines = 1, softWrap = false) }
+                        if (!c.builtin) TextButton(onClick = { AppGraph.opdsCatalogs.remove(c.id) }) { Text(stringResource(Res.string.remove), maxLines = 1, softWrap = false) }
                     }
                 }
             }
         }
-        Button(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Добавить каталог", maxLines = 1, softWrap = false) }
+        Button(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.add_a_catalog), maxLines = 1, softWrap = false) }
     }
     if (adding) AddCatalogDialog(onDismiss = { adding = false })
 }
@@ -216,24 +239,24 @@ private fun AddCatalogDialog(onDismiss: () -> Unit) {
     var wrong by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новый каталог OPDS") },
+        title = { Text(stringResource(Res.string.new_opds_catalog)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, singleLine = true, label = { Text("Название") })
+                OutlinedTextField(value = title, onValueChange = { title = it }, singleLine = true, label = { Text(stringResource(Res.string.name)) })
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it; wrong = false },
                     singleLine = true,
                     isError = wrong,
-                    label = { Text("Адрес, например http://192.168.1.5:8080/opds") }
+                    label = { Text(stringResource(Res.string.address_for_example_http_192_168)) }
                 )
-                if (wrong) Text("Нужен адрес http:// или https://", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                if (wrong) Text(stringResource(Res.string.an_http_or_https_address_is), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = {
-            TextButton(onClick = { if (AppGraph.opdsCatalogs.add(title, url)) onDismiss() else wrong = true }) { Text("Добавить", maxLines = 1, softWrap = false) }
+            TextButton(onClick = { if (AppGraph.opdsCatalogs.add(title, url)) onDismiss() else wrong = true }) { Text(stringResource(Res.string.add), maxLines = 1, softWrap = false) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена", maxLines = 1, softWrap = false) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) } }
     )
 }
 
@@ -256,7 +279,7 @@ private fun EntryRow(entry: OpdsEntry, busy: Boolean, onOpen: () -> Unit, onDown
             }
             val best = entry.bestDownload()
             if (best != null) {
-                Button(onClick = onDownload, enabled = !busy) { Text(if (busy) "Скачиваем…" else "Скачать ${best.label}", maxLines = 1, softWrap = false) }
+                Button(onClick = onDownload, enabled = !busy) { Text(if (busy) stringResource(Res.string.downloading) else stringResource(Res.string.download_2, best.label), maxLines = 1, softWrap = false) }
             }
         }
     }

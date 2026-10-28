@@ -1,5 +1,17 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.close
+import com.localdoc.ai.resources.min
+import com.localdoc.ai.resources.minutes
+import com.localdoc.ai.resources.n_10_more_minutes
+import com.localdoc.ai.resources.sleep_timer
+import com.localdoc.ai.resources.sleep_timer_2
+import com.localdoc.ai.resources.speech_will_stop_the_voice_fades
+import com.localdoc.ai.resources.turn_off
+import com.localdoc.ai.resources.until_the_end_of_the_chapter
+import com.localdoc.ai.resources.until_the_end_of_the_chapter_2
+import com.localdoc.ai.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,10 +41,11 @@ import com.localdoc.ai.tts.SleepMode
 private val SLEEP_PRESETS = listOf(15, 30, 45, 60, 90)
 
 /** Подпись оставшегося времени: «12 мин», «до конца главы». */
+@Composable
 internal fun sleepTimerLabel(mode: SleepMode?, remainingMs: Long): String = when (mode) {
-    null -> "Таймер сна"
-    SleepMode.ChapterEnd -> "до конца главы"
-    is SleepMode.After -> "${((remainingMs + 59_999) / 60_000).coerceAtLeast(1)} мин"
+    null -> stringResource(Res.string.sleep_timer)
+    SleepMode.ChapterEnd -> stringResource(Res.string.until_the_end_of_the_chapter)
+    is SleepMode.After -> stringResource(Res.string.min, ((remainingMs + 59_999) / 60_000).coerceAtLeast(1))
 }
 
 /** Кнопка таймера сна в плеере озвучки: открывает выбор времени. */
@@ -45,33 +58,33 @@ fun SleepTimerButton() {
     IconButton(onClick = { open = true }) {
         Icon(
             Icons.Default.Bedtime,
-            contentDescription = if (active) "Таймер сна: ${sleepTimerLabel(state.mode, state.remainingMs)}" else "Таймер сна",
+            contentDescription = if (active) stringResource(Res.string.sleep_timer_2, sleepTimerLabel(state.mode, state.remainingMs)) else stringResource(Res.string.sleep_timer),
             tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
     if (!open) return
     AlertDialog(
         onDismissRequest = { open = false },
-        title = { Text("Таймер сна") },
+        title = { Text(stringResource(Res.string.sleep_timer)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (active) {
                     Text(
-                        "Озвучка остановится: ${sleepTimerLabel(state.mode, state.remainingMs)}. Перед остановкой голос плавно затихает.",
+                        stringResource(Res.string.speech_will_stop_the_voice_fades, sleepTimerLabel(state.mode, state.remainingMs)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
                 SLEEP_PRESETS.forEach { minutes ->
-                    SleepOption("$minutes минут") { timer.startAfter(minutes); open = false }
+                    SleepOption(stringResource(Res.string.minutes, minutes)) { timer.startAfter(minutes); open = false }
                 }
-                SleepOption("До конца главы") { timer.startAtChapterEnd(); open = false }
-                if (state.mode is SleepMode.After) SleepOption("Ещё 10 минут") { timer.extend(10); open = false }
+                SleepOption(stringResource(Res.string.until_the_end_of_the_chapter_2)) { timer.startAtChapterEnd(); open = false }
+                if (state.mode is SleepMode.After) SleepOption(stringResource(Res.string.n_10_more_minutes)) { timer.extend(10); open = false }
             }
         },
-        confirmButton = { TextButton(onClick = { open = false }) { Text("Закрыть") } },
-        dismissButton = if (active) ({ TextButton(onClick = { timer.cancel(); open = false }) { Text("Выключить") } }) else null
+        confirmButton = { TextButton(onClick = { open = false }) { Text(stringResource(Res.string.close)) } },
+        dismissButton = if (active) ({ TextButton(onClick = { timer.cancel(); open = false }) { Text(stringResource(Res.string.turn_off)) } }) else null
     )
 }
 
