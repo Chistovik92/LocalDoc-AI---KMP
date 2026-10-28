@@ -617,6 +617,10 @@
     <string name="tap_edges">Borde derecho: siguiente, izquierdo: atrás</string>
     <string name="tap_edges_reversed">Borde izquierdo: siguiente, derecho: atrás</string>
     <string name="tap_menu_only">Al tocar solo se muestra el menú</string>
+    <string name="chapter_nav_position">Botones de capítulo</string>
+    <string name="chapter_nav_both">Arriba y abajo</string>
+    <string name="chapter_nav_top">Solo arriba</string>
+    <string name="chapter_nav_bottom">Solo abajo</string>
     <string name="orientation_portrait">Vertical</string>
     <string name="orientation_landscape">Horizontal</string>
     <string name="page_small">Pequeña</string>

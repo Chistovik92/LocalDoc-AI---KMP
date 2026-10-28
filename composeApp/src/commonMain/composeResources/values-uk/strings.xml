@@ -619,6 +619,10 @@
     <string name="tap_edges">Правий край — далі, лівий — назад</string>
     <string name="tap_edges_reversed">Лівий край — далі, правий — назад</string>
     <string name="tap_menu_only">Лише меню за дотиком</string>
+    <string name="chapter_nav_position">Кнопки переходу між розділами</string>
+    <string name="chapter_nav_both">Угорі та внизу</string>
+    <string name="chapter_nav_top">Лише вгорі</string>
+    <string name="chapter_nav_bottom">Лише внизу</string>
     <string name="orientation_portrait">Книжкова</string>
     <string name="orientation_landscape">Альбомна</string>
     <string name="page_small">Мала</string>

@@ -181,6 +181,8 @@ import com.localdoc.ai.domain.MIN_ZONE_WIDTH
 import com.localdoc.ai.domain.OrientationLock
 import com.localdoc.ai.domain.ReaderSettings
 import com.localdoc.ai.domain.TapZones
+import com.localdoc.ai.domain.ChapterNavPosition
+import com.localdoc.ai.resources.chapter_nav_position
 import com.localdoc.ai.platform.ScreenControls
 import com.localdoc.ai.book.Chapter
 import com.localdoc.ai.domain.AppGraph
@@ -380,6 +382,16 @@ internal fun ReaderSettingsContent(docKey: String? = null) {
         }
         SwitchRow(stringResource(Res.string.follow_the_speech), settings.followSpeech) { v -> update { it.copy(followSpeech = v) } }
         SwitchRow(stringResource(Res.string.auto_advance_to_the_next_chapter), settings.autoNext) { v -> update { it.copy(autoNext = v) } }
+        SectionLabel(stringResource(Res.string.chapter_nav_position))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChapterNavPosition.entries.forEach { position ->
+                FilterChip(
+                    selected = settings.chapterNavPosition == position,
+                    onClick = { update { it.copy(chapterNavPosition = position) } },
+                    label = { Text(stringResource(position.label), maxLines = 1, softWrap = false) }
+                )
+            }
+        }
         SectionLabel(stringResource(Res.string.reading_mode))
         SwitchRow(stringResource(Res.string.page_by_page_instead_of_scrolling), settings.paged) { v -> update { it.copy(paged = v) } }
         Text(

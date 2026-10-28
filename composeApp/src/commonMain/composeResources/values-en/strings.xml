@@ -615,6 +615,10 @@
     <string name="tap_edges">Right edge — forward, left — back</string>
     <string name="tap_edges_reversed">Left edge — forward, right — back</string>
     <string name="tap_menu_only">Tap shows the menu only</string>
+    <string name="chapter_nav_position">Chapter navigation buttons</string>
+    <string name="chapter_nav_both">Top and bottom</string>
+    <string name="chapter_nav_top">Top only</string>
+    <string name="chapter_nav_bottom">Bottom only</string>
     <string name="orientation_portrait">Portrait</string>
     <string name="orientation_landscape">Landscape</string>
     <string name="page_small">Small</string>

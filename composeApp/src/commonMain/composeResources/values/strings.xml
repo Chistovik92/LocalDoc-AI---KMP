@@ -619,6 +619,10 @@
     <string name="tap_edges">Правый край — дальше, левый — назад</string>
     <string name="tap_edges_reversed">Левый край — дальше, правый — назад</string>
     <string name="tap_menu_only">Только меню по нажатию</string>
+    <string name="chapter_nav_position">Кнопки перехода между главами</string>
+    <string name="chapter_nav_both">Сверху и снизу</string>
+    <string name="chapter_nav_top">Только сверху</string>
+    <string name="chapter_nav_bottom">Только снизу</string>
     <string name="orientation_portrait">Книжная</string>
     <string name="orientation_landscape">Альбомная</string>
     <string name="page_small">Малая</string>

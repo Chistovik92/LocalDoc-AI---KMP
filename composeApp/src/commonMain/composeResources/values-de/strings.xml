@@ -615,6 +615,10 @@
     <string name="tap_edges">Rechter Rand – weiter, linker – zurück</string>
     <string name="tap_edges_reversed">Linker Rand – weiter, rechter – zurück</string>
     <string name="tap_menu_only">Tippen zeigt nur das Menü</string>
+    <string name="chapter_nav_position">Kapitel-Schaltflächen</string>
+    <string name="chapter_nav_both">Oben und unten</string>
+    <string name="chapter_nav_top">Nur oben</string>
+    <string name="chapter_nav_bottom">Nur unten</string>
     <string name="orientation_portrait">Hochformat</string>
     <string name="orientation_landscape">Querformat</string>
     <string name="page_small">Klein</string>

@@ -9,6 +9,17 @@ import kotlin.test.assertTrue
 
 class ReaderChromeTest {
     @Test
+    fun `chapter buttons sit on top by default and follow the chosen position`() {
+        assertEquals(ChapterNavPosition.TOP, ReaderSettings().chapterNavPosition)
+        assertTrue(chapterNavOnTop(ChapterNavPosition.TOP))
+        assertFalse(chapterNavOnBottom(ChapterNavPosition.TOP))
+        assertFalse(chapterNavOnTop(ChapterNavPosition.BOTTOM))
+        assertTrue(chapterNavOnBottom(ChapterNavPosition.BOTTOM))
+        assertTrue(chapterNavOnTop(ChapterNavPosition.BOTH))
+        assertTrue(chapterNavOnBottom(ChapterNavPosition.BOTH))
+    }
+
+    @Test
     fun `screen pages are on for web and books alike when paged and not translating`() {
         for (format in BookFormat.entries) {
             assertTrue(screenPagesEnabled(paged = true, translating = false, format = format), "$format")

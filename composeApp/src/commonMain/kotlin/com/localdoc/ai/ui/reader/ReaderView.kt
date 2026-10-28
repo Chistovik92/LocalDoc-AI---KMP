@@ -129,6 +129,8 @@ import com.localdoc.ai.domain.autoScrollDelta
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.localdoc.ai.domain.ChapterButtons
+import com.localdoc.ai.domain.chapterNavOnBottom
+import com.localdoc.ai.domain.chapterNavOnTop
 import com.localdoc.ai.domain.ChapterListBlock
 import com.localdoc.ai.domain.pinnedChapterBlock
 import com.localdoc.ai.domain.chapterListBlock
@@ -854,6 +856,14 @@ fun ReaderView(
         hasContents = chapterNavigation?.onTableOfContents != null
     )
     val pinnedBlock = pinnedChapterBlock(webChapterBlock, scrollListing = !screenMode, panelsVisible = bottomPanelVisible(uiVisible))
+    val chapterNavTop = chapterNavOnTop(settings.chapterNavPosition)
+    val chapterNavBottom = chapterNavOnBottom(settings.chapterNavPosition)
+    val chapterButtonsState = chapterButtons(
+        hasNavigation = chapterNavigation != null,
+        hasPrevious = chapterNavigation?.hasPrevious == true,
+        hasNext = chapterNavigation?.hasNext == true,
+        pagedListing = screenMode
+    )
     val chromePadding = if (webChapterBlock != null && !screenMode) CHAPTER_BLOCK_DP.dp else 0.dp
 
     Box(
@@ -1044,7 +1054,10 @@ fun ReaderView(
                             }
                         }
                     }
-                    if (pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
+                    if (chapterNavTop && chapterNavigation != null) {
+                        if (pinnedBlock != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
+                        else if (chapterButtonsState != null && bottomPanelVisible(uiVisible)) ChapterButtonsRow(chapterNavigation, chapterButtonsState)
+                    }
                     if (translating) {
                         val done = translatedBlocks?.count { it != null } ?: 0
                         val total = pageInfo.blockCount
@@ -1097,15 +1110,9 @@ fun ReaderView(
                     }
                 }
             }
-            val chapterButtonsState = chapterButtons(
-                hasNavigation = chapterNavigation != null,
-                hasPrevious = chapterNavigation?.hasPrevious == true,
-                hasNext = chapterNavigation?.hasNext == true,
-                pagedListing = screenMode
-            )
-            if (pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
+            if (chapterNavBottom && pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
             AnimatedVisibility(
-                visible = bottomPanelVisible(uiVisible) && chapterButtonsState != null,
+                visible = chapterNavBottom && bottomPanelVisible(uiVisible) && chapterButtonsState != null,
                 enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
                 exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
             ) {

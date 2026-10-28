@@ -5,6 +5,9 @@ import com.localdoc.ai.resources.orientation_landscape
 import com.localdoc.ai.resources.orientation_portrait
 import com.localdoc.ai.resources.theme_auto
 import org.jetbrains.compose.resources.StringResource
+import com.localdoc.ai.resources.chapter_nav_both
+import com.localdoc.ai.resources.chapter_nav_bottom
+import com.localdoc.ai.resources.chapter_nav_top
 import com.localdoc.ai.resources.tap_edges
 import com.localdoc.ai.resources.tap_edges_reversed
 import com.localdoc.ai.resources.tap_menu_only
@@ -42,6 +45,14 @@ enum class TapZones(val label: StringResource) {
 @Serializable
 enum class OrientationLock(val label: StringResource) { AUTO(Res.string.theme_auto), PORTRAIT(Res.string.orientation_portrait), LANDSCAPE(Res.string.orientation_landscape) }
 
+/** Где в читалке показываются кнопки перехода между главами (веб-новеллы). */
+@Serializable
+enum class ChapterNavPosition(val label: StringResource) {
+    TOP(Res.string.chapter_nav_top),
+    BOTTOM(Res.string.chapter_nav_bottom),
+    BOTH(Res.string.chapter_nav_both)
+}
+
 @Serializable
 data class ReaderSettings(
     val fontSize: Float = 18f,
@@ -56,6 +67,8 @@ data class ReaderSettings(
     val pageSize: PageSize = PageSize.MEDIUM,
     /** Веб-новеллы: после озвучки или прокрутки до конца главы сама открывается следующая и чтение продолжается. */
     val autoNext: Boolean = false,
+    /** Положение кнопок «Предыдущая/Следующая глава»: сверху (по умолчанию), снизу или в обоих местах. */
+    val chapterNavPosition: ChapterNavPosition = ChapterNavPosition.TOP,
     /** Слова, по которым в тексте ищутся начала глав («Глава, Часть, Пролог…»); пусто — стандартный список. */
     val chapterWords: String = "",
     /** Свой шрифт: имя файла TTF/OTF в хранилище приложения (`fonts/…`); null — шрифт из [font]. */

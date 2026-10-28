@@ -60,3 +60,9 @@ fun chapterListBlock(isWeb: Boolean, hasNavigation: Boolean, hasPrevious: Boolea
  */
 fun pinnedChapterBlock(block: ChapterListBlock?, scrollListing: Boolean, panelsVisible: Boolean): ChapterListBlock? =
     if (scrollListing && panelsVisible) block else null
+
+/** Кнопки глав в верхней панели: всё, кроме «только снизу». */
+fun chapterNavOnTop(position: ChapterNavPosition): Boolean = position != ChapterNavPosition.BOTTOM
+
+/** Кнопки глав в нижней панели: всё, кроме «только сверху». */
+fun chapterNavOnBottom(position: ChapterNavPosition): Boolean = position != ChapterNavPosition.TOP
