@@ -29,6 +29,14 @@ kotlin {
             baseName = "ComposeApp"
             isStatic = true
         }
+        // Release-линковка iOS-фреймворка на CI-раннере (macos-15, ~7 ГБ RAM) падала с
+        // OutOfMemoryError на фазе DevirtualizationAnalysis (см. KT-78518). Отключаем только
+        // эту фазу для release — пик памяти LTO заметно ниже, корректность не страдает.
+        iosTarget.binaries.filterIsInstance<org.jetbrains.kotlin.gradle.plugin.mpp.Framework>().forEach { binary ->
+            if (binary.buildType == org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.RELEASE) {
+                binary.freeCompilerArgs += "-Xdisable-phases=DevirtualizationAnalysis"
+            }
+        }
         iosTarget.compilations.getByName("main") {
             cinterops {
                 val llama by creating {
@@ -124,16 +132,16 @@ val releaseSigning = loadReleaseSigning()
 
 android {
     namespace = "com.localdoc.ai"
-    // Сборка против API 37 (Android 17); targetSdk остаётся 35 — поведение приложения на новых версиях Android не меняется
+    // Сборка и работа против API 37 (Android 17); целевое поведение Android 17 проверяется на устройствах в 2.2.1
     compileSdk = 37
 
     defaultConfig {
         applicationId = "com.localdoc.ai"
         // Android 8.0 (API 26) … Android 17 (API 37)
         minSdk = 26
-        targetSdk = 35
-        versionCode = 17
-        versionName = "2.1.2"
+        targetSdk = 37
+        versionCode = 18
+        versionName = "2.2.0"
 
         ndk {
             // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах).

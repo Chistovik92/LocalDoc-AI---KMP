@@ -1,5 +1,9 @@
 package com.localdoc.ai.novel
 
+import com.localdoc.ai.i18n.L10n
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.auto_update_notification_title
+
 /** Чем закончился запуск по расписанию. */
 enum class RunResult { DISABLED, NOT_ALLOWED, DONE, THROTTLED }
 
@@ -36,7 +40,7 @@ class AutoUpdateService(
         }
         val report = checker.checkAll()
         saveLastRun(nowMs)
-        if (report.updates.isNotEmpty()) notify("Новые главы", noticeText(report.updates))
+        if (report.updates.isNotEmpty()) notify(L10n.get(Res.string.auto_update_notification_title), noticeText(report.updates))
         if (report.throttled) {
             schedule(UpdateSchedule.nextRunAfterThrottle(s, nowMs, tz), s.wifiOnly)
             return RunResult.THROTTLED
@@ -57,6 +61,7 @@ class AutoUpdateService(
         const val RETRY_MS = 30 * 60_000L
         private const val LISTED = 3
 
+        /** Текст уведомления: до трёх произведений поимённо, дальше — только количество. */
         fun noticeText(updates: List<NovelUpdate>): String =
             if (updates.size <= LISTED) {
                 updates.joinToString(", ") { "«${it.title}» +${it.newChapters.size}" }

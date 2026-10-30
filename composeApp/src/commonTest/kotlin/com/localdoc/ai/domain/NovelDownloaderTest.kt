@@ -1,5 +1,6 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.TestStrings
 import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.book.Book
@@ -10,6 +11,8 @@ import com.localdoc.ai.net.HttpStatusException
 import com.localdoc.ai.parser.LoginRequiredException
 import com.localdoc.ai.parser.WebPage
 import kotlinx.coroutines.test.runTest
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -70,6 +73,14 @@ class FakeSite(val chapters: Int, private val links: Map<String, List<PageLink>>
 }
 
 class NovelDownloaderTest {
+
+    @BeforeTest
+    fun strings() = TestStrings.install()
+
+    @AfterTest
+    fun resetStrings() {
+        com.localdoc.ai.i18n.L10n.testResolver = null
+    }
 
     private fun downloader(site: ChapterSource, files: NovelFiles = MemoryNovelFiles(), fetcher: FileFetcher = FileFetcher { null }) =
         NovelDownloader(site, fetcher, files, pause = {})

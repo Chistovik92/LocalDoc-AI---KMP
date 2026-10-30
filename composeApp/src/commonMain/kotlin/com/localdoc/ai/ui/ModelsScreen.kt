@@ -304,7 +304,7 @@ private fun ModelCard(
                 }
             }
 
-            Text(spec.description, style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(spec.descriptionRes), style = MaterialTheme.typography.bodyMedium)
 
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 Rating(stringResource(Res.string.quality), spec.quality, GoogleColors.Blue)
@@ -313,7 +313,7 @@ private fun ModelCard(
             }
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                (spec.tags + stringResource(Res.string.license, spec.license)).forEach { tag ->
+                (spec.tags.map { stringResource(it) } + stringResource(Res.string.license, spec.license)).forEach { tag ->
                     Surface(color = familyColor.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
                         Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }

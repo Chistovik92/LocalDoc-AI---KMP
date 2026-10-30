@@ -29,7 +29,9 @@ import com.localdoc.ai.resources.got_it
 import com.localdoc.ai.resources.hide_added
 import com.localdoc.ai.resources.in_library
 import com.localdoc.ai.resources.new_collection
+import com.localdoc.ai.resources.decade_suffix
 import com.localdoc.ai.resources.no_collections_yet_select_books_and
+import com.localdoc.ai.resources.not_specified
 import com.localdoc.ai.resources.remove_from_the_catalog
 import com.localdoc.ai.resources.scan_again
 import com.localdoc.ai.resources.scan_the_device_or_pick_a
@@ -187,10 +189,15 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                     item {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             shelfValues.take(60).forEach { entry ->
+                                val shown = when {
+                                    entry.value == CatalogQuery.NO_VALUE -> stringResource(Res.string.not_specified)
+                                    filter.kind == ShelfKind.YEAR -> entry.value.dropLast(2) + stringResource(Res.string.decade_suffix)
+                                    else -> entry.value
+                                }
                                 FilterChip(
                                     selected = filter.value == entry.value,
                                     onClick = { filter = filter.copy(value = if (filter.value == entry.value) null else entry.value) },
-                                    label = { Text("${entry.value} · ${entry.count}", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+                                    label = { Text("$shown · ${entry.count}", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
                                 )
                             }
                             if (filter.kind == ShelfKind.MINE && shelfValues.isEmpty()) {

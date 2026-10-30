@@ -1,10 +1,13 @@
 package com.localdoc.ai.novel
 
+import com.localdoc.ai.TestStrings
 import com.localdoc.ai.book.PageLink
 import com.localdoc.ai.domain.ChapterSource
 import com.localdoc.ai.net.HttpStatusException
 import com.localdoc.ai.parser.WebPage
 import kotlinx.coroutines.test.runTest
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -12,6 +15,14 @@ import kotlin.test.assertTrue
 
 /** Запуск по расписанию: что проверяется, что уведомляется и когда назначается следующий запуск. */
 class AutoUpdateServiceTest {
+
+    @BeforeTest
+    fun strings() = TestStrings.install()
+
+    @AfterTest
+    fun resetStrings() {
+        com.localdoc.ai.i18n.L10n.testResolver = null
+    }
 
     private val hour = 3_600_000L
     private val monday = 20_458L * 24 * hour

@@ -1,5 +1,6 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.i18n.L10n
 import com.localdoc.ai.resources.Res
 import com.localdoc.ai.resources.done
 import com.localdoc.ai.resources.phase_building
@@ -8,6 +9,15 @@ import com.localdoc.ai.resources.phase_chapters
 import com.localdoc.ai.resources.phase_exporting
 import com.localdoc.ai.resources.phase_failed
 import com.localdoc.ai.resources.phase_file
+import com.localdoc.ai.resources.novel_chapter_fallback
+import com.localdoc.ai.resources.novel_chapter_missing
+import com.localdoc.ai.resources.novel_login_required
+import com.localdoc.ai.resources.novel_network_error
+import com.localdoc.ai.resources.novel_no_chapters
+import com.localdoc.ai.resources.novel_no_response
+import com.localdoc.ai.resources.novel_searching_next
+import com.localdoc.ai.resources.novel_searching_prev
+import com.localdoc.ai.resources.novel_site_stopped
 import com.localdoc.ai.resources.phase_looking
 import com.localdoc.ai.resources.phase_saving
 import com.localdoc.ai.resources.phase_toc
@@ -133,7 +143,7 @@ class NovelDownloader(
         val ordered = if (toc.size >= MIN_TOC) orderChapters(toc) else emptyList()
         val usable = ordered.isNotEmpty() && (tocUrl != null || startsAtFirstChapter(ordered))
         val chapters = if (usable) ordered else walkNextLinks(start, progress, prefetched)
-        if (chapters.isEmpty()) throw NovelDownloadException("Не удалось найти главы: у страницы нет оглавления и ссылки «Далее»")
+        if (chapters.isEmpty()) throw NovelDownloadException(L10n.get(Res.string.novel_no_chapters))
 
         val title = tocPage?.book?.title?.trim()?.takeIf { it.isNotEmpty() } ?: NovelTitles.guess(start.book.title, start.book.source)
         val folder = "novels/" + folderId(tocUrl ?: startUrl) + "/"
@@ -208,7 +218,7 @@ class NovelDownloader(
             coroutineContext.ensureActive()
             result.add(PageLink(page.book.title, page.book.source))
             prefetched[page.book.source] = page.book
-            progress(DownloadProgress(DownloadPhase.TOC, result.size, 0, "Ищем следующие главы"))
+            progress(DownloadProgress(DownloadPhase.TOC, result.size, 0, L10n.get(Res.string.novel_searching_next)))
             val next = page.book.web?.next ?: break
             page = try {
                 source.load(next)
@@ -247,7 +257,7 @@ class NovelDownloader(
             if (!NovelTitles.looksLikeChapter(page.book.title, page.book.source) || !pointsBack) break
             earlier.add(PageLink(page.book.title, page.book.source))
             prefetched[page.book.source] = page.book
-            progress(DownloadProgress(DownloadPhase.TOC, earlier.size, 0, "Ищем предыдущие главы"))
+            progress(DownloadProgress(DownloadPhase.TOC, earlier.size, 0, L10n.get(Res.string.novel_searching_prev)))
             current = page
         }
         return earlier
@@ -301,8 +311,7 @@ class NovelDownloader(
                         consecutiveFailures++
                         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
                             throw NovelDownloadException(
-                                "Сайт перестал отвечать на главе «${chapters[i].text}»: ${outcome.reason}. " +
-                                    "Уже скачанное сохранено — нажмите «Скачать» ещё раз, и загрузка продолжится."
+                                L10n.get(Res.string.novel_site_stopped, chapters[i].text, outcome.reason)
                             )
                         }
                     }
@@ -324,20 +333,20 @@ class NovelDownloader(
     private suspend fun fetchOne(link: PageLink, start: WebPage, prefetched: Map<String, Book>): ChapterOutcome {
         if (link.url == start.book.source) return ChapterOutcome.Ok(start.book)
         prefetched[link.url]?.let { return ChapterOutcome.Ok(it) }
-        var lastError = "нет ответа"
+        var lastError = L10n.get(Res.string.novel_no_response)
         repeat(ATTEMPTS) { attempt ->
             try {
                 return ChapterOutcome.Ok(source.load(link.url).book)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: LoginRequiredException) {
-                throw NovelDownloadException("Для скачивания нужен вход на сайт. Войдите и повторите — скачанные главы сохранены.")
+                throw NovelDownloadException(L10n.get(Res.string.novel_login_required))
             } catch (e: HttpStatusException) {
                 // Глава удалена или закрыта — книга собирается без неё
                 if (e.status == 404 || e.status == 410 || e.status == 403) return ChapterOutcome.Missing
                 lastError = e.message.orEmpty()
             } catch (e: Exception) {
-                lastError = e.message ?: "ошибка сети"
+                lastError = e.message ?: L10n.get(Res.string.novel_network_error)
             }
             if (attempt < ATTEMPTS - 1) delay(RETRY_DELAY_MS * (attempt + 1))
         }
@@ -346,18 +355,19 @@ class NovelDownloader(
 
     // ---------- 3. сборка ----------
 
-    private fun assemble(title: String, sourceUrl: String, start: WebPage, chapters: List<PageLink>, loaded: Map<Int, Book?>): NovelResult {
+    private suspend fun assemble(title: String, sourceUrl: String, start: WebPage, chapters: List<PageLink>, loaded: Map<Int, Book?>): NovelResult {
+        val missingText = L10n.get(Res.string.novel_chapter_missing)
         val blocks = ArrayList<Block>()
         val outline = ArrayList<Chapter>()
         var missing = 0
         for ((i, link) in chapters.withIndex()) {
-            val chapterTitle = link.text.ifBlank { "Глава ${i + 1}" }
+            val chapterTitle = link.text.ifBlank { L10n.get(Res.string.novel_chapter_fallback, i + 1) }
             outline.add(Chapter(chapterTitle.take(120), blocks.size))
             blocks.add(Block(BlockType.HEADING, chapterTitle, 1))
             val book = loaded[i]
             if (book == null) {
                 missing++
-                blocks.add(Block(BlockType.PARAGRAPH, "Эту главу не удалось скачать: страница недоступна."))
+                blocks.add(Block(BlockType.PARAGRAPH, missingText))
                 continue
             }
             // Заголовок самой страницы совпадает с названием главы — второй раз не повторяем

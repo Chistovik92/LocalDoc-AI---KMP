@@ -1,23 +1,49 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.i18n.L10n
 import com.localdoc.ai.book.PageLink
 import com.localdoc.ai.engine.LlamaEngine
 import com.localdoc.ai.lang.Language
 import com.localdoc.ai.model.ChatTemplate
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.rag.RagRepository
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.ai_nav_system
+import com.localdoc.ai.resources.ai_nav_user
+import com.localdoc.ai.resources.ai_prompt_context_header
+import com.localdoc.ai.resources.ai_prompt_fragment_item
+import com.localdoc.ai.resources.ai_prompt_fragments_header
+import com.localdoc.ai.resources.ai_prompt_map_block
+import com.localdoc.ai.resources.ai_prompt_map_partial
+import com.localdoc.ai.resources.ai_prompt_map_task
+import com.localdoc.ai.resources.ai_prompt_question
+import com.localdoc.ai.resources.ai_prompt_reduce_header
+import com.localdoc.ai.resources.ai_prompt_reduce_task
+import com.localdoc.ai.resources.ai_prompt_system
+import com.localdoc.ai.resources.quick_action_explain
+import com.localdoc.ai.resources.quick_action_explain_prompt
+import com.localdoc.ai.resources.quick_action_facts
+import com.localdoc.ai.resources.quick_action_facts_prompt
+import com.localdoc.ai.resources.quick_action_summary
+import com.localdoc.ai.resources.quick_action_summary_prompt
+import com.localdoc.ai.resources.quick_action_translate
+import com.localdoc.ai.resources.quick_action_translate_prompt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import org.jetbrains.compose.resources.StringResource
 
-/** Быстрые действия над открытым документом (One-Click Actions). */
-enum class QuickAction(val label: String, val prompt: String) {
-    SUMMARY("Краткая выжимка", "Сделай краткую выжимку документа ровно в 5 тезисах. Каждый тезис — один абзац."),
-    FACTS("Факты, цифры, даты", "Выдели из текста все ключевые факты, цифры, имена и даты в виде структурированного списка. Не выдумывай ничего."),
-    TRANSLATE("Перевод и адаптация", "Переведи и адаптируй текст на простой русский язык, сохранив структуру и смысл."),
-    EXPLAIN("Объясни простыми словами", "Объясни содержание документа простыми словами, как для человека без специальных знаний.")
+/** Быстрые действия над открытым документом (One-Click Actions); подписи и промпты — в ресурсах, на языке интерфейса. */
+enum class QuickAction(val labelRes: StringResource, val promptRes: StringResource) {
+    SUMMARY(Res.string.quick_action_summary, Res.string.quick_action_summary_prompt),
+    FACTS(Res.string.quick_action_facts, Res.string.quick_action_facts_prompt),
+    TRANSLATE(Res.string.quick_action_translate, Res.string.quick_action_translate_prompt),
+    EXPLAIN(Res.string.quick_action_explain, Res.string.quick_action_explain_prompt);
+
+    suspend fun label(): String = L10n.get(labelRes)
+    suspend fun prompt(): String = L10n.get(promptRes)
 }
 
 /**
@@ -38,10 +64,8 @@ class SmartPipeline(
         // Размер блока для Map-Reduce (~2 000 токенов)
         private const val MAP_REDUCE_CHAR_LIMIT = 6_000
 
-        val SYSTEM_PROMPT = """
-            Ты — точный локальный аналитик документов. Отвечай строго на основе предоставленного текста на русском языке.
-            Используй четкую структуру, списки и выделяй ключевые факты, цифры и выводы. Не выдумывай факты, которых нет в источнике.
-        """.trimIndent()
+        /** Локализованный системный промпт ассистента — на языке интерфейса. */
+        suspend fun systemPrompt(): String = L10n.get(Res.string.ai_prompt_system)
 
         private const val MAX_NAV_LINKS = 120
 
@@ -50,7 +74,8 @@ class SmartPipeline(
             val open = text.indexOf("<think>")
             if (open < 0) return text
             val close = text.indexOf("</think>", open)
-            return if (close < 0) text.substring(0, open).ifBlank { "Модель обдумывает ответ…" }
+            // Пустой текст не подменяем служебной строкой: UI показывает свою подпись «думает…»
+            return if (close < 0) text.substring(0, open)
             else (text.substring(0, open) + text.substring(close + "</think>".length)).trimStart()
         }
     }
@@ -64,8 +89,8 @@ class SmartPipeline(
         if (candidates.isEmpty()) return null
         val list = candidates.mapIndexed { i, l -> "${i + 1}. ${l.text.take(60)} — ${l.url.takeLast(80)}" }.joinToString("\n")
         val prompt = templateProvider().build(
-            "Ты помогаешь читалке ориентироваться на сайте веб-новеллы. Отвечай только числом.",
-            "Ссылки страницы:\n$list\n\nКакой номер у ссылки на $target? Ответь одним числом. Если такой ссылки нет — ответь 0."
+            L10n.get(Res.string.ai_nav_system),
+            L10n.get(Res.string.ai_nav_user, list, target)
         )
         val answer = StringBuilder()
         engine.generateStream(prompt, 12).collect { answer.append(it) }
@@ -106,20 +131,21 @@ class SmartPipeline(
     }
 
     /** Простой чат без документа. */
-    fun chat(message: String, maxTokens: Int = 1536): Flow<String> =
-        engine.generateStream(buildPrompt(SYSTEM_PROMPT, message), maxTokens)
+    fun chat(message: String, maxTokens: Int = 1536): Flow<String> = flow {
+        emitAll(engine.generateStream(buildPrompt(systemPrompt(), message), maxTokens))
+    }.flowOn(Dispatchers.Default)
 
     /** Запрос по документу с автоматическим выбором режима. */
     fun ask(doc: ParsedDoc, question: String, maxTokens: Int = 1536): Flow<String> = flow {
         if (doc.content.length <= DIRECT_CONTEXT_CHAR_LIMIT) {
             // Режим 1: документ целиком
             val userMessage = buildString {
-                appendLine("КОНТЕКСТ ДОКУМЕНТА («${doc.title}»):")
+                appendLine(L10n.get(Res.string.ai_prompt_context_header, doc.title))
                 appendLine(doc.content)
                 appendLine()
-                append("ЗАДАНИЕ / ВОПРОС: $question")
+                appendLine(L10n.get(Res.string.ai_prompt_question, question))
             }
-            emitAll(engine.generateStream(buildPrompt(SYSTEM_PROMPT, userMessage), maxTokens))
+            emitAll(engine.generateStream(buildPrompt(systemPrompt(), userMessage), maxTokens))
         } else {
             // Режим 3: локальный RAG. Индекс строится один раз на документ:
             // ключ включает хэш содержимого, чтобы разные документы с одним заголовком не смешивались
@@ -129,15 +155,19 @@ class SmartPipeline(
             val contextBlock = if (chunks.isEmpty()) {
                 doc.content.take(DIRECT_CONTEXT_CHAR_LIMIT)
             } else {
-                chunks.joinToString("\n\n---\n\n") { "[Фрагмент #${it.section}]: ${it.text}" }
+                val items = ArrayList<String>(chunks.size)
+                for (chunk in chunks) {
+                    items.add(L10n.get(Res.string.ai_prompt_fragment_item, chunk.section, chunk.text))
+                }
+                items.joinToString("\n\n---\n\n")
             }
             val userMessage = buildString {
-                appendLine("ФРАГМЕНТЫ ДОКУМЕНТА («${doc.title}»), НАИБОЛЕЕ РЕЛЕВАНТНЫЕ ВОПРОСУ:")
+                appendLine(L10n.get(Res.string.ai_prompt_fragments_header, doc.title))
                 appendLine(contextBlock)
                 appendLine()
-                append("ЗАДАНИЕ / ВОПРОС: $question")
+                appendLine(L10n.get(Res.string.ai_prompt_question, question))
             }
-            emitAll(engine.generateStream(buildPrompt(SYSTEM_PROMPT, userMessage), maxTokens))
+            emitAll(engine.generateStream(buildPrompt(systemPrompt(), userMessage), maxTokens))
         }
     }.flowOn(Dispatchers.Default) // индексация и поиск по чанкам — не на главном потоке
 
@@ -147,24 +177,24 @@ class SmartPipeline(
         val partials = StringBuilder()
         for ((idx, block) in blocks.withIndex()) {
             val mapPrompt = buildPrompt(
-                SYSTEM_PROMPT,
-                "БЛОК ${idx + 1} из ${blocks.size} документа «${doc.title}»:\n$block\n\n" +
-                    "Задание: сделай сжатую выжимку этого блока (3-5 пунктов)."
+                systemPrompt(),
+                L10n.get(Res.string.ai_prompt_map_block, idx + 1, blocks.size, doc.title) + "\n$block\n\n" +
+                    L10n.get(Res.string.ai_prompt_map_task)
             )
             val collected = StringBuilder()
             engine.generateStream(mapPrompt, 400).collect { token ->
                 collected.append(token)
                 emit(token)
             }
-            partials.appendLine("Блок ${idx + 1}: ${collected.trim()}")
+            partials.appendLine(L10n.get(Res.string.ai_prompt_map_partial, idx + 1, collected.trim()))
         }
         val reducePrompt = buildPrompt(
-            SYSTEM_PROMPT,
-            "Ниже собраны выжимки всех блоков документа «${doc.title}».\n${partials}\n" +
-                "Задание: объедини их в цельное финальное резюме документа на русском языке."
+            systemPrompt(),
+            L10n.get(Res.string.ai_prompt_reduce_header, doc.title) + "\n${partials}\n" +
+                L10n.get(Res.string.ai_prompt_reduce_task)
         )
         emitAll(engine.generateStream(reducePrompt, 1024))
-    }
+    }.flowOn(Dispatchers.Default)
 
     private fun buildPrompt(system: String, user: String): String = templateProvider().build(system, user)
 }
