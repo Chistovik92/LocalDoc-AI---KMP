@@ -29,6 +29,14 @@ kotlin {
             baseName = "ComposeApp"
             isStatic = true
         }
+        // Release-линковка iOS-фреймворка на CI-раннере (macos-15, ~7 ГБ RAM) падала с
+        // OutOfMemoryError на фазе DevirtualizationAnalysis (см. KT-78518). Отключаем только
+        // эту фазу для release — пик памяти LTO заметно ниже, корректность не страдает.
+        iosTarget.binaries.filterIsInstance<org.jetbrains.kotlin.gradle.plugin.mpp.Framework>().forEach { binary ->
+            if (binary.buildType == org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.RELEASE) {
+                binary.freeCompilerArgs += "-Xdisable-phases=DevirtualizationAnalysis"
+            }
+        }
         iosTarget.compilations.getByName("main") {
             cinterops {
                 val llama by creating {
