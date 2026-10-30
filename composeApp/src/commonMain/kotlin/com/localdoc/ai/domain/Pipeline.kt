@@ -155,8 +155,11 @@ class SmartPipeline(
             val contextBlock = if (chunks.isEmpty()) {
                 doc.content.take(DIRECT_CONTEXT_CHAR_LIMIT)
             } else {
-                val template = L10n.get(Res.string.ai_prompt_fragment_item, "%s", "%s")
-                chunks.joinToString("\n\n---\n\n") { template.format(it.section, it.text) }
+                buildList {
+                    for (chunk in chunks) {
+                        add(L10n.get(Res.string.ai_prompt_fragment_item, chunk.section, chunk.text))
+                    }
+                }.joinToString("\n\n---\n\n")
             }
             val userMessage = buildString {
                 appendLine(L10n.get(Res.string.ai_prompt_fragments_header, doc.title))

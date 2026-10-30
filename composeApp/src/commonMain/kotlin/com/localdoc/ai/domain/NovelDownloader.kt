@@ -356,13 +356,12 @@ class NovelDownloader(
     // ---------- 3. сборка ----------
 
     private suspend fun assemble(title: String, sourceUrl: String, start: WebPage, chapters: List<PageLink>, loaded: Map<Int, Book?>): NovelResult {
-        val chapterFallback = L10n.get(Res.string.novel_chapter_fallback)
         val missingText = L10n.get(Res.string.novel_chapter_missing)
         val blocks = ArrayList<Block>()
         val outline = ArrayList<Chapter>()
         var missing = 0
         for ((i, link) in chapters.withIndex()) {
-            val chapterTitle = link.text.ifBlank { chapterFallback.format(i + 1) }
+            val chapterTitle = link.text.ifBlank { L10n.get(Res.string.novel_chapter_fallback, i + 1) }
             outline.add(Chapter(chapterTitle.take(120), blocks.size))
             blocks.add(Block(BlockType.HEADING, chapterTitle, 1))
             val book = loaded[i]
