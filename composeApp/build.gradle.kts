@@ -124,16 +124,16 @@ val releaseSigning = loadReleaseSigning()
 
 android {
     namespace = "com.localdoc.ai"
-    // Сборка против API 37 (Android 17); targetSdk остаётся 35 — поведение приложения на новых версиях Android не меняется
+    // Сборка и работа против API 37 (Android 17); целевое поведение Android 17 проверяется на устройствах в 2.2.1
     compileSdk = 37
 
     defaultConfig {
         applicationId = "com.localdoc.ai"
         // Android 8.0 (API 26) … Android 17 (API 37)
         minSdk = 26
-        targetSdk = 35
-        versionCode = 17
-        versionName = "2.1.2"
+        targetSdk = 37
+        versionCode = 18
+        versionName = "2.2.0"
 
         ndk {
             // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах).
