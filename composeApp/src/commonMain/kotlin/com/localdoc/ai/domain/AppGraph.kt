@@ -1,5 +1,6 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.i18n.L10n
 import com.localdoc.ai.backup.BackupService
 import com.localdoc.ai.backup.ScheduledBackup
 import com.localdoc.ai.storage.KvAccess
@@ -37,6 +38,9 @@ import com.localdoc.ai.images.ImageLoader
 import com.localdoc.ai.platform.DeviceScanner
 import com.localdoc.ai.platform.ScannedFile
 import com.localdoc.ai.platform.FileSaver
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.could_not_open_short
+import com.localdoc.ai.resources.model_not_loaded_inline
 import com.localdoc.ai.net.CookieJar
 import com.localdoc.ai.net.DownloadSpeed
 import com.localdoc.ai.net.HostThrottle
@@ -313,7 +317,7 @@ object AppGraph {
 
     /** Загруженная модель в роли помощника, разбивающего книгу на главы. */
     val chapterModel = com.localdoc.ai.book.ChapterModel { system, user, maxTokens ->
-        check(engine.isLoaded()) { "Модель не загружена: выберите её в Настройки → Модели" }
+        check(engine.isLoaded()) { L10n.get(Res.string.model_not_loaded_inline) }
         pipeline.complete(system, user, maxTokens)
     }
 
@@ -356,7 +360,7 @@ object AppGraph {
     val translator: PageTranslator by lazy {
         PageTranslator({ text, target, source ->
             flow {
-                check(engine.isLoaded()) { "Модель не загружена: выберите её в Настройки → Модели" }
+                check(engine.isLoaded()) { L10n.get(Res.string.model_not_loaded_inline) }
                 emitAll(pipeline.translate(text, target, source))
             }
         }, appScope)
@@ -481,7 +485,7 @@ object AppGraph {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failed.add("${item.name}: ${e.message ?: "не удалось открыть"}")
+                failed.add("${item.name}: ${e.message ?: L10n.get(Res.string.could_not_open_short)}")
             }
             onProgress(index + 1, items.size)
         }

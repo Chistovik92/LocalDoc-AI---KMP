@@ -16,14 +16,14 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 
 /** Действие читалки, вызываемое с клавиатуры (планшеты, Bluetooth-клавиатуры). */
-internal enum class ReaderHotkey { NEXT, PREVIOUS, CONTENTS, BOOKMARK, PLAY_PAUSE }
+internal enum class ReaderHotkey { NEXT, PREVIOUS, CONTENTS, BOOKMARK, PLAY_PAUSE, FIND }
 
 /**
  * Соответствие клавиши действию: стрелки вправо/влево, Page Down/Up и пробел (Shift+пробел — назад) листают,
- * T — оглавление, B — закладка, P — пауза и продолжение озвучки. С Ctrl клавиши не перехватываются.
+ * T — оглавление, B — закладка, P — пауза и продолжение озвучки, Ctrl+F — поиск по книге.
  */
 internal fun hotkeyFor(key: Key, shift: Boolean, ctrl: Boolean): ReaderHotkey? {
-    if (ctrl) return null
+    if (ctrl) return if (key == Key.F) ReaderHotkey.FIND else null
     return when (key) {
         Key.DirectionRight, Key.PageDown -> ReaderHotkey.NEXT
         Key.DirectionLeft, Key.PageUp -> ReaderHotkey.PREVIOUS

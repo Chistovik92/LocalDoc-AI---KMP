@@ -1,5 +1,6 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.i18n.L10n
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.book.FormatDetector
@@ -13,6 +14,16 @@ import com.localdoc.ai.parser.WebArticleParser
 import com.localdoc.ai.parser.WebPage
 import com.localdoc.ai.platform.FileSaver
 import com.localdoc.ai.platform.SaveResult
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.download_added_to_library
+import com.localdoc.ai.resources.download_book_missing
+import com.localdoc.ai.resources.download_cancelled_summary
+import com.localdoc.ai.resources.download_failed_generic
+import com.localdoc.ai.resources.download_file_saved
+import com.localdoc.ai.resources.download_images
+import com.localdoc.ai.resources.download_missing_chapters
+import com.localdoc.ai.resources.download_save_cancelled
+import com.localdoc.ai.resources.download_save_cancelled_added
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -70,7 +81,7 @@ class BookDownloadManager(
             val toc = runCatching { resolveToc(tocUrl, page) }.getOrDefault(emptyList())
             val result = downloader.run(entry.source, tocUrl, toc) { update(it) }
             onNovelDownloaded(result.book.title, result)
-            val note = if (result.missing > 0) "Не удалось скачать глав: ${result.missing}. " else ""
+            val note = if (result.missing > 0) L10n.get(Res.string.download_missing_chapters, result.missing.toString()) else ""
             finish(result.book, format, addToLibrary, result.original?.let { it.name to it.bytes }, note)
         }
     }
@@ -80,7 +91,7 @@ class BookDownloadManager(
         if (busy) return
         start(entry.title, format) {
             update(DownloadProgress(DownloadPhase.BUILDING))
-            val book = library.loadWithImages(entry.id) ?: throw NovelDownloadException("Книга не найдена в библиотеке — добавьте её заново")
+            val book = library.loadWithImages(entry.id) ?: throw NovelDownloadException(L10n.get(Res.string.download_book_missing))
             finish(book, format, addToLibrary = false, original = null, note = "")
         }
     }
@@ -101,11 +112,11 @@ class BookDownloadManager(
             } catch (e: CancellationException) {
                 _job.value = _job.value?.copy(
                     progress = DownloadProgress(DownloadPhase.CANCELLED),
-                    summary = "Скачанные главы сохранены — повторный запуск продолжит с этого места"
+                    summary = L10n.get(Res.string.download_cancelled_summary)
                 )
                 throw e
             } catch (e: Exception) {
-                _job.value = _job.value?.copy(progress = DownloadProgress(DownloadPhase.FAILED), summary = e.message ?: "Не удалось скачать книгу")
+                _job.value = _job.value?.copy(progress = DownloadProgress(DownloadPhase.FAILED), summary = e.message ?: L10n.get(Res.string.download_failed_generic))
             }
         }
     }
@@ -125,7 +136,8 @@ class BookDownloadManager(
             book
         } else {
             val referer = book.source.takeIf { it.startsWith("http") }
-            book.embedRemoteImages(onProgress = { done, total -> update(DownloadProgress(DownloadPhase.EXPORTING, done, total, "Картинки")) }) { url ->
+            val imagesLabel = L10n.get(Res.string.download_images)
+            book.embedRemoteImages(onProgress = { done, total -> update(DownloadProgress(DownloadPhase.EXPORTING, done, total, imagesLabel)) }) { url ->
                 images.bytes(null, url, referer)
             }
         }
@@ -137,15 +149,19 @@ class BookDownloadManager(
         val name = BookExporter.suggestedName(book, format)
         val saved = CompletableDeferred<SaveResult>()
         saver.save(name, format.mime, bytes) { saved.complete(it) }
-        val libraryNote = if (addToLibrary) " Книга добавлена в библиотеку." else ""
+        val libraryNote = if (addToLibrary) " " + L10n.get(Res.string.download_added_to_library) else ""
         when (val result = saved.await()) {
             is SaveResult.Saved -> _job.value = _job.value?.copy(
                 progress = DownloadProgress(DownloadPhase.DONE),
-                summary = "${note}Файл «$name» сохранён.$libraryNote".trim()
+                summary = listOf(note, L10n.get(Res.string.download_file_saved, name) + libraryNote)
+                    .filter { it.isNotBlank() }.joinToString(" ")
             )
             SaveResult.Cancelled -> _job.value = _job.value?.copy(
                 progress = DownloadProgress(DownloadPhase.DONE),
-                summary = (note + if (addToLibrary) "Сохранение в файл отменено, книга добавлена в библиотеку." else "Сохранение отменено.").trim()
+                summary = listOfNotNull(
+                    note.ifBlank { null },
+                    if (addToLibrary) L10n.get(Res.string.download_save_cancelled_added) else L10n.get(Res.string.download_save_cancelled)
+                ).joinToString(" ")
             )
             is SaveResult.Failed -> throw NovelDownloadException(result.message)
         }

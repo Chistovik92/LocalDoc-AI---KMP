@@ -59,6 +59,7 @@ import com.localdoc.ai.resources.translation_3
 import com.localdoc.ai.resources.translation_on
 import com.localdoc.ai.resources.turn_off
 import com.localdoc.ai.resources.voice_and_speech
+import com.localdoc.ai.resources.find_in_book_short
 import com.localdoc.ai.resources.Res
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
@@ -369,6 +370,7 @@ fun ReaderView(
     var showSaveAs by remember { mutableStateOf(false) }
     var showChapters by remember { mutableStateOf(false) }
     var showRepair by remember { mutableStateOf(false) }
+    var showFind by remember { mutableStateOf(false) }
     var askTerm by remember { mutableStateOf(false) }
     var retry by remember { mutableStateOf(0) }
     var showAnnotations by remember { mutableStateOf(false) }
@@ -874,6 +876,7 @@ fun ReaderView(
                 ReaderHotkey.CONTENTS -> showToc = true
                 ReaderHotkey.BOOKMARK -> toggleBookmarkHere()
                 ReaderHotkey.PLAY_PAUSE -> AppGraph.readAloud.toggle()
+                ReaderHotkey.FIND -> showFind = true
             }
         }
     ) {
@@ -1011,6 +1014,7 @@ fun ReaderView(
                                 if (book.chapters.isNotEmpty()) {
                                     DropdownMenuItem(text = { Text(stringResource(Res.string.contents)) }, onClick = { showMenu = false; showToc = true })
                                 }
+                                DropdownMenuItem(text = { Text(stringResource(Res.string.find_in_book_short)) }, onClick = { showMenu = false; showFind = true })
                                 if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
                                     DropdownMenuItem(text = { Text(stringResource(Res.string.chapters_and_contents)) }, onClick = { showMenu = false; showChapters = true })
                                 }
@@ -1168,6 +1172,13 @@ fun ReaderView(
         )
     }
     if (showVoice) VoiceSettingsSheet(onDismiss = { showVoice = false })
+    if (showFind) {
+        FindInBookSheet(
+            book = book,
+            onDismiss = { showFind = false },
+            onJump = { block -> showFind = false; goToBlock(block) }
+        )
+    }
     if (showToc) {
         TocSheet(
             chapters = book.chapters,

@@ -1,5 +1,6 @@
 package com.localdoc.ai.catalog
 
+import com.localdoc.ai.TestStrings
 import com.localdoc.ai.book.BookFormat
 import com.localdoc.ai.book.TestFiles
 import com.localdoc.ai.domain.MemoryNovelFiles
@@ -8,11 +9,21 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CatalogTest {
+
+    @BeforeTest
+    fun strings() = TestStrings.install()
+
+    @AfterTest
+    fun resetStrings() {
+        com.localdoc.ai.i18n.L10n.testResolver = null
+    }
 
     private val fb2 = """<?xml version="1.0" encoding="UTF-8"?><FictionBook><description><title-info>
         <genre>sf_fantasy</genre><genre>popadanec</genre><author><first-name>Иван</first-name><last-name>Петров</last-name></author>

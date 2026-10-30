@@ -9,16 +9,14 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 enum class DownloadSpeed(
-    val label: String,
-    val hint: String,
     val intervalMs: Long,
     val restAfterMin: Int,
     val restAfterMax: Int,
     val restMs: Long
 ) {
-    CAUTIOUS("Осторожно", "Около 10 секунд между главами и минута отдыха — сайты не принимают скачивание за атаку", 10_000L, 12, 31, 60_000L),
-    NORMAL("Обычно", "Около 4 секунд между главами, отдых реже", 4_000L, 25, 60, 30_000L),
-    FAST("Быстро", "Около 2 секунд между главами; сайт может ограничить доступ — включайте для своих серверов", 1_800L, 50, 120, 15_000L);
+    CAUTIOUS(10_000L, 12, 31, 60_000L),
+    NORMAL(4_000L, 25, 60, 30_000L),
+    FAST(1_800L, 50, 120, 15_000L);
 
     /** Сколько запросов пройдёт до следующего длинного отдыха; [random] — число от 0 (включая) до 1 (не включая). */
     fun requestsUntilRest(random: Double): Int =

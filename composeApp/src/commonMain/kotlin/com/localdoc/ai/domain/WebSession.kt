@@ -1,5 +1,6 @@
 package com.localdoc.ai.domain
 
+import com.localdoc.ai.i18n.L10n
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.LibraryRepository
 import com.localdoc.ai.book.PageLink
@@ -12,6 +13,18 @@ import com.localdoc.ai.parser.LoginRequiredException
 import com.localdoc.ai.parser.WebArticleParser
 import com.localdoc.ai.platform.CertificateProblem
 import com.localdoc.ai.platform.UntrustedCertificateException
+import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.ai_nav_next_chapter
+import com.localdoc.ai.resources.ai_nav_toc
+import com.localdoc.ai.resources.web_login_needs_browser
+import com.localdoc.ai.resources.web_login_no_form
+import com.localdoc.ai.resources.web_login_no_session
+import com.localdoc.ai.resources.web_login_wrong_credentials
+import com.localdoc.ai.resources.web_no_text_on_page
+import com.localdoc.ai.resources.web_open_failed
+import com.localdoc.ai.resources.web_page_not_in_cache
+import com.localdoc.ai.resources.web_toc_load_failed
+import com.localdoc.ai.resources.web_toc_not_found
 import com.localdoc.ai.tts.ReadAloudController
 import com.localdoc.ai.tts.ReadAloudStop
 import kotlinx.coroutines.CancellationException
@@ -126,11 +139,11 @@ class WebSession(
             _error.value = null
             try {
                 val page = parser.load(url)
-                require(page.book.blocks.isNotEmpty()) { "На странице не найден текст для чтения" }
+                require(page.book.blocks.isNotEmpty()) { L10n.get(Res.string.web_no_text_on_page) }
                 var book = page.book
                 // Нет маркера «следующая глава» — спрашиваем локальную модель
                 if (book.web?.next == null && isModelLoaded() && looksLikeChapter(book)) {
-                    val next = runCatching { pipeline().pickNavigationLink(page.links, "следующую главу") }.getOrNull()
+                    val next = runCatching { pipeline().pickNavigationLink(page.links, L10n.get(Res.string.ai_nav_next_chapter)) }.getOrNull()
                     if (next != null && next != book.source) book = book.copy(web = (book.web ?: WebNavigation()).copy(next = next))
                 }
                 val entry = library.add(book)
@@ -149,7 +162,7 @@ class WebSession(
                 _certificateRequest.value = CertificateRequest(url, e.host, e.fingerprint, e.problem)
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
-                _error.value = "Не удалось открыть страницу: ${t.message ?: t::class.simpleName}"
+                _error.value = L10n.get(Res.string.web_open_failed, t.message ?: t::class.simpleName ?: "")
             } finally {
                 _loading.value = null
             }
@@ -186,11 +199,11 @@ class WebSession(
                         _loginRequest.value = null
                         open(request.pageUrl, allowRelogin = false)
                     }
-                    LoginResult.WrongCredentials -> updateLogin(request, loginUrl, "Неверный логин или пароль")
+                    LoginResult.WrongCredentials -> updateLogin(request, loginUrl, L10n.get(Res.string.web_login_wrong_credentials))
                     LoginResult.NoForm ->
-                        updateLogin(request, loginUrl, "На этой странице нет формы входа — укажите адрес страницы входа или войдите в браузере")
+                        updateLogin(request, loginUrl, L10n.get(Res.string.web_login_no_form))
                     is LoginResult.NeedsBrowser ->
-                        _loginRequest.value = request.copy(loginUrl = loginUrl, browserOnly = true, message = result.reason + ": войдите во встроенном браузере")
+                        _loginRequest.value = request.copy(loginUrl = loginUrl, browserOnly = true, message = result.reason + ": " + L10n.get(Res.string.web_login_needs_browser))
                     is LoginResult.Failed -> updateLogin(request, loginUrl, result.message)
                 }
             } finally {
@@ -207,7 +220,7 @@ class WebSession(
     fun finishBrowserLogin(browserUrl: String, cookieHeader: String) {
         val request = _loginRequest.value ?: return
         if (cookieHeader.isBlank()) {
-            _loginRequest.value = request.copy(message = "Вход в браузере не завершён: сессия не найдена")
+            scope.launch { _loginRequest.value = request.copy(message = L10n.get(Res.string.web_login_no_session)) }
             return
         }
         auth().importBrowserSession(browserUrl, cookieHeader)
@@ -229,7 +242,7 @@ class WebSession(
         job = scope.launch {
             val book = library.load(entryId)
             if (book == null) {
-                _error.value = "Страница не найдена в кэше"
+                _error.value = L10n.get(Res.string.web_page_not_in_cache)
                 return@launch
             }
             library.touch(entryId)
@@ -258,10 +271,10 @@ class WebSession(
             _tocLoading.value = true
             try {
                 _toc.value = resolveTableOfContents(doc)
-                if (_toc.value.isEmpty()) _error.value = "Оглавление не найдено на этой странице"
+                if (_toc.value.isEmpty()) _error.value = L10n.get(Res.string.web_toc_not_found)
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
-                _error.value = "Не удалось загрузить оглавление: ${t.message}"
+                _error.value = L10n.get(Res.string.web_toc_load_failed, t.message ?: "")
             } finally {
                 _tocLoading.value = false
             }
@@ -275,7 +288,7 @@ class WebSession(
     suspend fun resolveTableOfContents(doc: WebDocument): List<PageLink> {
         var tocUrl = doc.book.web?.toc
         if (tocUrl == null && isModelLoaded() && doc.links.isNotEmpty()) {
-            tocUrl = runCatching { pipeline().pickNavigationLink(doc.links, "оглавление (список всех глав)") }.getOrNull()
+            tocUrl = runCatching { pipeline().pickNavigationLink(doc.links, L10n.get(Res.string.ai_nav_toc)) }.getOrNull()
         }
         val fromPage = if (tocUrl != null) parser.loadTableOfContents(tocUrl) else emptyList()
         // Ссылки страницы ГЛАВЫ («Назад», «Далее», ближайшие главы) оглавлением не считаются — иначе скачивание

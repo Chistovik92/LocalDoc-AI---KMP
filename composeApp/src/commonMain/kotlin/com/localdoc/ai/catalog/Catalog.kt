@@ -1,6 +1,16 @@
 package com.localdoc.ai.catalog
 
+import com.localdoc.ai.i18n.L10n
 import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.scan_error_access
+import com.localdoc.ai.resources.scan_failed
+import com.localdoc.ai.resources.scan_found_books
+import com.localdoc.ai.resources.scan_phase_done
+import com.localdoc.ai.resources.scan_phase_error
+import com.localdoc.ai.resources.scan_phase_looking
+import com.localdoc.ai.resources.scan_phase_reading
+import com.localdoc.ai.resources.scan_phase_stopped
+import com.localdoc.ai.resources.scan_stopped_message
 import com.localdoc.ai.resources.sort_added
 import com.localdoc.ai.resources.sort_author
 import com.localdoc.ai.resources.sort_modified
@@ -221,7 +231,7 @@ class CatalogRepository(
     fun scan(rootId: String, title: String, includeText: Boolean) {
         if (_state.value.running) return
         job = scope.launch {
-            _state.value = ScanState(running = true, phase = "Ищем файлы")
+            _state.value = ScanState(running = true, phase = L10n.get(Res.string.scan_phase_looking))
             try {
                 val extensions = if (includeText) BOOK_EXTENSIONS + TEXT_EXTENSIONS else BOOK_EXTENSIONS
                 val found = ArrayList<ScannedFile>()
@@ -232,17 +242,17 @@ class CatalogRepository(
                 mergeFound(rootId, found)
                 _roots.value = (_roots.value.filterNot { it.id == rootId } + CatalogRoot(rootId, title, now(), found.size))
                 save()
-                _state.value = ScanState(running = true, phase = "Читаем данные книг", found = found.size)
+                _state.value = ScanState(running = true, phase = L10n.get(Res.string.scan_phase_reading), found = found.size)
                 enrich(rootId)
-                _state.value = ScanState(running = false, phase = "Готово", found = found.size, processed = found.size,
-                    message = "Найдено книг: ${found.size} (просмотрено файлов: $viewed)")
+                _state.value = ScanState(running = false, phase = L10n.get(Res.string.scan_phase_done), found = found.size, processed = found.size,
+                    message = L10n.get(Res.string.scan_found_books, found.size.toString(), viewed.toString()))
             } catch (e: CancellationException) {
                 save()
-                _state.value = _state.value.copy(running = false, phase = "Остановлено", message = "Сканирование остановлено — найденное сохранено")
+                _state.value = _state.value.copy(running = false, phase = L10n.get(Res.string.scan_phase_stopped), message = L10n.get(Res.string.scan_stopped_message))
                 throw e
             } catch (e: Exception) {
                 save()
-                _state.value = ScanState(running = false, phase = "Ошибка", message = "Не удалось просканировать: ${e.message ?: "ошибка доступа"}")
+                _state.value = ScanState(running = false, phase = L10n.get(Res.string.scan_phase_error), message = L10n.get(Res.string.scan_failed, e.message ?: L10n.get(Res.string.scan_error_access)))
             }
         }
     }
