@@ -119,6 +119,42 @@ class SiteAuthTest {
     }
 
     @Test
+    fun `unsafe form actions and GET never receive credentials`() = runTest {
+        for (html in listOf(
+            loginHtml.replace("/do-login", "http://novel.example/do-login"),
+            loginHtml.replace("/do-login", "https://evil.example/collect"),
+            loginHtml.replace("method=\"post\"", "method=\"get\"")
+        )) {
+            val (transport, _, auth) = setup { page(html) }
+            assertTrue(auth.login("https://novel.example/login", "reader", "secret") is LoginResult.NeedsBrowser)
+            assertEquals(1, transport.requests.size)
+            assertNull(transport.requests.single().body)
+        }
+    }
+
+    @Test
+    fun `disappearing signup form does not prove success or save password`() = runTest {
+        val storage = MemoryStorage()
+        val jar = CookieJar(storage)
+        val vault = SiteVault(storage, jar)
+        val form = loginHtml.replace("<input type=\"checkbox\" name=\"remember\" value=\"1\"/>", "")
+            .replace("</form>", "<input type=\"password\" name=\"confirm\"/></form>")
+        val transport = FakeTransport { if (it.method == "POST") page("Check your email") else page(form) }
+        val auth = SiteAuth(WebHttp(transport, jar), vault)
+        assertTrue(auth.signup("https://novel.example/register", "reader", "r@example.org", "secret") is SignupResult.NeedsBrowser)
+        assertNull(vault.find("novel.example"))
+        assertEquals(2, transport.requests.size, "no guessed auto-login")
+    }
+
+    @Test
+    fun `signup does not automatically agree to terms or subscriptions`() = runTest {
+        val form = loginHtml.replace("</form>", "<input type=\"password\" name=\"confirm\"/><input type=\"checkbox\" name=\"terms\"/></form>")
+        val (transport, _, auth) = setup { page(form) }
+        assertTrue(auth.signup("https://novel.example/register", "reader", "r@example.org", "secret") is SignupResult.NeedsBrowser)
+        assertTrue(transport.requests.none { it.method == "POST" })
+    }
+
+    @Test
     fun `secrets do not leak through toString`() {
         assertFalse("secret" in SiteAccount("h", "u", "secret").toString())
         assertFalse("tokenvalue" in StoredCookie("sid", "tokenvalue", "h", expiresAt = 1).toString())
