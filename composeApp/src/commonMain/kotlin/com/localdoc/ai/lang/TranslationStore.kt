@@ -8,6 +8,16 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /**
+ * Минимальное строковое KV-хранилище: чтобы стор перевода можно было подменять в тестах
+ * (платформенный [KeyValueStore] адаптируется к нему в [KvTranslationStore]).
+ */
+interface StringKv {
+    fun get(key: String): String?
+    fun put(key: String, value: String)
+    fun remove(key: String)
+}
+
+/**
  * Долговременное хранение переведённых страниц, чтобы перевод не терялся при выходе из читалки
  * или перезапуске приложения. В памяти [PageTranslator] держит только несколько последних страниц;
  * этот стор отдаёт уже готовые переводы с диска без повторного запроса к модели.
@@ -28,10 +38,12 @@ interface TranslationStore {
  * `translation_v1:<docKey>:<page>:<layout>`, значение — JSON списка блоков.
  */
 class KvTranslationStore(
-    private val kv: KeyValueStore,
+    kv: StringKv,
     private val serializer: KSerializer<List<Block>> = ListSerializer(Block.serializer()),
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) : TranslationStore {
+
+    private val kv = kv
 
     override fun load(key: PageKey): List<Block>? {
         val raw = kv.get(kvKey(key)) ?: return null
@@ -67,4 +79,11 @@ class KvTranslationStore(
         "translation_v1:${key.docKey}:${key.page}:${key.target}:${key.layout}"
 
     private fun registryKey(docKey: String): String = "translation_registry:$docKey"
+}
+
+/** Адаптер платформенного [KeyValueStore] к минимальному [StringKv]. */
+fun KeyValueStore.asStringKv(): StringKv = object : StringKv {
+    override fun get(key: String) = this@asStringKv.get(key)
+    override fun put(key: String, value: String) = this@asStringKv.put(key, value)
+    override fun remove(key: String) = this@asStringKv.remove(key)
 }

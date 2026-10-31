@@ -17,6 +17,7 @@ import com.localdoc.ai.book.BookmarkRepository
 import com.localdoc.ai.book.LibraryRepository
 import com.localdoc.ai.lang.KvTranslationStore
 import com.localdoc.ai.lang.PageTranslator
+import com.localdoc.ai.lang.asStringKv
 import com.localdoc.ai.download.DownloadState
 import com.localdoc.ai.download.ModelDownloader
 import com.localdoc.ai.engine.LlamaEngine
@@ -374,7 +375,7 @@ object AppGraph {
                 check(engine.isLoaded()) { L10n.get(Res.string.model_not_loaded_inline) }
                 emitAll(pipeline.translate(text, target, source))
             }
-        }, appScope, store = KvTranslationStore(kv))
+        }, appScope, store = KvTranslationStore(kv.asStringKv()))
     }
 
     /** Плеер чтения вслух — общий для книг и веб-страниц. */
