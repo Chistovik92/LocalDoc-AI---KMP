@@ -66,7 +66,9 @@ class StaticPageSource(private val all: List<Block>, override val pager: BookPag
  */
 class ReadAloudController(
     private val engine: SpeechEngine,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /** События звука (звонок, чужие плееры, наушники); null — платформа их не отдаёт. */
+    private val audioEvents: AudioInterruptions? = null
 ) {
     private val _state = MutableStateFlow(ReadAloudState())
     val state: StateFlow<ReadAloudState> = _state.asStateFlow()
@@ -89,6 +91,12 @@ class ReadAloudController(
     private var slideJob: Job? = null
     private var waitingForPage = false
 
+    /** Пауза от прерывания звонком/чужим плеером — продолжится, когда прерывание закончится. */
+    private var interruptedByCall = false
+
+    /** Пауза от отключения наушников — продолжится при их подключении. */
+    private var interruptedByUnplug = false
+
     /** Ключ документа, который сейчас озвучивается (id книги или URL страницы). */
     var documentKey: String? = null
         private set
@@ -97,6 +105,41 @@ class ReadAloudController(
 
     /** Таймер сна «до конца главы»: на границе главы голос не объявляет «Конец главы» и озвучка замолкает сама. */
     var quietChapterEnd = false
+
+    private fun audioStart() = runCatching { audioEvents?.start() }.getOrDefault(Unit)
+    private fun audioStop() = runCatching { audioEvents?.stop() }.getOrDefault(Unit)
+
+    init {
+        audioEvents?.setListener(
+            onInterrupted = {
+                if (_state.value.playing) {
+                    interruptedByCall = true
+                    pauseInternal()
+                }
+            },
+            onRegained = {
+                if (interruptedByCall) {
+                    interruptedByCall = false
+                    // Пауза могла быть снята пользователем во время звонка — не навязываем продолжение
+                    if (!_state.value.playing && _state.value.active) play()
+                }
+            },
+            onHeadphonesDisconnected = {
+                if (_state.value.playing) {
+                    interruptedByCall = false
+                    interruptedByUnplug = true
+                    pauseInternal()
+                }
+            },
+            onHeadphonesConnected = {
+                // Продолжаем, если пауза была от системы (звонок или наушники), а не от пользователя
+                val resume = interruptedByUnplug || interruptedByCall
+                interruptedByUnplug = false
+                interruptedByCall = false
+                if (resume && !_state.value.playing && _state.value.active) play()
+            }
+        )
+    }
 
     fun start(key: String, blocks: List<Block>, chapters: List<Chapter>, fromBlock: Int, title: String = "", pager: BookPager? = null) =
         start(key, StaticPageSource(blocks, pager ?: BookPager.build(blocks, chapters)), chapters, fromBlock, title)
@@ -120,6 +163,7 @@ class ReadAloudController(
                 _state.value = ReadAloudState(error = "В тексте нет фрагментов для озвучки")
                 return@launch
             }
+            audioStart()
             play()
         }
     }
@@ -130,6 +174,7 @@ class ReadAloudController(
         if (segments.isEmpty()) return
         if (index !in segments.indices) index = 0
         session++
+        interruptedByCall = false
         // Прежняя реплика (другой документ, объявление «Конец главы») не должна звучать поверх
         engine.stop()
         consecutiveFailures = 0
@@ -154,12 +199,25 @@ class ReadAloudController(
         session++
         engine.stop()
         engine.setVolume(1f)
+        audioStop()
+        interruptedByCall = false
+        interruptedByUnplug = false
         publish(playing = false, sleepStopped = true)
+    }
+
+    /** Пауза, вызванная событием звука: не сбрасывает флаги прерываний. */
+    private fun pauseInternal() {
+        session++
+        engine.stop()
+        publish(playing = false)
     }
 
     fun pause() {
         session++
         engine.stop()
+        // Пользователь нажал паузу сам: ни звонок, ни наушники не должны её снять
+        interruptedByCall = false
+        interruptedByUnplug = false
         publish(playing = false)
     }
 
@@ -168,6 +226,9 @@ class ReadAloudController(
         loadJob?.cancel()
         slideJob?.cancel()
         engine.stop()
+        audioStop()
+        interruptedByCall = false
+        interruptedByUnplug = false
         segments = emptyList()
         source = null
         pageCache.clear()

@@ -10,26 +10,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Синхронный фейковый движок: результат реплики задаётся тестом. */
-private class FakeEngine(private val failOn: (String) -> Boolean = { false }) : SpeechEngine {
-    val spoken = ArrayList<String>()
-    var autoFinish = true
-
-    override fun speak(text: String, onFinished: (Boolean) -> Unit) {
-        spoken.add(text)
-        if (autoFinish) onFinished(!failOn(text))
-    }
-
-    override fun stop() = Unit
-    override fun setRate(rate: Float) = Unit
-    override fun setPitch(pitch: Float) = Unit
-    override fun prepare(onReady: () -> Unit) = onReady()
-    override fun voices(): List<Voice> = emptyList()
-    override fun setVoice(id: String?) = Unit
-    override fun engines(): List<TtsEngineInfo> = emptyList()
-    override fun setEngine(id: String?) = Unit
-}
-
 class ReadAloudControllerTest {
 
     private val scope = CoroutineScope(Dispatchers.Unconfined)
