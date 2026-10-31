@@ -160,6 +160,11 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
         // PDF читается платформенным экстрактором (текстовый слой + OCR) потоково, без загрузки в память целиком
         if (byName == BookFormat.PDF) return importPdf(pathOrUri, title)
 
+        // Размер спрашиваем до чтения: слишком большой файл не грузится в память вовсе
+        val size = files.sizeOf(pathOrUri)
+        require(size == null || size <= MAX_FILE_BYTES) {
+            "Файл больше ${MAX_FILE_BYTES / (1024 * 1024)} МБ"
+        }
         val bytes = files.readBytes(pathOrUri)
         require(bytes.size <= MAX_FILE_BYTES) { "Файл больше ${MAX_FILE_BYTES / (1024 * 1024)} МБ" }
         return withContext(Dispatchers.Default) {

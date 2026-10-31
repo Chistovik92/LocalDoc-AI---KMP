@@ -220,6 +220,8 @@
     <string name="opds_catalogs_open_libraries_project_gutenbe">OPDS-Kataloge: offene Bibliotheken (Project Gutenberg und ähnliche) und deine eigenen Server, z. B. Calibre. Verbinde nur Kataloge, aus denen du Bücher herunterladen darfst. Passwortgeschützte Kataloge werden noch nicht unterstützt.</string>
     <string name="remove">Entfernen</string>
     <string name="add_a_catalog">Katalog hinzufügen</string>
+    <string name="home_http_catalogs_title">Offene Home-Netz-Kataloge (http://)</string>
+    <string name="home_http_catalogs_hint">Unverschlusseltes http:// nur fur Adressen im Heimnetz erlauben: OPDS oder WebDAV auf NAS und Router. Offentliche Webseiten werden nie uber http geoffnet.</string>
     <string name="new_opds_catalog">Neuer OPDS-Katalog</string>
     <string name="name">Name</string>
     <string name="address_for_example_http_192_168">Adresse, z. B. http://192.168.1.5:8080/opds</string>
@@ -802,4 +804,26 @@
     <string name="auto_update_notification_title">Neue Kapitel</string>
     <string name="model_not_loaded_inline">Das Modell ist nicht geladen: wähle es unter Einstellungen → Modelle</string>
     <string name="could_not_open_short">konnte nicht geöffnet werden</string>
+
+    <string name="speak_as_translated">Beim Übersetzen vorlesen</string>
+    <string name="speak_as_translated_hint">Die Stimme liest übersetzte Abschnitte sofort, ohne das Ende der Seite abzuwarten</string>
+    <string name="speak_only_translation">Nur Übersetzung vorlesen</string>
+    <string name="speak_only_translation_hint">Übersetzung beim Vorlesen hören, auf dem Bildschirm bleibt die Originalsprache</string>
+    <string name="stream_translation_to_screen">Übersetzung abschnittsweise anzeigen</string>
+    <string name="stream_translation_to_screen_hint">Die Übersetzung erscheint auf dem Bildschirm, sobald sie fertig ist</string>
+    <string name="prefer_page_translation">Übersetzung der Seite nutzen</string>
+    <string name="prefer_page_translation_hint">Webseiten übersetzt Google Translate (derselbe Dienst, den Seiten einbetten) — sofort, ohne lokales Modell zu laden</string>
+
+    <string name="signup_login_or_nick">Login oder Spitzname</string>
+    <string name="signup_email">E-Mail</string>
+    <string name="signup_password_min_6">Passwort (mindestens 6 Zeichen)</string>
+    <string name="site_signup_page">Registrierungsseite</string>
+    <string name="sign_up_2">Registrieren</string>
+    <string name="signup_done_sign_in">Fertig: Sie können sich jetzt anmelden</string>
+    <string name="signup_wrong_data">Die Seite hat die Daten abgelehnt — bitte prüfen</string>
+    <string name="signup_no_form">Auf der Seite gibt es kein Registrierungsformular</string>
+    <string name="site_login_hint">Anmeldung und Registrierung für die Seite der geöffneten Seite</string>
+    <string name="sign_in_on_site">Auf der Seite anmelden</string>
+    <string name="open_site_login">Anmeldeseite öffnen</string>
+    <string name="site_auth_https_only">Anmeldung und Registrierung nur über https://</string>
 </resources>

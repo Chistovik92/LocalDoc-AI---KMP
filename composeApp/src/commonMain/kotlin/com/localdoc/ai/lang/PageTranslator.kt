@@ -136,6 +136,7 @@ class PageTranslator(
         val result = arrayOfNulls<Block>(blocks.size)
         for ((i, block) in blocks.withIndex()) {
             result[i] = if (alreadyInTarget || !needsTranslation(block)) block else translateBlock(block, target, source)
+            // Абзац готов: его сразу видно на экране и можно озвучивать, не дожидаясь конца страницы
             _progress.value = _progress.value + (key to result.toList())
         }
         val done = result.mapIndexed { i, b -> b ?: blocks[i] }

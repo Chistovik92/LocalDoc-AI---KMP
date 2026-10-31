@@ -15,6 +15,7 @@ import com.localdoc.ai.backup.RestoreResult
 import com.localdoc.ai.book.BookImporter
 import com.localdoc.ai.book.BookmarkRepository
 import com.localdoc.ai.book.LibraryRepository
+import com.localdoc.ai.lang.GoogleWebTranslator
 import com.localdoc.ai.lang.KvTranslationStore
 import com.localdoc.ai.lang.PageTranslator
 import com.localdoc.ai.lang.asStringKv
@@ -46,6 +47,7 @@ import com.localdoc.ai.resources.model_not_loaded_inline
 import com.localdoc.ai.net.CookieJar
 import com.localdoc.ai.net.DownloadSpeed
 import com.localdoc.ai.net.HostThrottle
+import com.localdoc.ai.net.NetSafety
 import com.localdoc.ai.net.RobotsPolicy
 import com.localdoc.ai.novel.AutoUpdateService
 import com.localdoc.ai.novel.NovelAutoRefresh
@@ -97,6 +99,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.serializer
 
 /** Сообщение чата. */
 data class ChatMessage(
@@ -173,6 +176,15 @@ object AppGraph {
     val voiceSettings = PersistedSetting(kv, "voice_settings", VoiceSettings.serializer(), VoiceSettings())
     val translationSettings = PersistedSetting(kv, "translation_settings", TranslationSettings.serializer(), TranslationSettings())
     val accessibilitySettings = PersistedSetting(kv, "accessibility_settings", AccessibilitySettings.serializer(), AccessibilitySettings())
+
+    /**
+     * Явное согласие на открытый http:// для каталогов домашней сети (OPDS/WebDAV на NAS и роутере).
+     * Сайты интернета по http не открываются никогда; домашние — только с этой галочки.
+     */
+    val homeCleartextAllowed = PersistedSetting(kv, "home_cleartext_allowed", String.serializer(), "0").also {
+        // Настройка-флажок хранится как "0"/"1": у Boolean нет отдельного сериализатора в общем коде
+        NetSafety.cleartextAllowed = it.value.value == "1"
+    }
 
     /** Статистика чтения: время, слова и скорость по дням; хранится локально и входит в резервную копию. */
     val readingStatsSetting = PersistedSetting(kv, BackupFormat.KEY_READING_STATS, ReadingStats.serializer(), ReadingStats())
@@ -334,6 +346,11 @@ object AppGraph {
      */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    init {
+        // Согласие на открытый http:// для домашних каталогов применяется сразу и живёт дальше в NetSafety
+        appScope.launch { homeCleartextAllowed.value.collect { allowed -> NetSafety.cleartextAllowed = allowed == "1" } }
+    }
+
     /** Встроенные голоса Piper: скачивание, распаковка, удаление. */
     val voicePacks: VoicePackManager by lazy {
         VoicePackManager(VoicePackStorage(), ModelDownloader("voices", ".tar.bz2"), appScope, Dispatchers.Default)
@@ -380,6 +397,17 @@ object AppGraph {
                 emitAll(pipeline.translate(text, target, source))
             }
         }, appScope, store = KvTranslationStore(kv.asStringKv()))
+    }
+
+    /**
+     * Перевод веб-страниц через Google Translate (без ключа): тот же сервис, которым сайты
+     * встраивают «свой» переводчик. Веб-документы (`web:*`) переводятся им, когда включена
+     * настройка «брать перевод у страницы» — мгновенно и без загрузки локальной модели.
+     */
+    val webTranslator: PageTranslator by lazy {
+        PageTranslator({ text, target, source ->
+            GoogleWebTranslator(webHttp).translate(text, target, source)
+        }, appScope)
     }
 
     /** Плеер чтения вслух — общий для книг и веб-страниц; слушает звонки, чужие плееры и наушники. */

@@ -12,6 +12,8 @@ import com.localdoc.ai.resources.could_not_load_the_catalog
 import com.localdoc.ai.resources.download_2
 import com.localdoc.ai.resources.downloading
 import com.localdoc.ai.resources.loading_2
+import com.localdoc.ai.resources.home_http_catalogs_hint
+import com.localdoc.ai.resources.home_http_catalogs_title
 import com.localdoc.ai.resources.login
 import com.localdoc.ai.resources.name
 import com.localdoc.ai.resources.new_opds_catalog
@@ -56,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.localdoc.ai.ui.reader.SwitchLine
 import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.opds.OpdsAuth
 import com.localdoc.ai.opds.OpdsCatalog
@@ -236,6 +239,12 @@ private fun CatalogList(onOpen: (OpdsCatalog) -> Unit) {
                 }
             }
         }
+        val cleartext = AppGraph.homeCleartextAllowed.value.value == "1"
+        SwitchLine(
+            stringResource(Res.string.home_http_catalogs_title),
+            stringResource(Res.string.home_http_catalogs_hint),
+            cleartext
+        ) { v -> AppGraph.homeCleartextAllowed.update { if (v) "1" else "0" } }
         Button(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.add_a_catalog), maxLines = 1, softWrap = false) }
     }
     if (adding) AddCatalogDialog(onDismiss = { adding = false })

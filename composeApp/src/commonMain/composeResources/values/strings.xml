@@ -220,6 +220,8 @@
     <string name="opds_catalogs_open_libraries_project_gutenbe">Каталоги OPDS: открытые библиотеки (Project Gutenberg и подобные) и ваши серверы, например Calibre. Подключайте только каталоги, откуда вы вправе скачивать книги. Закрытые паролем каталоги пока не поддерживаются.</string>
     <string name="remove">Убрать</string>
     <string name="add_a_catalog">Добавить каталог</string>
+    <string name="home_http_catalogs_title">Открытые каталоги домашней сети (http://)</string>
+    <string name="home_http_catalogs_hint">Разрешить http:// без шифрования только для адресов домашней сети: OPDS или WebDAV на NAS и роутере. Сайты интернета по http не открываются никогда.</string>
     <string name="new_opds_catalog">Новый каталог OPDS</string>
     <string name="name">Название</string>
     <string name="address_for_example_http_192_168">Адрес, например http://192.168.1.5:8080/opds</string>
@@ -806,4 +808,26 @@
     <string name="auto_update_notification_title">Новые главы</string>
     <string name="model_not_loaded_inline">Модель не загружена: выберите её в Настройки → Модели</string>
     <string name="could_not_open_short">не удалось открыть</string>
+
+    <string name="speak_as_translated">Озвучивать по мере перевода</string>
+    <string name="speak_as_translated_hint">Голос начинает читать переведённые абзацы сразу, не дожидаясь перевода всей страницы</string>
+    <string name="speak_only_translation">Только озвучивать перевод</string>
+    <string name="speak_only_translation_hint">Слышать перевод в озвучке, но оставить на экране язык оригинала</string>
+    <string name="stream_translation_to_screen">Показывать перевод по абзацам</string>
+    <string name="stream_translation_to_screen_hint">Перевод появляется на экране по мере готовности, а не всей страницей сразу</string>
+    <string name="prefer_page_translation">Брать перевод со страницы</string>
+    <string name="prefer_page_translation_hint">Веб-страницы переводит Google Translate (тот же сервис, что «свой» переводчик сайтов) — мгновенно и без загрузки локальной модели</string>
+
+    <string name="signup_login_or_nick">Логин или ник</string>
+    <string name="signup_email">Электронная почта</string>
+    <string name="signup_password_min_6">Пароль (не короче 6 символов)</string>
+    <string name="site_signup_page">Страница регистрации</string>
+    <string name="sign_up_2">Зарегистрироваться</string>
+    <string name="signup_done_sign_in">Готово: теперь можно войти</string>
+    <string name="signup_wrong_data">Сайт не принял данные — проверьте их</string>
+    <string name="signup_no_form">На странице нет формы регистрации</string>
+    <string name="site_login_hint">Вход и регистрация на сайте открытой страницы</string>
+    <string name="sign_in_on_site">Вход на сайт</string>
+    <string name="open_site_login">Открыть страницу входа</string>
+    <string name="site_auth_https_only">Вход и регистрация — только по https://</string>
 </resources>

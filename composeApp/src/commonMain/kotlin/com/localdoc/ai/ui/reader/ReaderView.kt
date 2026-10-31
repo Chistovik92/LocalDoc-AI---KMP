@@ -321,6 +321,11 @@ fun ReaderView(
     val bookmarks by AppGraph.bookmarks.all.collectAsState()
     val translatedPages by AppGraph.translator.progress.collectAsState()
     val translationError by AppGraph.translator.error.collectAsState()
+    // Веб-страницы переводит Google Translate (мгновенно, без локальной модели), когда включена
+    // настройка «брать перевод у страницы»; книги и выключенная настройка — локальной моделью
+    val pageTranslator = remember(docKey, translationSettings.preferPageTranslation) {
+        if (translationSettings.preferPageTranslation && docKey.startsWith("web:")) AppGraph.webTranslator else AppGraph.translator
+    }
     val paper = paperColors(settings.theme)
     val scope = rememberCoroutineScope()
     val lastBlock = (book.blocks.size - 1).coerceAtLeast(0)
@@ -407,8 +412,10 @@ fun ReaderView(
     val sourceCode = translationSettings.sourceLanguage
     val layout = settings.pageSize.chars
     val pageKey = PageKey(docKey, page, target?.code.orEmpty(), sourceCode, layout)
+    // «Только озвучка»: перевод делается и звучит, но на экране остаётся язык оригинала
+    val showTranslation = !translationSettings.speakOnlyTranslation
     val translatedBlocks: List<Block?>? =
-        if (translating && target != null) translatedPages[pageKey] ?: AppGraph.translator.cached(pageKey) else null
+        if (translating && target != null && showTranslation) translatedPages[pageKey] ?: pageTranslator.cached(pageKey) else null
 
     fun pageBlocks(index: Int): List<Block> {
         val p = pager.page(index)
@@ -526,11 +533,11 @@ fun ReaderView(
     LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout) {
         if (!translating || target == null) return@LaunchedEffect
         val nextKey = PageKey(docKey, page + 1, target.code, sourceCode, layout)
-        AppGraph.translator.clearError()
-        AppGraph.translator.retainOnly(setOf(pageKey, nextKey))
+        pageTranslator.clearError()
+        pageTranslator.retainOnly(setOf(pageKey, nextKey))
         val source = Languages.byCode(sourceCode)
-        AppGraph.translator.request(pageKey, pageBlocks(page), target, source)
-        if (page + 1 < pager.size) AppGraph.translator.request(nextKey, pageBlocks(page + 1), target, source)
+        pageTranslator.request(pageKey, pageBlocks(page), target, source)
+        if (page + 1 < pager.size) pageTranslator.request(nextKey, pageBlocks(page + 1), target, source)
     }
 
     fun startTranslation(enabled: Boolean) {
@@ -540,10 +547,14 @@ fun ReaderView(
     }
 
     // Автоперевод: язык книги отличается от языка перевода
-    LaunchedEffect(docKey, translationSettings.autoTranslate) {
+    LaunchedEffect(docKey, translationSettings.autoTranslate, pageTranslator) {
         if (!translationSettings.autoTranslate || docKey in AppGraph.translating.value || target == null) return@LaunchedEffect
+        // Веб-страницы переводит Google Translate — модель для автозапуска не нужна
+        val needModel = pageTranslator === AppGraph.translator
         val detected = LanguageDetector.detect(pageBlocks(page).joinToString("\n") { it.text })
-        if (detected != null && !Languages.sameLanguage(detected, target.code) && AppGraph.loadedModelId.value != null) {
+        if (detected != null && !Languages.sameLanguage(detected, target.code) &&
+            (!needModel || AppGraph.loadedModelId.value != null)
+        ) {
             AppGraph.translating.value = AppGraph.translating.value + docKey
         }
     }
@@ -653,18 +664,18 @@ fun ReaderView(
         val doc = ParsedDoc(title = book.title, content = fragment.ifBlank { pageText }, source = book.source)
         // Движок генерирует по одному запросу: перевод ждёт, пока ИИ-суфлёр ответит
         scope.launch {
-            AppGraph.translator.hold()
+            pageTranslator.hold()
             // Отмена (уход с экрана) или сбой не должны оставить перевод на паузе навсегда
             var handedOver = false
             try {
-                withTimeoutOrNull(AI_WAIT_FOR_TRANSLATION_MS) { AppGraph.translator.awaitIdle() }
+                withTimeoutOrNull(AI_WAIT_FOR_TRANSLATION_MS) { pageTranslator.awaitIdle() }
                 launchGeneration(AppGraph.pipeline.ask(doc, prompt))
                 AppGraph.generationJob?.let { job ->
-                    job.invokeOnCompletion { AppGraph.translator.release() }
+                    job.invokeOnCompletion { pageTranslator.release() }
                     handedOver = true
                 }
             } finally {
-                if (!handedOver) AppGraph.translator.release()
+                if (!handedOver) pageTranslator.release()
             }
         }
         }

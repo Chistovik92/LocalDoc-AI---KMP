@@ -5,7 +5,23 @@ package com.localdoc.ai.platform
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.suspendCancellableCoroutine
+import com.localdoc.ai.net.NetSafety
 import com.localdoc.ai.net.WebHttp
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.allocPointerTo
+import kotlinx.cinterop.convert
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.pointed
+import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.sizeOf
+import kotlinx.cinterop.toKString
+import kotlinx.cinterop.value
+import platform.posix.freeaddrinfo
+import platform.posix.getaddrinfo
+import platform.posix.getnameinfo
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSURLAuthenticationChallenge
 import platform.Foundation.NSURLAuthenticationMethodServerTrust
@@ -56,7 +72,18 @@ actual class RawHttp actual constructor() {
     actual val userAgent: String =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-    actual suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse =
+    actual suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse {
+        NetSafety.checkCleartext(request.url)
+        // DNS-перепривязка: проверяем IP, к которому реально идёт соединение, а не только имя
+        val host = WebHttp.hostOf(request.url)
+        if (!NetSafety.isInternalHost(host)) {
+            val resolved = runCatching { resolveHost(host) }.getOrDefault(emptyList())
+            NetSafety.checkResolved(host, resolved)
+        }
+        return executeRequest(request, maxBytes)
+    }
+
+    private suspend fun executeRequest(request: RawRequest, maxBytes: Long): RawResponse =
         suspendCancellableCoroutine { cont ->
             val nsUrl = NSURL.URLWithString(request.url)
             if (nsUrl == null) {
@@ -211,4 +238,33 @@ private class CollectingDelegate(
     override fun URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError: NSError?) {
         onFinish(response, buffer, tooLarge, didCompleteWithError?.localizedDescription, untrustedFingerprint)
     }
+}
+
+/** Адреса, на которые резолвится имя хоста (IPv4 и IPv6), — getaddrinfo/getnameinfo без ObjC-мостов. */
+@OptIn(ExperimentalForeignApi::class)
+private fun resolveHost(host: String): List<String> = memScoped {
+    val hints = alloc<platform.posix.addrinfo>()
+    platform.posix.memset(hints.ptr, 0, sizeOf<platform.posix.addrinfo>().convert())
+    val result = allocPointerTo<platform.posix.addrinfo>()
+    if (getaddrinfo(host, null, hints.ptr, result.ptr) != 0) return@memScoped emptyList()
+    val head = result.value ?: return@memScoped emptyList()
+    val addresses = ArrayList<String>()
+    try {
+        // Буфер под текстовую форму адреса: 46 байт хватает для IPv6 с зоной
+        val text = allocArray<ByteVar>(46)
+        var current: platform.posix.addrinfo? = head.pointed
+        while (current != null) {
+            val addr = current.ai_addr
+            if (addr != null) {
+                platform.posix.memset(text, 0, 46.convert())
+                if (getnameinfo(addr, current.ai_addrlen.convert(), text, 46.convert(), null, 0.convert(), platform.posix.NI_NUMERICHOST) == 0) {
+                    text.toKString().let { if (it.isNotBlank()) addresses.add(it) }
+                }
+            }
+            current = current.ai_next?.reinterpret<platform.posix.addrinfo>()?.pointed
+        }
+    } finally {
+        freeaddrinfo(head)
+    }
+    addresses
 }

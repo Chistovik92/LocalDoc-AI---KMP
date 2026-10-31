@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Открытый http:// для каталогов домашней сети (OPDS/WebDAV на NAS и роутере).
+  Пользователь вводит адрес NAS сам — перечислить домены в config невозможно, поэтому
+  разрешение даётся на уровне приложения, а настоящая защита — в коде (NetSafety):
+  сайты интернета по http не открываются никогда, домашние — только с явного согласия
+  (настройка «Открытые каталоги домашней сети» в разделе каталогов).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

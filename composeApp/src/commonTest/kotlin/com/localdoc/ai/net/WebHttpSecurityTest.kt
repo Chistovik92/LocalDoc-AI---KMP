@@ -22,7 +22,8 @@ class WebHttpSecurityTest {
         val (transport, http) = client { req ->
             if (req.url.startsWith("https://novel.example")) redirect("http://169.254.169.254/latest/meta-data/") else page("секрет")
         }
-        assertFailsWith<UnsafeRedirectException> { http.get("https://novel.example/chapter/1") }
+        // Открытый http для чужого сайта не используется вовсе — редирект отвергается ещё до SSRF-проверки
+        assertFailsWith<NetSafety.CleartextNotAllowedException> { http.get("https://novel.example/chapter/1") }
         assertEquals(1, transport.requests.size, "второй запрос не должен уходить")
     }
 
@@ -30,7 +31,8 @@ class WebHttpSecurityTest {
     fun `a site cannot bounce the app to localhost or the home network`() = runTest {
         for (target in listOf("http://localhost:3000/", "http://192.168.0.1/admin", "https://10.0.0.2/")) {
             val (transport, http) = client { req -> if (req.url.contains("novel.example")) redirect(target) else page("внутри") }
-            assertFailsWith<UnsafeRedirectException>(target) { http.get("https://novel.example/x") }
+            val expected = if (target.startsWith("http://")) NetSafety.CleartextNotAllowedException::class else UnsafeRedirectException::class
+            assertFailsWith(expected, target) { http.get("https://novel.example/x") }
             assertEquals(1, transport.requests.size)
         }
     }
@@ -38,7 +40,7 @@ class WebHttpSecurityTest {
     @Test
     fun `https is not downgraded to http by a redirect`() = runTest {
         val (_, http) = client { req -> if (req.url.startsWith("https://")) redirect("http://novel.example/x") else page("открыто") }
-        assertFailsWith<UnsafeRedirectException> { http.get("https://novel.example/x") }
+        assertFailsWith<NetSafety.CleartextNotAllowedException> { http.get("https://novel.example/x") }
     }
 
     @Test
@@ -46,7 +48,13 @@ class WebHttpSecurityTest {
         val (_, http) = client { req ->
             if (req.url.endsWith("/opds")) redirect("http://192.168.1.5:8080/opds/") else page("лента")
         }
-        assertEquals("лента", http.get("http://192.168.1.5:8080/opds").text())
+        // http домашнего каталога разрешён только с явного согласия пользователя
+        NetSafety.cleartextAllowed = true
+        try {
+            assertEquals("лента", http.get("http://192.168.1.5:8080/opds").text())
+        } finally {
+            NetSafety.cleartextAllowed = false
+        }
     }
 
     @Test
@@ -68,5 +76,25 @@ class WebHttpSecurityTest {
         http.get("https://books.example/a", headers = mapOf("Authorization" to "Basic c2VjcmV0"))
         assertEquals("Basic c2VjcmV0", transport.requests[1].headers["Authorization"])
         assertTrue(transport.requests[1].url.endsWith("/b"))
+    }
+
+    @Test
+    fun `307 redirect cannot forward a form body to another origin`() = runTest {
+        val (transport, http) = client { req ->
+            if (req.url.endsWith("/submit")) redirect("https://evil.example/collect", status = 307)
+            else page("ok")
+        }
+        assertFailsWith<UnsafeRedirectException> {
+            http.postForm("https://books.example/submit", listOf("password" to "secret"))
+        }
+        assertEquals(1, transport.requests.size)
+    }
+
+    @Test
+    fun `same origin includes scheme and port`() {
+        assertTrue(WebHttp.sameOrigin("https://a.example/x", "https://a.example/y"))
+        assertTrue(!WebHttp.sameOrigin("https://a.example/x", "http://a.example/y"))
+        assertTrue(!WebHttp.sameOrigin("https://a.example:443/x", "https://a.example/y"))
+        assertTrue(!WebHttp.sameOrigin("https://a.example/x", "https://evil.example/y"))
     }
 }

@@ -220,6 +220,8 @@
     <string name="opds_catalogs_open_libraries_project_gutenbe">OPDS catalogs: open libraries (Project Gutenberg and similar) and your own servers, such as Calibre. Connect only catalogs you are entitled to download books from. Password-protected catalogs are not supported yet.</string>
     <string name="remove">Remove</string>
     <string name="add_a_catalog">Add a catalog</string>
+    <string name="home_http_catalogs_title">Home-network catalogs over http://</string>
+    <string name="home_http_catalogs_hint">Allow unencrypted http:// only for home-network addresses: OPDS or WebDAV on your NAS or router. Public websites never open over http.</string>
     <string name="new_opds_catalog">New OPDS catalog</string>
     <string name="name">Name</string>
     <string name="address_for_example_http_192_168">Address, for example http://192.168.1.5:8080/opds</string>
@@ -802,4 +804,26 @@
     <string name="auto_update_notification_title">New chapters</string>
     <string name="model_not_loaded_inline">The model is not loaded: choose it in Settings → Models</string>
     <string name="could_not_open_short">could not open</string>
+
+    <string name="speak_as_translated">Speak as it translates</string>
+    <string name="speak_as_translated_hint">The voice starts reading translated paragraphs right away, without waiting for the whole page</string>
+    <string name="speak_only_translation">Spoken translation only</string>
+    <string name="speak_only_translation_hint">Hear the translation when read aloud, but keep the original language on screen</string>
+    <string name="stream_translation_to_screen">Show translation paragraph by paragraph</string>
+    <string name="stream_translation_to_screen_hint">Translation appears on screen as it becomes ready, not all at once</string>
+    <string name="prefer_page_translation">Use the page\'s own translation</string>
+    <string name="prefer_page_translation_hint">Web pages are translated by Google Translate (the same service sites embed) — instantly, without loading the local model</string>
+
+    <string name="signup_login_or_nick">Login or nickname</string>
+    <string name="signup_email">Email</string>
+    <string name="signup_password_min_6">Password (at least 6 characters)</string>
+    <string name="site_signup_page">Sign-up page</string>
+    <string name="sign_up_2">Sign up</string>
+    <string name="signup_done_sign_in">Done: you can sign in now</string>
+    <string name="signup_wrong_data">The site rejected the data — please check it</string>
+    <string name="signup_no_form">There is no sign-up form on the page</string>
+    <string name="site_login_hint">Sign in and sign up for the site of the open page</string>
+    <string name="sign_in_on_site">Sign in to the site</string>
+    <string name="open_site_login">Open the sign-in page</string>
+    <string name="site_auth_https_only">Sign-in and sign-up work over https:// only</string>
 </resources>

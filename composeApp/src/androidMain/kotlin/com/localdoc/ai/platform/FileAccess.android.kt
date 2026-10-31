@@ -20,6 +20,15 @@ actual class FileAccess actual constructor() {
         stream.use { it.readBytes() }
     }
 
+    actual suspend fun sizeOf(pathOrUri: String): Long? = withContext(Dispatchers.IO) {
+        if (pathOrUri.startsWith("/")) return@withContext File(pathOrUri).length()
+        runCatching {
+            context.contentResolver.query(Uri.parse(pathOrUri), arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+            }
+        }.getOrNull()
+    }
+
     actual fun displayName(pathOrUri: String): String? {
         if (pathOrUri.startsWith("/")) return pathOrUri.substringAfterLast('/')
         val uri = Uri.parse(pathOrUri)

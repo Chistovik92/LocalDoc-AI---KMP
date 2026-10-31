@@ -1,6 +1,7 @@
 package com.localdoc.ai.platform
 
 import android.webkit.WebSettings
+import com.localdoc.ai.net.NetSafety
 import com.localdoc.ai.net.WebHttp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -31,6 +32,13 @@ actual class RawHttp actual constructor() {
     }
 
     actual suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse = withContext(Dispatchers.IO) {
+        NetSafety.checkCleartext(request.url)
+        // DNS-перепривязка: проверяем IP, к которому реально идёт соединение, а не только имя
+        val host = WebHttp.hostOf(request.url)
+        if (!NetSafety.isInternalHost(host)) {
+            val resolved = runCatching { java.net.InetAddress.getAllByName(host).map { it.hostAddress } }.getOrDefault(emptyList())
+            NetSafety.checkResolved(host, resolved)
+        }
         val connection = URL(request.url).openConnection() as HttpURLConnection
         val tls = (connection as? HttpsURLConnection)?.let { TlsGuard.install(it, request) }
         try {

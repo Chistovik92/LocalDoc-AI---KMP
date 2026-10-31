@@ -8,10 +8,21 @@ class UnsafeRedirectException(message: String) : IllegalStateException(message)
  * приложение на адрес самого телефона или домашней сети (метаданные облака, роутер, локальные службы), а
  * https-страница — увести на открытый http. Адрес, который пользователь ввёл сам (каталог OPDS на NAS, WebDAV
  * дома), остаётся доступным: проверяются только переходы с публичного хоста.
- * DNS-перепривязка (публичное имя, которое резолвится во внутренний адрес) здесь не ловится — это ограничение
- * проверки по имени, описано в docs/SECURITY_AUDIT.md.
+ *
+ * Защита от DNS-перепривязки (аудит 2.0.0, пункт 10): публичное имя может резолвиться во внутренний адрес,
+ * поэтому соединение проверяется по IP, к которому оно реально идёт, — см. [checkResolved]. Остаточный риск —
+ * «ротация» DNS (первый запрос публичный, второй внутренний): платформенный клиент резолвит имя повторно.
  */
 object NetSafety {
+
+    /** Соединение отвергнуто защитой от DNS-перепривязки: публичное имя резолвится во внутренний адрес. */
+    class DnsRebindingException(message: String) : IllegalStateException(message)
+
+    /** Открытый http:// без согласия пользователя (каталоги домашней сети — только с явного разрешения). */
+    class CleartextNotAllowedException(message: String) : IllegalStateException(message)
+
+    /** Согласие пользователя на открытый http:// для домашних каталогов (OPDS/WebDAV). Выставляется настройкой. */
+    var cleartextAllowed: Boolean = false
 
     /** Хост из адреса: нижний регистр, без схемы, логина, порта, скобок IPv6 и точки в конце. */
     fun hostOf(url: String): String {
@@ -29,6 +40,46 @@ object NetSafety {
         if (':' in host) return ipv6Internal(host)
         val ip = parseIpv4(host) ?: return false
         return ipv4Internal(ip)
+    }
+
+    /** Внутренний ли IP-адрес (текст `a.b.c.d` или IPv6): та же проверка, что и по имени в [isInternalHost]. */
+    fun isInternalAddress(raw: String): Boolean {
+        val text = raw.substringBefore('%').trim().trimEnd('.')
+        if (text.isEmpty()) return true
+        if (':' in text) return ipv6Internal(text)
+        val ip = parseIpv4(text) ?: return false
+        return ipv4Internal(ip)
+    }
+
+    /**
+     * Защита от DNS-перепривязки: соединение проверяется по IP, к которому оно реально идёт, а не по имени.
+     * Публичное имя, которое резолвится во внутренний адрес (127.0.0.1, 192.168.x, роутер), отвергается:
+     * чужой сайт не получит доступа к домашней сети телефона. Адрес, который пользователь ввёл сам
+     * (каталог на NAS, WebDAV дома — внутреннее имя), не проверяется: внутренний IP для него ожидаем.
+     */
+    fun checkResolved(host: String, addresses: List<String>) {
+        if (isInternalHost(host)) return
+        if (addresses.any(::isInternalAddress)) {
+            throw DnsRebindingException("Адрес $host указывает во внутреннюю сеть — соединение заблокировано")
+        }
+    }
+
+    /**
+     * Открытый http:// разрешён только пользователю, который сам его попросил: для хостов домашней сети —
+     * после явного согласия в настройках ([cleartextAllowed]). Публичные сайты по http не открываются:
+     * пароли и сессии не должны уходить по открытому каналу, а https-страница не может уйти на http
+     * (см. [checkRedirect]). Вызывается перед каждым соединением.
+     */
+    fun checkCleartext(url: String) {
+        if (!url.startsWith("http://", ignoreCase = true)) return
+        val host = hostOf(url)
+        if (isInternalHost(host) && cleartextAllowed) return
+        if (isInternalHost(host)) {
+            throw CleartextNotAllowedException(
+                "Открытый http:// для домашней сети запрещён: разрешите его в настройках «Каталоги и синхронизация»"
+            )
+        }
+        throw CleartextNotAllowedException("Открытый http:// для сайтов интернета не используется: нужен https://")
     }
 
     /** Бросает [UnsafeRedirectException], если переход [from] → [to] небезопасен. */

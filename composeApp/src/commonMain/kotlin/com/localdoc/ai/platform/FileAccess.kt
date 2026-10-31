@@ -8,6 +8,9 @@ expect class FileAccess() {
     /** Содержимое внешнего файла; бросает исключение, если файл недоступен. */
     suspend fun readBytes(pathOrUri: String): ByteArray
 
+    /** Размер внешнего файла в байтах; null — неизвестно (нет доступа к метаданным). */
+    suspend fun sizeOf(pathOrUri: String): Long?
+
     /** Имя файла для показа и определения формата по расширению. */
     fun displayName(pathOrUri: String): String?
 

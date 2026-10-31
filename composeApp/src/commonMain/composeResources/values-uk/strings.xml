@@ -220,6 +220,8 @@
     <string name="opds_catalogs_open_libraries_project_gutenbe">Каталоги OPDS: відкриті бібліотеки (Project Gutenberg та подібні) і ваші сервери, наприклад Calibre. Підключайте лише каталоги, звідки ви маєте право завантажувати книги. Каталоги, захищені паролем, поки не підтримуються.</string>
     <string name="remove">Прибрати</string>
     <string name="add_a_catalog">Додати каталог</string>
+    <string name="home_http_catalogs_title">Відкриті каталоги домашньої мережі (http://)</string>
+    <string name="home_http_catalogs_hint">Дозволити http:// без шифрування лише для адрес домашньої мережі: OPDS або WebDAV на NAS і роутері. Сайти інтернету по http не відкриваються ніколи.</string>
     <string name="new_opds_catalog">Новий каталог OPDS</string>
     <string name="name">Назва</string>
     <string name="address_for_example_http_192_168">Адреса, наприклад http://192.168.1.5:8080/opds</string>
@@ -806,4 +808,26 @@
     <string name="auto_update_notification_title">Нові розділи</string>
     <string name="model_not_loaded_inline">Модель не завантажена: оберіть її в Налаштування → Моделі</string>
     <string name="could_not_open_short">не вдалося відкрити</string>
+
+    <string name="speak_as_translated">Озвучувати в міру перекладу</string>
+    <string name="speak_as_translated_hint">Голос починає читати перекладені абзаци одразу, не чекаючи перекладу всієї сторінки</string>
+    <string name="speak_only_translation">Тільки озвучувати переклад</string>
+    <string name="speak_only_translation_hint">Чути переклад в озвучці, але залишити на екрані мову оригіналу</string>
+    <string name="stream_translation_to_screen">Показувати переклад абзацами</string>
+    <string name="stream_translation_to_screen_hint">Переклад з\'являється на екрані в міру готовності, а не всією сторінкою одразу</string>
+    <string name="prefer_page_translation">Брати переклад зі сторінки</string>
+    <string name="prefer_page_translation_hint">Веб-сторінки перекладає Google Translate (той самий сервіс, що вбудовують сайти) — миттєво, без завантаження локальної моделі</string>
+
+    <string name="signup_login_or_nick">Логін або нік</string>
+    <string name="signup_email">Електронна пошта</string>
+    <string name="signup_password_min_6">Пароль (не коротше 6 символів)</string>
+    <string name="site_signup_page">Сторінка реєстрації</string>
+    <string name="sign_up_2">Зареєструватися</string>
+    <string name="signup_done_sign_in">Готово: тепер можна увійти</string>
+    <string name="signup_wrong_data">Сайт не прийняв дані — перевірте їх</string>
+    <string name="signup_no_form">На сторінці немає форми реєстрації</string>
+    <string name="site_login_hint">Вхід і реєстрація на сайті відкритої сторінки</string>
+    <string name="sign_in_on_site">Вхід на сайт</string>
+    <string name="open_site_login">Відкрити сторінку входу</string>
+    <string name="site_auth_https_only">Вхід і реєстрація — лише через https://</string>
 </resources>

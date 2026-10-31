@@ -69,4 +69,66 @@ class NetSafetyTest {
         NetSafety.checkRedirect("http://192.168.1.5:8080/opds", "http://192.168.1.5:8080/opds/new")
         NetSafety.checkRedirect("http://nas.local/opds", "http://192.168.1.5/opds")
     }
+
+    // --- DNS-перепривязка: публичное имя, резолвящееся во внутренний адрес (аудит 2.4.0) ---
+
+    @Test
+    fun `public name resolving to an internal address is refused`() {
+        for (addresses in listOf(
+            listOf("192.168.0.1"),
+            listOf("8.8.8.8", "127.0.0.1"),
+            listOf("::ffff:10.0.0.1"),
+            listOf("fd12::1")
+        )) {
+            assertFailsWith<NetSafety.DnsRebindingException>(addresses.toString()) {
+                NetSafety.checkResolved("novel.example", addresses)
+            }
+        }
+    }
+
+    @Test
+    fun `public name resolving to public addresses passes`() {
+        NetSafety.checkResolved("novel.example", listOf("93.184.216.34"))
+        NetSafety.checkResolved("novel.example", listOf("2001:4860:4860::8888"))
+        // Несколько адресов — все публичные
+        NetSafety.checkResolved("novel.example", listOf("93.184.216.34", "2606:2800:220:1::1"))
+    }
+
+    @Test
+    fun `internal names are not checked for rebinding`() {
+        // Каталог на NAS — пользователь сам его ввёл, внутренний IP ожидаем
+        NetSafety.checkResolved("nas.local", listOf("192.168.1.5"))
+        NetSafety.checkResolved("192.168.1.5", listOf("192.168.1.5"))
+        NetSafety.checkResolved("localhost", listOf("127.0.0.1"))
+    }
+
+    // --- Открытый http:// только с явного согласия (аудит 2.4.0) ---
+
+    @Test
+    fun `cleartext http for public sites is always refused`() {
+        NetSafety.cleartextAllowed = true
+        try {
+            assertFailsWith<NetSafety.CleartextNotAllowedException> { NetSafety.checkCleartext("http://novel.example/page") }
+        } finally {
+            NetSafety.cleartextAllowed = false
+        }
+    }
+
+    @Test
+    fun `cleartext http for home network needs consent`() {
+        assertFailsWith<NetSafety.CleartextNotAllowedException> { NetSafety.checkCleartext("http://192.168.1.5:8080/opds") }
+        NetSafety.cleartextAllowed = true
+        try {
+            NetSafety.checkCleartext("http://192.168.1.5:8080/opds")
+            NetSafety.checkCleartext("http://nas.local/opds")
+        } finally {
+            NetSafety.cleartextAllowed = false
+        }
+    }
+
+    @Test
+    fun `https is always allowed regardless of consent`() {
+        NetSafety.checkCleartext("https://novel.example/page")
+        NetSafety.checkCleartext("https://192.168.1.5:8443/opds")
+    }
 }
