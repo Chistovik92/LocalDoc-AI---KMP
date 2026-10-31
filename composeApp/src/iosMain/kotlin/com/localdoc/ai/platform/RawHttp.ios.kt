@@ -3,6 +3,7 @@
 package com.localdoc.ai.platform
 
 import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.suspendCancellableCoroutine
 import com.localdoc.ai.net.NetSafety
 import com.localdoc.ai.net.WebHttp
