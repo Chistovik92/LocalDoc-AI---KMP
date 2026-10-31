@@ -32,6 +32,16 @@
 - iOS: `./cpp_core/scripts/build_ios_xcframework.sh` и
   `./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64` (macOS + Xcode).
 
+## Тестирование на устройстве (adb)
+
+- **Никогда не делать `adb uninstall` без бэкапа данных.** `uninstall` стирает всю внутреннюю
+  память приложения (`/data/data/com.localdoc.ai` — книги, настройки, прогресс, автобэкапы)
+  безвозвратно. Перед любым `uninstall` снять копию: `scripts/adb-backup.ps1`.
+- Debug-APK подписан debug-ключом и не ставится поверх release (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
+  Ставить поверх release можно только APK, подписанный тем же release-ключом.
+- Чтобы не потерять данные при смене ключа подписи: сначала `scripts/adb-backup.ps1`, затем `uninstall`,
+  затем `install` — и восстановить данные из бэкапа.
+
 ## Документация
 
 - Планы — только в `ROADMAP.md`; история выпущенного — в `CHANGELOG.md`; не дублировать одно и то же в двух местах.
