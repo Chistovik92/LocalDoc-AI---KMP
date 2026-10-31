@@ -81,6 +81,7 @@ import com.localdoc.ai.tts.SpeechRouter
 import com.localdoc.ai.tts.VoicePackManager
 import com.localdoc.ai.tts.VoicePackStorage
 import com.localdoc.ai.tts.VoiceSamplePlayer
+import com.localdoc.ai.tts.createAudioInterruptions
 import com.localdoc.ai.tts.createPcmOutput
 import com.localdoc.ai.tts.createPiperBackend
 import kotlinx.coroutines.CoroutineScope
@@ -378,8 +379,8 @@ object AppGraph {
         }, appScope, store = KvTranslationStore(kv.asStringKv()))
     }
 
-    /** Плеер чтения вслух — общий для книг и веб-страниц. */
-    val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope) }
+    /** Плеер чтения вслух — общий для книг и веб-страниц; слушает звонки, чужие плееры и наушники. */
+    val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope, createAudioInterruptions()) }
 
     val voiceControlSettings = PersistedSetting(kv, "voice_control_v1", VoiceControlSettings.serializer(), VoiceControlSettings())
 
