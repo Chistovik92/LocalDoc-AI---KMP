@@ -319,13 +319,14 @@ fun ReaderView(
     val translationSettings by AppGraph.translationSettings.value.collectAsState()
     val translatingDocs by AppGraph.translating.collectAsState()
     val bookmarks by AppGraph.bookmarks.all.collectAsState()
-    val translatedPages by AppGraph.translator.progress.collectAsState()
-    val translationError by AppGraph.translator.error.collectAsState()
     // Веб-страницы переводит Google Translate (мгновенно, без локальной модели), когда включена
     // настройка «брать перевод у страницы»; книги и выключенная настройка — локальной моделью
     val pageTranslator = remember(docKey, translationSettings.preferPageTranslation) {
         if (translationSettings.preferPageTranslation && docKey.startsWith("web:")) AppGraph.webTranslator else AppGraph.translator
     }
+    // Прогресс и ошибки — у того переводчика, который реально переводит документ (веб → Google, иначе → модель)
+    val translatedPages by pageTranslator.progress.collectAsState()
+    val translationError by pageTranslator.error.collectAsState()
     val paper = paperColors(settings.theme)
     val scope = rememberCoroutineScope()
     val lastBlock = (book.blocks.size - 1).coerceAtLeast(0)

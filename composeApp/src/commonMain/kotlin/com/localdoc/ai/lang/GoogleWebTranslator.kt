@@ -1,6 +1,7 @@
 package com.localdoc.ai.lang
 
 import com.localdoc.ai.net.WebHttp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
@@ -15,6 +16,9 @@ import kotlinx.serialization.json.jsonPrimitive
  * Ответ эндпоинта — вложенные массивы `[[["перевод", "оригинал", null, null, …], …], …]`;
  * собираем первые элементы каждого сегмента. Ответ не потоковый: блок целиком приходит
  * одним куском, что и отдаётся в [translate] (совместимо с потоковым API переводчика страниц).
+ *
+ * Эндпоинт без ключа отвечает `429` («слишком много запросов») при пачке параллельных обращений —
+ * на длинной странице набегает лимит. Поэтому `429`/`503` пробуем снова с растущей паузой.
  */
 class GoogleWebTranslator(private val http: WebHttp) {
 
@@ -24,20 +28,25 @@ class GoogleWebTranslator(private val http: WebHttp) {
             emit(text)
             return@flow
         }
-        val result = http.get(
-            url = "https://translate.googleapis.com/translate_a/single" +
-                "?client=gtx&dt=t" +
-                "&sl=${source?.code ?: "auto"}&tl=${target.code}" +
-                "&q=" + encode(text),
-            headers = mapOf("Accept" to "application/json"),
-            maxBytes = MAX_RESPONSE_BYTES
-        )
+        var attempt = 0
+        var result = http.get(translateUrl(text, target, source))
+        while (!result.isOk && (result.status == 429 || result.status == 503) && attempt < MAX_RETRIES) {
+            attempt++
+            delay(RETRY_DELAY_MS * attempt)
+            result = http.get(translateUrl(text, target, source))
+        }
         // Негативный ответ сервиса — обычная ошибка перевода: страница остаётся в оригинале,
         // но читалка не падает; следующий блок пробуется снова
-        if (!result.isOk) println("GoogleWebTranslator: HTTP ${result.status} для tl=${target.code}")
+        if (!result.isOk) println("GoogleWebTranslator: HTTP ${result.status} для tl=${target.code} (после $attempt повторов)")
         check(result.isOk) { "HTTP ${result.status}" }
         emit(parse(result.text()))
     }
+
+    private fun translateUrl(text: String, target: Language, source: Language?): String =
+        "https://translate.googleapis.com/translate_a/single" +
+            "?client=gtx&dt=t" +
+            "&sl=${source?.code ?: "auto"}&tl=${target.code}" +
+            "&q=" + encode(text)
 
     /** Достаёт переведённый текст из ответа `[[["перевод","оригинал",…],…], null, …]`. */
     internal fun parse(response: String): String {
@@ -68,5 +77,7 @@ class GoogleWebTranslator(private val http: WebHttp) {
         private val json = Json { ignoreUnknownKeys = true }
         /** Ответ вмещает перевод длинного блока целиком; обрезается по превышению. */
         private const val MAX_RESPONSE_BYTES = 4L * 1024 * 1024
+        private const val MAX_RETRIES = 3
+        private const val RETRY_DELAY_MS = 800L
     }
 }

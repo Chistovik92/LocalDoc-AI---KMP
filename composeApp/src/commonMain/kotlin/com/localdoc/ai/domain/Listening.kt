@@ -67,7 +67,7 @@ private fun AppGraph.speechSourceFor(
     if (target == null) return BookSpeechSource(book, pager, docKey)
     // Веб-страницы переводит Google Translate, если включена настройка «брать перевод у страницы»
     val settings = translationSettings.value.value
-    val translator = if (settings.preferPageTranslation && docKey.startsWith("web:")) webTranslator else translator
+    val translator = if (settings.preferPageTranslation && docKey.startsWith("web:")) webTranslator else this.translator
     return StreamingSpeechSource(
         book = book,
         pager = pager,

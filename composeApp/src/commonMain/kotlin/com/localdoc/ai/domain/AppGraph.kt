@@ -423,8 +423,8 @@ object AppGraph {
         PageTranslator(
             { text, target, source -> GoogleWebTranslator(translateHttp).translate(text, target, source) },
             appScope,
-            // Внешний эндпоинт держит пачку запросов: абзацы переводятся одновременно
-            parallelBlocks = 6
+            // Внешний эндпоинт держит пачку запросов, но небольшую: слишком частая выдаёт 429
+            parallelBlocks = 3
         )
     }
 

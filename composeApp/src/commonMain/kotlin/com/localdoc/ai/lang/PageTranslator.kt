@@ -154,7 +154,8 @@ class PageTranslator(
             }
         } else {
             // Внешний переводчик страниц: абзацы идут пачкой (эндпоинт держит параллельные запросы),
-            // готовые появляются на экране по мере ответа — порядок в странице сохраняется
+            // готовые появляются на экране по мере ответа — порядок в странице сохраняется.
+            // Пачка держится небольшой: открытый эндпоинт Google отвечает 429 на слишком частые запросы.
             toTranslate.forEach { (i, _) -> result[i] = null }
             val semaphore = Semaphore(parallelBlocks)
             coroutineScope {
@@ -165,6 +166,10 @@ class PageTranslator(
                                 .onSuccess { translated ->
                                     result[i] = translated
                                     _progress.value = _progress.value + (key to result.toList())
+                                }
+                                .onFailure { e ->
+                                    // Блок не перевёлся: останется в оригинале, но сбой виден в логе
+                                    println("PageTranslator: блок $i не переведён — ${e.message ?: e::class.simpleName}")
                                 }
                         }
                     }
