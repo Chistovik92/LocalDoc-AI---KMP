@@ -155,6 +155,7 @@ object AppGraph {
             certificates = certificateTrust::allowanceFor
         )
     }
+
     val siteVault: SiteVault by lazy { SiteVault(secure.asStorage(), cookieJar) }
     val siteAuth: SiteAuth by lazy { SiteAuth(webHttp, siteVault) }
     val images: ImageLoader by lazy { ImageLoader(files, kv, { webHttp }) }
@@ -400,14 +401,31 @@ object AppGraph {
     }
 
     /**
+     * HTTP для перевода веб-страниц через Google Translate: общая «бережная» очередь (паузы 10 с,
+     * длинный отдых, robots.txt) не годится — перевод страницы из двадцати абзацев превращается
+     * в минуты ожидания. Здесь короткие паузы (300 мс) и без robots.txt: эндпоинт Google перевода
+     * работает и так, а перевод не должен «тупить». Куки сайта не передаются (Google их не получает).
+     */
+    private val translateHttp: WebHttp by lazy {
+        WebHttp(
+            RawHttp().asTransport(),
+            cookieJar,
+            HostThrottle(intervalMs = 300L, speed = { DownloadSpeed.FAST })
+        )
+    }
+
+    /**
      * Перевод веб-страниц через Google Translate (без ключа): тот же сервис, которым сайты
      * встраивают «свой» переводчик. Веб-документы (`web:*`) переводятся им, когда включена
      * настройка «брать перевод у страницы» — мгновенно и без загрузки локальной модели.
      */
     val webTranslator: PageTranslator by lazy {
-        PageTranslator({ text, target, source ->
-            GoogleWebTranslator(webHttp).translate(text, target, source)
-        }, appScope)
+        PageTranslator(
+            { text, target, source -> GoogleWebTranslator(translateHttp).translate(text, target, source) },
+            appScope,
+            // Внешний эндпоинт держит пачку запросов: абзацы переводятся одновременно
+            parallelBlocks = 6
+        )
     }
 
     /** Плеер чтения вслух — общий для книг и веб-страниц; слушает звонки, чужие плееры и наушники. */

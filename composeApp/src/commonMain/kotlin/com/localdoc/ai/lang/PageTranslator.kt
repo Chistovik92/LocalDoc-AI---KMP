@@ -10,14 +10,18 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 
 /**
@@ -38,7 +42,14 @@ class PageTranslator(
     private val scope: CoroutineScope,
     private val maxCached: Int = 6,
     /** Долговременный стор перевода; null — перевод живёт только в памяти (тесты). */
-    private val store: TranslationStore? = null
+    private val store: TranslationStore? = null,
+    /**
+     * Блоки переводятся параллельно (несколькими запросами сразу): так работает внешний
+     * переводчик страниц (Google Translate) — его эндпоинт спокойно держит пачку, и перевод
+     * страницы не растягивается на минуты. Локальная модель генерирует по одному запросу —
+     * для неё параллелизм отключён (по умолчанию).
+     */
+    private val parallelBlocks: Int = 1
 ) {
     // Сбой перевода одной страницы не должен ронять родительский скоуп (экран, приложение)
     private val work = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
@@ -134,10 +145,31 @@ class PageTranslator(
         val pageLanguage = LanguageDetector.detect(blocks.joinToString("\n") { it.text })
         val alreadyInTarget = Languages.sameLanguage(pageLanguage, target.code)
         val result = arrayOfNulls<Block>(blocks.size)
-        for ((i, block) in blocks.withIndex()) {
-            result[i] = if (alreadyInTarget || !needsTranslation(block)) block else translateBlock(block, target, source)
-            // Абзац готов: его сразу видно на экране и можно озвучивать, не дожидаясь конца страницы
-            _progress.value = _progress.value + (key to result.toList())
+        val toTranslate = blocks.withIndex().filter { !alreadyInTarget && needsTranslation(it.value) }
+        if (parallelBlocks <= 1) {
+            for ((i, block) in blocks.withIndex()) {
+                result[i] = if (alreadyInTarget || !needsTranslation(block)) block else translateBlock(block, target, source)
+                // Абзац готов: его сразу видно на экране и можно озвучивать, не дожидаясь конца страницы
+                _progress.value = _progress.value + (key to result.toList())
+            }
+        } else {
+            // Внешний переводчик страниц: абзацы идут пачкой (эндпоинт держит параллельные запросы),
+            // готовые появляются на экране по мере ответа — порядок в странице сохраняется
+            toTranslate.forEach { (i, _) -> result[i] = null }
+            val semaphore = Semaphore(parallelBlocks)
+            coroutineScope {
+                toTranslate.forEach { (i, block) ->
+                    launch {
+                        semaphore.withPermit {
+                            runCatching { translateBlock(block, target, source) }
+                                .onSuccess { translated ->
+                                    result[i] = translated
+                                    _progress.value = _progress.value + (key to result.toList())
+                                }
+                        }
+                    }
+                }
+            }
         }
         val done = result.mapIndexed { i, b -> b ?: blocks[i] }
         cache[key] = done

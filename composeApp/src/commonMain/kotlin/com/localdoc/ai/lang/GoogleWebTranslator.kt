@@ -34,6 +34,7 @@ class GoogleWebTranslator(private val http: WebHttp) {
         )
         // Негативный ответ сервиса — обычная ошибка перевода: страница остаётся в оригинале,
         // но читалка не падает; следующий блок пробуется снова
+        if (!result.isOk) println("GoogleWebTranslator: HTTP ${result.status} для tl=${target.code}")
         check(result.isOk) { "HTTP ${result.status}" }
         emit(parse(result.text()))
     }
