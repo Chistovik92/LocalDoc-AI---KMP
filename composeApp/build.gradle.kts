@@ -192,6 +192,11 @@ android {
             }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        debug {
+            // Debug-сборка живёт рядом с release (com.localdoc.ai.debug), не конфликтуя с ней:
+            // для проверки на устройстве без удаления релизных данных
+            applicationIdSuffix = ".debug"
+        }
     }
 
     compileOptions {
