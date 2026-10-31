@@ -14,8 +14,10 @@ import com.localdoc.ai.backup.BackupStorage
 import com.localdoc.ai.backup.RestoreResult
 import com.localdoc.ai.book.BookImporter
 import com.localdoc.ai.book.BookmarkRepository
-import com.localdoc.ai.lang.PageTranslator
 import com.localdoc.ai.book.LibraryRepository
+import com.localdoc.ai.lang.KvTranslationStore
+import com.localdoc.ai.lang.PageTranslator
+import com.localdoc.ai.lang.asStringKv
 import com.localdoc.ai.download.DownloadState
 import com.localdoc.ai.download.ModelDownloader
 import com.localdoc.ai.engine.LlamaEngine
@@ -78,6 +80,7 @@ import com.localdoc.ai.tts.Speaker
 import com.localdoc.ai.tts.SpeechRouter
 import com.localdoc.ai.tts.VoicePackManager
 import com.localdoc.ai.tts.VoicePackStorage
+import com.localdoc.ai.tts.VoiceSamplePlayer
 import com.localdoc.ai.tts.createPcmOutput
 import com.localdoc.ai.tts.createPiperBackend
 import kotlinx.coroutines.CoroutineScope
@@ -332,6 +335,15 @@ object AppGraph {
         VoicePackManager(VoicePackStorage(), ModelDownloader("voices", ".tar.bz2"), appScope, Dispatchers.Default)
     }
 
+    /** Проигрывание короткого WAV-сэмпла голоса без установки пакета (сэмпл качается с raw.githubusercontent и кэшируется). */
+    val voiceSamplePlayer: VoiceSamplePlayer by lazy {
+        VoiceSamplePlayer(
+            fetch = { url -> webHttp.get(url, maxBytes = 2 * 1024 * 1024).takeIf { it.isOk }?.body },
+            files = files,
+            scope = appScope
+        )
+    }
+
     /** Озвучка: системный синтезатор или встроенный Piper — по настройкам голоса. */
     val speaker: SpeechRouter by lazy {
         val builtin = PiperSpeechEngine(createPiperBackend(), createPcmOutput(), appScope, Dispatchers.Default) { id ->
@@ -356,14 +368,14 @@ object AppGraph {
         speaker.setVoice(v.voiceId)
     }
 
-    /** Постраничный перевод моделью; кэш и предзагрузка соседней страницы. */
+    /** Постраничный перевод моделью; кэш и предзагрузка соседней страницы. Готовый перевод сохраняется на диск. */
     val translator: PageTranslator by lazy {
         PageTranslator({ text, target, source ->
             flow {
                 check(engine.isLoaded()) { L10n.get(Res.string.model_not_loaded_inline) }
                 emitAll(pipeline.translate(text, target, source))
             }
-        }, appScope)
+        }, appScope, store = KvTranslationStore(kv.asStringKv()))
     }
 
     /** Плеер чтения вслух — общий для книг и веб-страниц. */

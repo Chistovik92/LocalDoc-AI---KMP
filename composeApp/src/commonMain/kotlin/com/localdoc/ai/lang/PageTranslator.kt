@@ -18,11 +18,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
 
 /**
  * Что именно переведено: документ, страница, язык перевода и (если задан) язык оригинала.
  * [layout] — размер страницы в символах: при другой разбивке тот же номер страницы — другие абзацы.
  */
+@Serializable
 data class PageKey(val docKey: String, val page: Int, val target: String, val source: String?, val layout: Int = 0)
 
 /**
@@ -34,7 +36,9 @@ data class PageKey(val docKey: String, val page: Int, val target: String, val so
 class PageTranslator(
     private val translateText: (text: String, target: Language, source: Language?) -> Flow<String>,
     private val scope: CoroutineScope,
-    private val maxCached: Int = 6
+    private val maxCached: Int = 6,
+    /** Долговременный стор перевода; null — перевод живёт только в памяти (тесты). */
+    private val store: TranslationStore? = null
 ) {
     // Сбой перевода одной страницы не должен ронять родительский скоуп (экран, приложение)
     private val work = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
@@ -58,13 +62,24 @@ class PageTranslator(
 
     fun cached(key: PageKey): List<Block>? = cache[key]
 
+    /** Удаляет сохранённые на диске переводы документа (книга удалена). */
+    fun clearDoc(docKey: String) {
+        store?.clearDoc(docKey)
+    }
+
     fun clearError() {
         _error.value = null
     }
 
-    /** Запускает (или возвращает уже идущий) перевод страницы; готовые страницы отдаются из кэша. */
+    /** Запускает (или возвращает уже идущий) перевод страницы; готовые страницы отдаются из кэша (или с диска). */
     fun request(key: PageKey, blocks: List<Block>, target: Language, source: Language?): Deferred<List<Block>> {
         cache[key]?.let { return CompletableDeferred(it) }
+        // Перевод уже сохранён с прошлой сессии — отдаём его и не тратим модель
+        store?.load(key)?.let { cached ->
+            cache[key] = cached
+            while (cache.size > maxCached) cache.remove(cache.keys.first())
+            return CompletableDeferred(cached)
+        }
         jobs[key]?.let { return it }
         val job = work.async {
             try {
@@ -126,6 +141,7 @@ class PageTranslator(
         val done = result.mapIndexed { i, b -> b ?: blocks[i] }
         cache[key] = done
         while (cache.size > maxCached) cache.remove(cache.keys.first())
+        store?.save(key, done)
         return done
     }
 

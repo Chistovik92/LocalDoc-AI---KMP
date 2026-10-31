@@ -139,6 +139,7 @@
     <string name="copied_text_becomes_a_document">Copied text becomes a document</string>
     <string name="continue_reading">Continue reading</string>
     <string name="listen">Listen</string>
+    <string name="listen_to_voice_sample">Listen to a voice sample</string>
     <string name="download_the_whole_book">Download the whole book…</string>
     <string name="delete_all_chapters">Delete all chapters</string>
     <string name="last_opened">Last opened · %1$s%</string>
@@ -741,6 +742,9 @@
     <string name="model_phi3_5_mini_desc">A Microsoft model with a long context: strong in analysis and reasoning, better in English.</string>
     <string name="model_gemma_3_4b_desc">The strongest compact Google model: deep retellings and answers on complex texts.</string>
     <string name="model_qwen3_4b_desc">A flagship for smartphones: the quality of large models, excellent Russian.</string>
+    <string name="model_qwen3_5_0_8b_desc">The new Qwen generation in an ultra-light package: runs even on budget phones, fast summaries.</string>
+    <string name="model_qwen3_5_2b_desc">A fresh compact Qwen 3.5: smarter than earlier models of the same size, excellent Russian.</string>
+    <string name="model_qwen3_5_4b_desc">The Qwen 3.5 flagship for smartphones: large-model quality with the best Russian.</string>
     <string name="model_qwen2_5_7b_desc">Server-grade quality. Requires 12+ GB of RAM and heats the battery more.</string>
     <string name="model_tag_weak_devices">For weak devices</string>
     <string name="model_tag_battery_saver">Battery saver</string>

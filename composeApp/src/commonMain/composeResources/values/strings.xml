@@ -139,6 +139,7 @@
     <string name="copied_text_becomes_a_document">Скопированный фрагмент станет документом</string>
     <string name="continue_reading">Продолжить чтение</string>
     <string name="listen">Слушать</string>
+    <string name="listen_to_voice_sample">Прослушать сэмпл голоса</string>
     <string name="download_the_whole_book">Скачать книгу целиком…</string>
     <string name="delete_all_chapters">Удалить все главы</string>
     <string name="last_opened">Последняя открытая · %1$s%</string>
@@ -745,6 +746,9 @@
     <string name="model_phi3_5_mini_desc">Модель Microsoft с длинным контекстом: сильна в анализе и рассуждениях, лучше на английском.</string>
     <string name="model_gemma_3_4b_desc">Сильнейшая компактная модель Google: глубокие пересказы и ответы по сложным текстам.</string>
     <string name="model_qwen3_4b_desc">Флагман для смартфонов: качество уровня крупных моделей, отличный русский язык.</string>
+    <string name="model_qwen3_5_0_8b_desc">Новое поколение Qwen в сверхлёгком корпусе: работает даже на бюджетных телефонах, быстрые выжимки.</string>
+    <string name="model_qwen3_5_2b_desc">Свежая Qwen 3.5 компактного размера: умнее прежних моделей той же весовой категории, отличный русский.</string>
+    <string name="model_qwen3_5_4b_desc">Флагман Qwen 3.5 для смартфонов: качество уровня крупных моделей, лучший русский язык.</string>
     <string name="model_qwen2_5_7b_desc">Качество уровня серверных моделей. Требует 12+ ГБ ОЗУ, сильнее греет батарею.</string>
     <string name="model_tag_weak_devices">Для слабых устройств</string>
     <string name="model_tag_battery_saver">Экономит батарею</string>
