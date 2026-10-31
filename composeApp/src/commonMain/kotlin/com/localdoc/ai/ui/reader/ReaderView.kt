@@ -27,6 +27,7 @@ import com.localdoc.ai.resources.find_the_main_points
 import com.localdoc.ai.resources.find_the_main_points_in_this
 import com.localdoc.ai.resources.font_and_background
 import com.localdoc.ai.resources.keep_reading
+import com.localdoc.ai.resources.keep_the_screen_on_while_reading
 import com.localdoc.ai.resources.main_points
 import com.localdoc.ai.resources.more
 import com.localdoc.ai.resources.next
@@ -103,6 +104,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -1042,6 +1044,15 @@ fun ReaderView(
                                         onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
                                     )
                                 }
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.keep_the_screen_on_while_reading)) },
+                                    leadingIcon = {
+                                        if (settings.keepScreenOn) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(keepScreenOn = !it.keepScreenOn) } }
+                                )
                                 DropdownMenuItem(text = { Text(stringResource(Res.string.font_and_background)) }, onClick = { showMenu = false; showSettings = true })
                                 if (entry != null) {
                                     DropdownMenuItem(

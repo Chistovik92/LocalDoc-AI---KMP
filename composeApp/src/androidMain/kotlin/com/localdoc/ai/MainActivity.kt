@@ -28,6 +28,10 @@ class MainActivity : ComponentActivity() {
     private val microphonePermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { AndroidIntents.onMicrophoneResult(it) }
 
+    // Первый запуск: микрофон и камера спрашиваются вместе, чтобы не тревожить пользователя позже
+    private val firstLaunchPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
     private val pdfPickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             AndroidIntents.onPdfPicked(uri?.toString())
@@ -58,9 +62,23 @@ class MainActivity : ComponentActivity() {
             notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        requestFirstLaunchPermissions()
+
         setContent {
             App()
         }
+    }
+
+    /** Микрофон и камера спрашиваются один раз при первом запуске (флаг в настройках). */
+    private fun requestFirstLaunchPermissions() {
+        val prefs = getSharedPreferences("localdoc", android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_FIRST_LAUNCH_PERMISSIONS_ASKED, false)) return
+        prefs.edit().putBoolean(KEY_FIRST_LAUNCH_PERMISSIONS_ASKED, true).apply()
+        val wanted = listOf(
+            android.Manifest.permission.RECORD_AUDIO,
+            android.Manifest.permission.CAMERA
+        ).filter { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
+        if (wanted.isNotEmpty()) firstLaunchPermissions.launch(wanted.toTypedArray())
     }
 
     override fun onDestroy() {
@@ -87,5 +105,9 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         AndroidIntents.handleIntent(intent)
+    }
+
+    private companion object {
+        const val KEY_FIRST_LAUNCH_PERMISSIONS_ASKED = "first_launch_permissions_asked"
     }
 }
