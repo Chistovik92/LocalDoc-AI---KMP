@@ -6,23 +6,26 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Перевод страницы «на лету» для озвучки: абзацы уходят в голос по мере готовности, а не всей страницей сразу.
+ * Перевод страницы «на лету» для озвучки: первые готовые абзацы уходят в голос, не дожидаясь
+ * перевода всей страницы.
  *
- * Озвучка не должна молчать, пока модель переводит всю страницу: переведённые абзацы звучат сразу,
- * а остальные догоняют их в том же порядке. Ждётся ровно столько, сколько нужно для следующего абзаца;
- * если перевод не успел — звучит оригинал, чтение не прерывается.
+ * Озвучка не должна молчать, пока модель переводит всю страницу: как только первый абзац
+ * готов, страница отдаётся плееру — готовые абзацы звучат переводом, остальные пока
+ * оригиналом (по мере продвижения перевода следующая страница уже звучит целиком переводом).
+ * Не дождались и первого абзаца за [FIRST_BLOCK_TIMEOUT_MS] — страница звучит как есть:
+ * чтение не прерывается и не замолкает на минуту ради ожидания перевода.
+ *
+ * Число блоков всегда равно числу блоков оригинала: индексы абзацев (подсветка, прыжки,
+ * закладки) остаются верными, текст не теряется.
  */
 object StreamingPageTranslation {
 
-    /** Сколько ждать первый абзац страницы; не дождались — страница звучит как есть (оригинал). */
-    private const val FIRST_BLOCK_TIMEOUT_MS = 120_000L
-    /** Сколько ждать следующий абзац после уже готовых. */
-    private const val NEXT_BLOCK_TIMEOUT_MS = 120_000L
+    /** Сколько ждать первый абзац перевода; не дождались — страница звучит в оригинале. */
+    private const val FIRST_BLOCK_TIMEOUT_MS = 20_000L
 
     /**
-     * Абзацы страницы для озвучки: переведённые — по мере готовности.
+     * Абзацы страницы для озвучки: переведённые — по мере готовности, остальные — оригинал.
      * [translate] — перевод страницы в общую очередь; [progress] — готовые абзацы страницы из переводчика.
-     * Возвращает столько абзацев, сколько успело перевестись, но не меньше одного (иначе молчание).
      */
     suspend fun translate(
         original: List<Block>,
@@ -31,45 +34,24 @@ object StreamingPageTranslation {
         translate: suspend (PageKey, List<Block>) -> List<Block>,
         progress: suspend (PageKey) -> List<Block?>
     ): List<Block> {
-        if (original.isEmpty() || !settings.speakAsTranslated) return translate(key, original)
-        // Не дождались первого абзаца — страница звучит в обычном порядке (перевод целиком)
-        var ready = awaitBlocks(key, progress, 1, FIRST_BLOCK_TIMEOUT_MS) ?: return translate(key, original)
-        while (ready.size < original.size) {
-            val next = awaitBlocks(key, progress, ready.size + 1, NEXT_BLOCK_TIMEOUT_MS) ?: break
-            ready = next
-        }
-        return ready
+        if (original.isEmpty()) return original
+        if (!settings.speakAsTranslated) return translate(key, original)
+        // Готовые блоки (перевод) на своих местах; null — ещё не готов, звучит оригинал
+        val ready = awaitFirst(key, progress) ?: return translate(key, original)
+        return List(original.size) { i -> ready.getOrNull(i) ?: original[i] }
     }
 
-    /**
-     * Ждёт, пока в переводе страницы не появятся первые [count] абзацев; null — не дождались.
-     * Отдаёт готовые абзацы (оригинал не подмешивается: непереведённые абзацы — в конце).
-     */
-    private suspend fun awaitBlocks(
+    /** Ждёт появления первого переведённого блока страницы; null — не дождались. */
+    private suspend fun awaitFirst(
         key: PageKey,
-        progress: suspend (PageKey) -> List<Block?>,
-        count: Int,
-        timeoutMs: Long
-    ): List<Block>? {
-        val result = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
-            progressOf(key, progress, count)
-        }
-        return result?.takeIf { it.isNotEmpty() }
-    }
-
-    /** Первые [count] переведённых абзацев страницы (ждёт, пока они появятся). */
-    private suspend fun progressOf(key: PageKey, progress: suspend (PageKey) -> List<Block?>, count: Int): List<Block> {
+        progress: suspend (PageKey) -> List<Block?>
+    ): List<Block?>? = withTimeoutOrNull(FIRST_BLOCK_TIMEOUT_MS) {
         var blocks = progress(key)
-        while (!hasReady(blocks, count)) {
-            kotlinx.coroutines.delay(POLL_MS)
+        while (blocks.all { it == null }) {
+            delay(POLL_MS)
             blocks = progress(key)
         }
-        return blocks.take(count).filterNotNull()
-    }
-
-    private fun hasReady(blocks: List<Block?>, count: Int): Boolean {
-        if (blocks.size < count) return false
-        return (0 until count).all { blocks[it] != null }
+        blocks
     }
 
     private const val POLL_MS = 200L
