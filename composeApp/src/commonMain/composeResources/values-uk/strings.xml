@@ -224,6 +224,7 @@
     <string name="name">Назва</string>
     <string name="address_for_example_http_192_168">Адреса, наприклад http://192.168.1.5:8080/opds</string>
     <string name="an_http_or_https_address_is">Потрібна адреса http:// або https://</string>
+    <string name="opds_login_hint">Логін і пароль — якщо сервер вимагає вхід (Calibre тощо)</string>
     <string name="downloading">Завантажуємо…</string>
     <string name="download_2">Завантажити %1$s</string>
     <string name="edit_note">Змінити нотатку</string>

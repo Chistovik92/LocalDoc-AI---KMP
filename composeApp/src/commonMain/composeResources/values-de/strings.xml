@@ -224,6 +224,7 @@
     <string name="name">Name</string>
     <string name="address_for_example_http_192_168">Adresse, z. B. http://192.168.1.5:8080/opds</string>
     <string name="an_http_or_https_address_is">Eine http://- oder https://-Adresse ist erforderlich</string>
+    <string name="opds_login_hint">Login und Passwort — falls der Server eine Anmeldung verlangt (Calibre usw.)</string>
     <string name="downloading">Wird heruntergeladen …</string>
     <string name="download_2">%1$s herunterladen</string>
     <string name="edit_note">Notiz bearbeiten</string>

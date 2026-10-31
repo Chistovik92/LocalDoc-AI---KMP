@@ -70,4 +70,20 @@ class OpdsClientTest {
         val file = client.download(OpdsDownload("https://calibre.local/get/1", "application/epub+zip", "EPUB"), "Война и мир")
         assertEquals("Война и мир.epub", file.name)
     }
+
+    @Test
+    fun `basic credentials are sent with every request`() = runTest {
+        val (client, transport) = client { page(root) }
+        val auth = OpdsAuth("alice", "s3cret")
+        client.load("https://calibre.local/opds", auth)
+        val expected = "Basic " + kotlin.io.encoding.Base64.encode("alice:s3cret".encodeToByteArray())
+        assertEquals(expected, transport.requests.single().headers.getValue("Authorization"))
+    }
+
+    @Test
+    fun `no authorization header without credentials`() = runTest {
+        val (client, transport) = client { page(root) }
+        client.load("https://calibre.local/opds")
+        assertTrue(transport.requests.single().headers.none { it.key == "Authorization" })
+    }
 }

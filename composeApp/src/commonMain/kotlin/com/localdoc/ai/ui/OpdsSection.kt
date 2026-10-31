@@ -12,10 +12,13 @@ import com.localdoc.ai.resources.could_not_load_the_catalog
 import com.localdoc.ai.resources.download_2
 import com.localdoc.ai.resources.downloading
 import com.localdoc.ai.resources.loading_2
+import com.localdoc.ai.resources.login
 import com.localdoc.ai.resources.name
 import com.localdoc.ai.resources.new_opds_catalog
 import com.localdoc.ai.resources.nothing_here_yet
+import com.localdoc.ai.resources.opds_login_hint
 import com.localdoc.ai.resources.opds_catalogs_open_libraries_project_gutenbe
+import com.localdoc.ai.resources.password
 import com.localdoc.ai.resources.remove
 import com.localdoc.ai.resources.search
 import com.localdoc.ai.resources.search_the_catalog
@@ -50,9 +53,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.domain.AppGraph
+import com.localdoc.ai.opds.OpdsAuth
 import com.localdoc.ai.opds.OpdsCatalog
 import com.localdoc.ai.opds.OpdsEntry
 import com.localdoc.ai.opds.OpdsFeed
@@ -81,12 +86,15 @@ fun OpdsSection() {
         error = e.message ?: loadFailedText
     }
 
+    fun auth(c: OpdsCatalog): OpdsAuth? = c.hasAuth.let { if (it) OpdsAuth(c.username, c.password) else null }
+
     fun load(url: String, replace: Boolean = false) {
+        val open = catalog ?: return
         loading = true
         error = null
         scope.launch {
             try {
-                val feed = AppGraph.opds.load(url)
+                val feed = AppGraph.opds.load(url, auth(open))
                 stack = if (replace) listOf(feed) else stack + feed
             } catch (e: CancellationException) {
                 throw e
@@ -105,7 +113,7 @@ fun OpdsSection() {
         error = null
         scope.launch {
             try {
-                stack = stack.take(1) + AppGraph.opds.search(feed, query)
+                stack = stack.take(1) + AppGraph.opds.search(feed, query, auth(catalog ?: return@launch))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -121,7 +129,7 @@ fun OpdsSection() {
         loading = true
         scope.launch {
             try {
-                val page = AppGraph.opds.load(next)
+                val page = AppGraph.opds.load(next, auth(catalog ?: return@launch))
                 val merged = OpdsFeed(feed.title, feed.entries + page.entries, page.nextUrl, feed.startUrl, feed.search)
                 stack = stack.dropLast(1) + merged
             } catch (e: CancellationException) {
@@ -141,7 +149,7 @@ fun OpdsSection() {
         error = null
         scope.launch {
             try {
-                val file = AppGraph.opds.download(best, entry.title)
+                val file = AppGraph.opds.download(best, entry.title, auth(catalog ?: return@launch))
                 AppGraph.importDownloaded(file, best.url)
                 message = getString(Res.string.added_to_the_library_2, entry.title, best.label)
             } catch (e: CancellationException) {
@@ -237,6 +245,8 @@ private fun CatalogList(onOpen: (OpdsCatalog) -> Unit) {
 private fun AddCatalogDialog(onDismiss: () -> Unit) {
     var title by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
+    var login by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -252,10 +262,19 @@ private fun AddCatalogDialog(onDismiss: () -> Unit) {
                     label = { Text(stringResource(Res.string.address_for_example_http_192_168)) }
                 )
                 if (wrong) Text(stringResource(Res.string.an_http_or_https_address_is), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = login, onValueChange = { login = it }, singleLine = true, label = { Text(stringResource(Res.string.login)) })
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    singleLine = true,
+                    label = { Text(stringResource(Res.string.password)) },
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                Text(stringResource(Res.string.opds_login_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
-            TextButton(onClick = { if (AppGraph.opdsCatalogs.add(title, url)) onDismiss() else wrong = true }) { Text(stringResource(Res.string.add), maxLines = 1, softWrap = false) }
+            TextButton(onClick = { if (AppGraph.opdsCatalogs.add(title, url, login, password)) onDismiss() else wrong = true }) { Text(stringResource(Res.string.add), maxLines = 1, softWrap = false) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel), maxLines = 1, softWrap = false) } }
     )
