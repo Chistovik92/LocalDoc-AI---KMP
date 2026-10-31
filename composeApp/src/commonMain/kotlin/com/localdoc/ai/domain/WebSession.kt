@@ -225,13 +225,20 @@ class WebSession(
             return
         }
         auth().importBrowserSession(browserUrl, cookieHeader)
-        // Сессия могла быть выдана другому адресу сайта, поэтому сохраняем её и за хостом страницы
-        if (CookieJar.normalizeHost(CookieJar.hostOf(browserUrl)) != CookieJar.normalizeHost(request.host)) {
+        // Сессия могла быть выдана другому адресу того же сайта (www-вариант, SSO внутри домена):
+        // cookie копируются и за хостом страницы, но только для родственных хостов — сессия
+        // с постороннего домена на хост страницы не переносится
+        val browserHost = CookieJar.normalizeHost(CookieJar.hostOf(browserUrl))
+        if (browserHost != CookieJar.normalizeHost(request.host) && sameSite(browserHost, CookieJar.normalizeHost(request.host))) {
             auth().importBrowserSession(request.pageUrl, cookieHeader)
         }
         _loginRequest.value = null
         open(request.pageUrl, allowRelogin = false)
     }
+
+    /** Родственные ли хосты одного сайта: один является суффиксом другого на границе домена. */
+    private fun sameSite(first: String, second: String): Boolean =
+        first.endsWith(".$second") || second.endsWith(".$first")
 
     fun dismissLogin() {
         _loginRequest.value = null
