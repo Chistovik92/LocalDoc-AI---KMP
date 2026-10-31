@@ -812,7 +812,7 @@
     <string name="stream_translation_to_screen">Übersetzung abschnittsweise anzeigen</string>
     <string name="stream_translation_to_screen_hint">Die Übersetzung erscheint auf dem Bildschirm, sobald sie fertig ist</string>
     <string name="prefer_page_translation">Übersetzung der Seite nutzen</string>
-    <string name="prefer_page_translation_hint">Wenn die Seite eine eigene Übersetzung hat, wird sie statt des Modells verwendet</string>
+    <string name="prefer_page_translation_hint">Webseiten übersetzt Google Translate (derselbe Dienst, den Seiten einbetten) — sofort, ohne lokales Modell zu laden</string>
 
     <string name="signup_login_or_nick">Login oder Spitzname</string>
     <string name="signup_email">E-Mail</string>

@@ -812,7 +812,7 @@
     <string name="stream_translation_to_screen">Show translation paragraph by paragraph</string>
     <string name="stream_translation_to_screen_hint">Translation appears on screen as it becomes ready, not all at once</string>
     <string name="prefer_page_translation">Use the page\'s own translation</string>
-    <string name="prefer_page_translation_hint">If the site provides its own translation, it is used instead of the model</string>
+    <string name="prefer_page_translation_hint">Web pages are translated by Google Translate (the same service sites embed) — instantly, without loading the local model</string>
 
     <string name="signup_login_or_nick">Login or nickname</string>
     <string name="signup_email">Email</string>

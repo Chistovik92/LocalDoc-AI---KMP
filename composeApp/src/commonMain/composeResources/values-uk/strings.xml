@@ -816,7 +816,7 @@
     <string name="stream_translation_to_screen">Показувати переклад абзацами</string>
     <string name="stream_translation_to_screen_hint">Переклад з\'являється на екрані в міру готовності, а не всією сторінкою одразу</string>
     <string name="prefer_page_translation">Брати переклад зі сторінки</string>
-    <string name="prefer_page_translation_hint">Якщо на сайті є власний переклад, він використовується замість перекладу моделлю</string>
+    <string name="prefer_page_translation_hint">Веб-сторінки перекладає Google Translate (той самий сервіс, що вбудовують сайти) — миттєво, без завантаження локальної моделі</string>
 
     <string name="signup_login_or_nick">Логін або нік</string>
     <string name="signup_email">Електронна пошта</string>
