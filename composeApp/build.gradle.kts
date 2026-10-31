@@ -140,8 +140,8 @@ android {
         // Android 8.0 (API 26) … Android 17 (API 37)
         minSdk = 26
         targetSdk = 37
-        versionCode = 19
-        versionName = "2.2.1"
+        versionCode = 20
+        versionName = "2.2.2"
 
         ndk {
             // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах).
