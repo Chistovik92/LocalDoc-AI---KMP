@@ -18,6 +18,7 @@ import kotlinx.cinterop.pointed
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.sizeOf
 import kotlinx.cinterop.toKString
+import kotlinx.cinterop.value
 import platform.posix.freeaddrinfo
 import platform.posix.getaddrinfo
 import platform.posix.getnameinfo
