@@ -51,6 +51,12 @@ actual class FileAccess actual constructor() {
         data.toByteArray()
     }
 
+    actual suspend fun sizeOf(pathOrUri: String): Long? = withContext(Dispatchers.IO) {
+        val path = pathOrUri.removePrefix("file://")
+        val attrs = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null)
+        (attrs?.get(NSFileSize) as? NSNumber)?.longValue
+    }
+
     actual fun displayName(pathOrUri: String): String? = pathOrUri.substringAfterLast('/').takeIf { it.isNotBlank() }
 
     /** Путь внутри хранилища: без «..» и абсолютных путей. */
