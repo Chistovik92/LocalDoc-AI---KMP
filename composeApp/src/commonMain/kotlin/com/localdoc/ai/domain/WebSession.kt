@@ -151,10 +151,11 @@ class WebSession(
                 _document.value = doc
                 _toc.value = emptyList()
                 _loginRequest.value = null
-                // Пользователь сам перешёл к следующей главе (или автопереход) во время озвучки — продолжаем читать её
+                // Пользователь сам перешёл к следующей главе (или автопереход) во время озвучки — продолжаем читать её.
+                // Через startReading, а не сырые блоки: так при включённом переводе озвучивается перевод, а не оригинал.
                 val player = readAloud()
                 if (previousKey != null && player.documentKey == previousKey) {
-                    player.start(docKey(doc), book.blocks, book.chapters, 0, book.title)
+                    AppGraph.startReading(docKey(doc), book, 0)
                 }
             } catch (e: LoginRequiredException) {
                 handleLoginRequired(url, e, allowRelogin)

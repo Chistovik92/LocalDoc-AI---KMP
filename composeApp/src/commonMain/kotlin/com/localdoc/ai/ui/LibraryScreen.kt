@@ -442,4 +442,6 @@ private fun removeBook(id: String) {
     AppGraph.library.remove(id)
     AppGraph.bookmarks.removeForEntry(id)
     AppGraph.annotations.removeForEntry(id)
+    // Перевод книги больше не нужен — освобождаем сохранённые на диске страницы
+    AppGraph.translator.clearDoc("book:$id")
 }
