@@ -246,15 +246,16 @@ private fun resolveHost(host: String): List<String> = memScoped {
     platform.posix.memset(hints.ptr, 0, sizeOf<platform.posix.addrinfo>().convert())
     val result = allocPointerTo<platform.posix.addrinfo>()
     if (getaddrinfo(host, null, hints.ptr, result.ptr) != 0) return@memScoped emptyList()
+    val head = result.value ?: return@memScoped emptyList()
     val addresses = ArrayList<String>()
     try {
         // Буфер под текстовую форму адреса: 46 байт хватает для IPv6 с зоной
         val text = allocArray<ByteVar>(46)
-        var current: platform.posix.addrinfo? = result.pointed
+        var current: platform.posix.addrinfo? = head.pointed
         while (current != null) {
             val addr = current.ai_addr
             if (addr != null) {
-                platform.posix.memset(text.ptr, 0, 46.convert())
+                platform.posix.memset(text, 0, 46.convert())
                 if (getnameinfo(addr, current.ai_addrlen.convert(), text, 46.convert(), null, 0.convert(), platform.posix.NI_NUMERICHOST) == 0) {
                     text.toKString().let { if (it.isNotBlank()) addresses.add(it) }
                 }
@@ -262,7 +263,7 @@ private fun resolveHost(host: String): List<String> = memScoped {
             current = current.ai_next?.reinterpret<platform.posix.addrinfo>()?.pointed
         }
     } finally {
-        freeaddrinfo(result.value)
+        freeaddrinfo(head)
     }
     addresses
 }
