@@ -69,7 +69,7 @@ private class IosAudioEvents : AudioInterruptions {
 
     private fun dispatchInterruption(note: NSNotification?) {
         val info = note?.userInfo ?: return
-        val type = (info[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.intValue ?: return
+        val type = (info[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.longValue?.toULong() ?: return
         when (type) {
             AVAudioSessionInterruptionTypeBegan -> onInterrupted?.invoke()
             AVAudioSessionInterruptionTypeEnded -> onRegained?.invoke()
@@ -78,7 +78,7 @@ private class IosAudioEvents : AudioInterruptions {
 
     private fun dispatchRouteChange(note: NSNotification?) {
         val info = note?.userInfo ?: return
-        val reason = (info[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.intValue ?: return
+        val reason = (info[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.longValue?.toULong() ?: return
         when (reason) {
             AVAudioSessionRouteChangeReasonNewDeviceAvailable -> onHeadphonesConnected?.invoke()
             AVAudioSessionRouteChangeReasonOldDeviceUnavailable -> onHeadphonesDisconnected?.invoke()
