@@ -15,6 +15,7 @@ import com.localdoc.ai.backup.RestoreResult
 import com.localdoc.ai.book.BookImporter
 import com.localdoc.ai.book.BookmarkRepository
 import com.localdoc.ai.book.LibraryRepository
+import com.localdoc.ai.lang.GoogleWebTranslator
 import com.localdoc.ai.lang.KvTranslationStore
 import com.localdoc.ai.lang.PageTranslator
 import com.localdoc.ai.lang.asStringKv
@@ -396,6 +397,17 @@ object AppGraph {
                 emitAll(pipeline.translate(text, target, source))
             }
         }, appScope, store = KvTranslationStore(kv.asStringKv()))
+    }
+
+    /**
+     * Перевод веб-страниц через Google Translate (без ключа): тот же сервис, которым сайты
+     * встраивают «свой» переводчик. Веб-документы (`web:*`) переводятся им, когда включена
+     * настройка «брать перевод у страницы» — мгновенно и без загрузки локальной модели.
+     */
+    val webTranslator: PageTranslator by lazy {
+        PageTranslator({ text, target, source ->
+            GoogleWebTranslator(webHttp).translate(text, target, source)
+        }, appScope)
     }
 
     /** Плеер чтения вслух — общий для книг и веб-страниц; слушает звонки, чужие плееры и наушники. */
