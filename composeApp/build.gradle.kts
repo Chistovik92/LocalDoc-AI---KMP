@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -140,8 +140,8 @@ android {
         // Android 8.0 (API 26) … Android 17 (API 37)
         minSdk = 26
         targetSdk = 37
-        versionCode = 18
-        versionName = "2.2.0"
+        versionCode = 19
+        versionName = "2.2.1"
 
         ndk {
             // 64-битные устройства (все современные) и 32-битные (armeabi-v7a: Android 8–9 на старых телефонах).
