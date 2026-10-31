@@ -7,24 +7,22 @@ import kotlin.test.assertNull
 
 class WavDecoderTest {
 
-    /** Собирает минимальный RIFF/PCM WAV: 1 канал, sampleRate, 16 бит, заданные сэмплы. */
+    /** Собирает минимальный RIFF/PCM WAV: 1 канал, sampleRate, 16 бит, заданные сэмплы (чистый Kotlin — без java.io). */
     private fun wav(sampleRate: Int, channels: Int, samples: List<Short>): ByteArray {
-        val bits = 16
-        val bytesPerSample = bits / 8
+        val bytesPerSample = 2
         val dataSize = samples.size * channels * bytesPerSample
-        val buf = java.io.ByteArrayOutputStream()
-        val w = java.io.DataOutputStream(buf)
+        val out = ArrayList<Byte>(44 + dataSize)
 
-        fun string(s: String) = w.writeBytes(s)
-        fun le32(v: Int) { w.writeByte(v and 0xFF); w.writeByte((v ushr 8) and 0xFF); w.writeByte((v ushr 16) and 0xFF); w.writeByte((v ushr 24) and 0xFF) }
-        fun le16(v: Int) { w.writeByte(v and 0xFF); w.writeByte((v ushr 8) and 0xFF) }
+        fun bytes(vararg v: Int) = v.forEach { out.add(it.toByte()) }
+        fun string(s: String) = s.encodeToByteArray().forEach(out::add)
+        fun le32(v: Int) = bytes(v and 0xFF, (v ushr 8) and 0xFF, (v ushr 16) and 0xFF, (v ushr 24) and 0xFF)
+        fun le16(v: Int) = bytes(v and 0xFF, (v ushr 8) and 0xFF)
 
         string("RIFF"); le32(36 + dataSize); string("WAVE")
-        string("fmt "); le32(16); le16(1); le16(channels); le32(sampleRate); le32(sampleRate * channels * bytesPerSample); le16(channels * bytesPerSample); le16(bits)
+        string("fmt "); le32(16); le16(1); le16(channels); le32(sampleRate); le32(sampleRate * channels * bytesPerSample); le16(channels * bytesPerSample); le16(16)
         string("data"); le32(dataSize)
         for (s in samples) { for (c in 0 until channels) le16(s.toInt()) }
-        w.flush()
-        return buf.toByteArray()
+        return out.toByteArray()
     }
 
     @Test

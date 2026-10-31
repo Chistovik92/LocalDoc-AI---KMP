@@ -127,7 +127,7 @@ object WavDecoder {
     private class Reader(val b: ByteArray) {
         var pos = 0
         fun has(n: Int) = pos + n <= b.size
-        fun tag(): String { val s = String(b, pos, 4); pos += 4; return s }
+        fun tag(): String { val s = b.decodeToString(pos, pos + 4); pos += 4; return s }
         fun skip(n: Int) { pos += n }
         fun i32(): Int { val v = b.le32(pos); pos += 4; return v }
         fun u16(): Int { val v = b.le16(pos); pos += 2; return v }
