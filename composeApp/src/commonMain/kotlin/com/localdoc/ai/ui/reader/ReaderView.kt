@@ -407,8 +407,10 @@ fun ReaderView(
     val sourceCode = translationSettings.sourceLanguage
     val layout = settings.pageSize.chars
     val pageKey = PageKey(docKey, page, target?.code.orEmpty(), sourceCode, layout)
+    // «Только озвучка»: перевод делается и звучит, но на экране остаётся язык оригинала
+    val showTranslation = !translationSettings.speakOnlyTranslation
     val translatedBlocks: List<Block?>? =
-        if (translating && target != null) translatedPages[pageKey] ?: AppGraph.translator.cached(pageKey) else null
+        if (translating && target != null && showTranslation) translatedPages[pageKey] ?: AppGraph.translator.cached(pageKey) else null
 
     fun pageBlocks(index: Int): List<Block> {
         val p = pager.page(index)

@@ -802,4 +802,13 @@
     <string name="auto_update_notification_title">Neue Kapitel</string>
     <string name="model_not_loaded_inline">Das Modell ist nicht geladen: wähle es unter Einstellungen → Modelle</string>
     <string name="could_not_open_short">konnte nicht geöffnet werden</string>
+
+    <string name="speak_as_translated">Beim Übersetzen vorlesen</string>
+    <string name="speak_as_translated_hint">Die Stimme liest übersetzte Abschnitte sofort, ohne das Ende der Seite abzuwarten</string>
+    <string name="speak_only_translation">Nur Übersetzung vorlesen</string>
+    <string name="speak_only_translation_hint">Übersetzung beim Vorlesen hören, auf dem Bildschirm bleibt die Originalsprache</string>
+    <string name="stream_translation_to_screen">Übersetzung abschnittsweise anzeigen</string>
+    <string name="stream_translation_to_screen_hint">Die Übersetzung erscheint auf dem Bildschirm, sobald sie fertig ist</string>
+    <string name="prefer_page_translation">Übersetzung der Seite nutzen</string>
+    <string name="prefer_page_translation_hint">Wenn die Seite eine eigene Übersetzung hat, wird sie statt des Modells verwendet</string>
 </resources>

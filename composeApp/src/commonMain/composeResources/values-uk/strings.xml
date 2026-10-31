@@ -806,4 +806,13 @@
     <string name="auto_update_notification_title">Нові розділи</string>
     <string name="model_not_loaded_inline">Модель не завантажена: оберіть її в Налаштування → Моделі</string>
     <string name="could_not_open_short">не вдалося відкрити</string>
+
+    <string name="speak_as_translated">Озвучувати в міру перекладу</string>
+    <string name="speak_as_translated_hint">Голос починає читати перекладені абзаци одразу, не чекаючи перекладу всієї сторінки</string>
+    <string name="speak_only_translation">Тільки озвучувати переклад</string>
+    <string name="speak_only_translation_hint">Чути переклад в озвучці, але залишити на екрані мову оригіналу</string>
+    <string name="stream_translation_to_screen">Показувати переклад абзацами</string>
+    <string name="stream_translation_to_screen_hint">Переклад з\'являється на екрані в міру готовності, а не всією сторінкою одразу</string>
+    <string name="prefer_page_translation">Брати переклад зі сторінки</string>
+    <string name="prefer_page_translation_hint">Якщо на сайті є власний переклад, він використовується замість перекладу моделлю</string>
 </resources>

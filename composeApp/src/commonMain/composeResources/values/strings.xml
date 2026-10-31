@@ -806,4 +806,13 @@
     <string name="auto_update_notification_title">Новые главы</string>
     <string name="model_not_loaded_inline">Модель не загружена: выберите её в Настройки → Модели</string>
     <string name="could_not_open_short">не удалось открыть</string>
+
+    <string name="speak_as_translated">Озвучивать по мере перевода</string>
+    <string name="speak_as_translated_hint">Голос начинает читать переведённые абзацы сразу, не дожидаясь перевода всей страницы</string>
+    <string name="speak_only_translation">Только озвучивать перевод</string>
+    <string name="speak_only_translation_hint">Слышать перевод в озвучке, но оставить на экране язык оригинала</string>
+    <string name="stream_translation_to_screen">Показывать перевод по абзацам</string>
+    <string name="stream_translation_to_screen_hint">Перевод появляется на экране по мере готовности, а не всей страницей сразу</string>
+    <string name="prefer_page_translation">Брать перевод со страницы</string>
+    <string name="prefer_page_translation_hint">Если на сайте есть свой перевод, он используется вместо перевода моделью</string>
 </resources>

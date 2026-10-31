@@ -17,12 +17,20 @@ import com.localdoc.ai.resources.original_language
 import com.localdoc.ai.resources.page_of
 import com.localdoc.ai.resources.pages_are_translated_one_by_one
 import com.localdoc.ai.resources.previous_page
+import com.localdoc.ai.resources.speak_as_translated
+import com.localdoc.ai.resources.speak_as_translated_hint
+import com.localdoc.ai.resources.speak_only_translation
+import com.localdoc.ai.resources.speak_only_translation_hint
 import com.localdoc.ai.resources.speech_reads_the_translation_in_the
+import com.localdoc.ai.resources.stream_translation_to_screen
+import com.localdoc.ai.resources.stream_translation_to_screen_hint
 import com.localdoc.ai.resources.translate_automatically
 import com.localdoc.ai.resources.translate_text
 import com.localdoc.ai.resources.translation
 import com.localdoc.ai.resources.translation_is_done_by_a_local
 import com.localdoc.ai.resources.translation_language
+import com.localdoc.ai.resources.prefer_page_translation
+import com.localdoc.ai.resources.prefer_page_translation_hint
 import com.localdoc.ai.resources.turn_translation_on_when_the_book
 import com.localdoc.ai.resources.Res
 import org.jetbrains.compose.resources.stringResource
@@ -133,6 +141,18 @@ internal fun TranslationSettingsContent() {
         )
         SwitchLine(stringResource(Res.string.translate_automatically), stringResource(Res.string.turn_translation_on_when_the_book), settings.autoTranslate) { v ->
             AppGraph.translationSettings.update { it.copy(autoTranslate = v) }
+        }
+        SwitchLine(stringResource(Res.string.speak_as_translated), stringResource(Res.string.speak_as_translated_hint), settings.speakAsTranslated) { v ->
+            AppGraph.translationSettings.update { it.copy(speakAsTranslated = v) }
+        }
+        SwitchLine(stringResource(Res.string.speak_only_translation), stringResource(Res.string.speak_only_translation_hint), settings.speakOnlyTranslation) { v ->
+            AppGraph.translationSettings.update { it.copy(speakOnlyTranslation = v) }
+        }
+        SwitchLine(stringResource(Res.string.stream_translation_to_screen), stringResource(Res.string.stream_translation_to_screen_hint), settings.streamToScreen) { v ->
+            AppGraph.translationSettings.update { it.copy(streamToScreen = v) }
+        }
+        SwitchLine(stringResource(Res.string.prefer_page_translation), stringResource(Res.string.prefer_page_translation_hint), settings.preferPageTranslation) { v ->
+            AppGraph.translationSettings.update { it.copy(preferPageTranslation = v) }
         }
     }
     if (pickTarget) {

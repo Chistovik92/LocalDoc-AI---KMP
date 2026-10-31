@@ -804,4 +804,13 @@
     <string name="auto_update_notification_title">Nuevos capítulos</string>
     <string name="model_not_loaded_inline">El modelo no está cargado: elígelo en Ajustes → Modelos</string>
     <string name="could_not_open_short">no se pudo abrir</string>
+
+    <string name="speak_as_translated">Leer mientras traduce</string>
+    <string name="speak_as_translated_hint">La voz empieza a leer los párrafos traducidos al instante, sin esperar a toda la página</string>
+    <string name="speak_only_translation">Solo traducción hablada</string>
+    <string name="speak_only_translation_hint">Escuchar la traducción al leer en voz alta, pero mantener el idioma original en pantalla</string>
+    <string name="stream_translation_to_screen">Mostrar la traducción por párrafos</string>
+    <string name="stream_translation_to_screen_hint">La traducción aparece en pantalla a medida que está lista</string>
+    <string name="prefer_page_translation">Usar la traducción de la página</string>
+    <string name="prefer_page_translation_hint">Si el sitio ofrece su propia traducción, se usa en lugar del modelo</string>
 </resources>

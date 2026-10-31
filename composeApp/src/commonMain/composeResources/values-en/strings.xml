@@ -802,4 +802,13 @@
     <string name="auto_update_notification_title">New chapters</string>
     <string name="model_not_loaded_inline">The model is not loaded: choose it in Settings → Models</string>
     <string name="could_not_open_short">could not open</string>
+
+    <string name="speak_as_translated">Speak as it translates</string>
+    <string name="speak_as_translated_hint">The voice starts reading translated paragraphs right away, without waiting for the whole page</string>
+    <string name="speak_only_translation">Spoken translation only</string>
+    <string name="speak_only_translation_hint">Hear the translation when read aloud, but keep the original language on screen</string>
+    <string name="stream_translation_to_screen">Show translation paragraph by paragraph</string>
+    <string name="stream_translation_to_screen_hint">Translation appears on screen as it becomes ready, not all at once</string>
+    <string name="prefer_page_translation">Use the page\'s own translation</string>
+    <string name="prefer_page_translation_hint">If the site provides its own translation, it is used instead of the model</string>
 </resources>
