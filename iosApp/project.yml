@@ -7,7 +7,7 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: 2.4.0
+    MARKETING_VERSION: 2.4.1
     CURRENT_PROJECT_VERSION: 22
     SWIFT_VERSION: "5.9"
     LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
