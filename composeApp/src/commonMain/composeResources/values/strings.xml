@@ -224,6 +224,7 @@
     <string name="name">Название</string>
     <string name="address_for_example_http_192_168">Адрес, например http://192.168.1.5:8080/opds</string>
     <string name="an_http_or_https_address_is">Нужен адрес http:// или https://</string>
+    <string name="opds_login_hint">Логин и пароль — если сервер требует вход (Calibre и т. п.)</string>
     <string name="downloading">Скачиваем…</string>
     <string name="download_2">Скачать %1$s</string>
     <string name="edit_note">Изменить заметку</string>
@@ -560,7 +561,7 @@
     <string name="could_not_check_2">Не удалось проверить</string>
     <string name="checking">Проверяем…</string>
     <string name="check_now">Проверить сейчас</string>
-    <string name="new_chapters_download_the_book_again">Новых глав: %1$s — скачайте книгу ещё раз, и они добавятся</string>
+    <string name="new_chapters_download_the_book_again">Новых глав: %1$s — они будут докачаны автоматически при следующей проверке</string>
     <string name="not_checked_yet">Ещё не проверялась</string>
     <string name="h">%1$s ч</string>
     <string name="once_a_day">Раз в сутки</string>

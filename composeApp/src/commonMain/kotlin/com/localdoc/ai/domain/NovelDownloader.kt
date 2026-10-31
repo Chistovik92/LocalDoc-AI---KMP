@@ -128,13 +128,20 @@ class NovelDownloader(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun run(startUrl: String, tocUrl: String?, knownToc: List<PageLink>, progress: (DownloadProgress) -> Unit): NovelResult {
+    suspend fun run(
+        startUrl: String,
+        tocUrl: String?,
+        knownToc: List<PageLink>,
+        /** false — не искать готовый файл книги (фоновая докачка: главы дописываются в существующую книгу). */
+        allowFile: Boolean = true,
+        progress: (DownloadProgress) -> Unit
+    ): NovelResult {
         progress(DownloadProgress(DownloadPhase.LOOKING))
         val start = source.load(startUrl)
         // Страница оглавления / описания: на ней название книги, обложка и ссылки «скачать»
         val tocPage = if (tocUrl != null && tocUrl != start.book.source) runCatching { source.load(tocUrl) }.getOrNull() else null
 
-        directBook(start, tocPage, progress)?.let { return it }
+        if (allowFile) directBook(start, tocPage, progress)?.let { return it }
 
         progress(DownloadProgress(DownloadPhase.TOC))
         val toc = knownToc.ifEmpty { tocUrl?.let { source.tableOfContents(it) }.orEmpty() }.distinctBy { it.url }

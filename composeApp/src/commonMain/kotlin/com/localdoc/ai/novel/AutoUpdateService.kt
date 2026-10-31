@@ -23,7 +23,9 @@ class AutoUpdateService(
     /** Назначить запуск на время [Long] (мс эпохи); Boolean — запускать только в безлимитной сети. */
     private val schedule: (Long, Boolean) -> Unit,
     private val cancel: () -> Unit,
-    private val notify: (title: String, text: String) -> Unit
+    private val notify: (title: String, text: String) -> Unit,
+    /** Фоновая докачка найденных глав; null — только сообщать о находках (старое поведение). */
+    private val refresh: (suspend (updates: List<NovelUpdate>) -> List<NovelUpdate>)? = null
 ) {
     suspend fun runScheduled(): RunResult {
         val s = settings()
@@ -40,7 +42,8 @@ class AutoUpdateService(
         }
         val report = checker.checkAll()
         saveLastRun(nowMs)
-        if (report.updates.isNotEmpty()) notify(L10n.get(Res.string.auto_update_notification_title), noticeText(report.updates))
+        val finished = if (report.updates.isNotEmpty() && refresh != null) refresh(report.updates) else report.updates
+        if (finished.isNotEmpty()) notify(L10n.get(Res.string.auto_update_notification_title), noticeText(finished))
         if (report.throttled) {
             schedule(UpdateSchedule.nextRunAfterThrottle(s, nowMs, tz), s.wifiOnly)
             return RunResult.THROTTLED

@@ -1,34 +1,28 @@
 # Сэмплы голосов Piper
 
-Короткие WAV-сэмплы для предпрослушивания голоса **без установки полного пакета**.
-Приложение качает их с `raw.githubusercontent.com` и играет через встроенный PCM-вывод.
+Короткие MP3-сэмплы для предпрослушивания голосов **без установки голосового пакета**.
+Приложение получает их с `raw.githubusercontent.com` и проигрывает через платформенный декодер.
+
+## Источник
+
+Файлы взяты из официального репозитория голосов Piper:
+**[rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)** (Hugging Face),
+путь внутри репозитория — `<lang>/<locale>/<speaker>/<quality>/samples/speaker_0.mp3`.
+
+Дата взятия копии: **2026-10-31** (репозиторий `main`; файлы `speaker_0.mp3`).
 
 ## Именование
 
-Файл называется `<id голоса>.wav`, где `id` — идентификатор из каталога
+Файл называется `<id голоса>.mp3`, где `id` — идентификатор из каталога
 `PiperVoiceCatalog` (поле `id` в `PiperVoices.kt`), например:
 
-- `vits-piper-ru_RU-irina-medium.wav`
-- `vits-piper-en_US-lessac-medium.wav`
+- `vits-piper-ru_RU-irina-medium.mp3`
+- `vits-piper-en_US-lessac-medium.mp3`
 
-## Как сгенерировать сэмпл
-
-1. Скачать модель голоса (`.onnx` + `tokens.txt` + `espeak-ng-data`) из
-   [sherpa-onnx tts-models](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models).
-2. Синтезировать короткую фразу:
-
-```bash
-sherpa-onnx-offline-tts \
-  --vits-model=./<voice>.onnx \
-  --vits-tokens=./tokens.txt \
-  --vits-data-dir=./espeak-ng-data \
-  --output-filename=./<voice>.wav \
-  "Привет. Так звучит этот голос."
-```
-
-3. Положить файл сюда и закоммитить.
+URL, по которому приложение забирает сэмпл: `https://raw.githubusercontent.com/Chistovik92/LocalDoc-AI---KMP/main/voice-samples/<id>.mp3`.
 
 ## Формат
 
-WAV (RIFF) PCM 16-бит или 32-бит float, 1–2 канала — декодируется встроенным `WavDecoder`.
-Короткий (1–2 предложения), чтобы скачивался быстро.
+MP3 (MPEG-1 Layer III), моно/стерео, 22–44 кГц — декодируется платформенным
+плеером приложения (`SampleAudio`: MediaPlayer на Android, AVAudioPlayer на iOS).
+Короткие (несколько секунд), чтобы не расходовать трафик.

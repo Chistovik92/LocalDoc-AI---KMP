@@ -233,7 +233,11 @@ private fun TrackedNovelsCard() {
                         val report = AppGraph.novelChecker.checkAll()
                         when {
                             report.throttled -> getString(Res.string.the_site_asks_to_wait_try)
-                            report.updates.isNotEmpty() -> AutoUpdateService.noticeText(report.updates)
+                            report.updates.isNotEmpty() -> {
+                                // Найденные главы сразу докачиваются в книги
+                                AppGraph.refreshNovelUpdates(report.updates)
+                                AutoUpdateService.noticeText(report.updates)
+                            }
                             report.skippedByRobots.isNotEmpty() -> getString(Res.string.the_site_does_not_allow_automatic)
                             report.failed > 0 -> getString(Res.string.could_not_check, report.failed)
                             else -> getString(Res.string.no_new_chapters)

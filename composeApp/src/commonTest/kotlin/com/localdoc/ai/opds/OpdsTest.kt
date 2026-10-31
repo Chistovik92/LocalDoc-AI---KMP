@@ -90,11 +90,11 @@ class OpdsTest {
     fun `only free formats the app can open are offered`() {
         val feed = OpdsParser.parseFeed(acquisitionFeed, "https://catalog.example/search.opds/q")
         val first = feed.entries[0].downloads
-        assertEquals(listOf("EPUB", "FB2"), first.map { it.label })
-        assertTrue(first.none { it.url.contains("buy") || it.url.contains("sample") || it.url.endsWith(".mobi") })
+        assertEquals(listOf("EPUB", "FB2", "MOBI"), first.map { it.label })
+        assertTrue(first.none { it.url.contains("buy") || it.url.contains("sample") })
         assertEquals("TXT", feed.entries[1].downloads.single().label)
-        assertTrue(feed.entries[2].downloads.isEmpty())
-        assertFalse(feed.entries[2].isBook, "книга только в неоткрываемом формате не считается скачиваемой")
+        assertEquals("MOBI", feed.entries[2].downloads.single().label)
+        assertTrue(feed.entries[2].isBook, "книга в MOBI теперь скачивается")
     }
 
     @Test
@@ -102,7 +102,7 @@ class OpdsTest {
         val feed = OpdsParser.parseFeed(acquisitionFeed, "https://catalog.example/x")
         assertEquals("EPUB", feed.entries[0].bestDownload()?.label)
         assertEquals("TXT", feed.entries[1].bestDownload()?.label)
-        assertNull(feed.entries[2].bestDownload())
+        assertEquals("MOBI", feed.entries[2].bestDownload()?.label)
     }
 
     @Test
@@ -123,6 +123,21 @@ class OpdsTest {
         val feed = OpdsParser.parseFeed(acquisitionFeed, "https://catalog.example/x")
         assertEquals("Война и мир.epub", feed.entries[0].bestDownload()?.let { OpdsFormats.fileName(feed.entries[0].title, it) })
         assertEquals("a b.txt", OpdsFormats.fileName("a/b", OpdsDownload("https://x/1", "text/plain", "TXT")))
+    }
+
+    @Test
+    fun `pdf and mobi downloads are recognized`() {
+        val xml = """<feed xmlns="http://www.w3.org/2005/Atom"><title>t</title>
+            <entry><title>Планета</title><id>1</id>
+              <link rel="http://opds-spec.org/acquisition" href="/dl/1.pdf" type="application/pdf"/>
+              <link rel="http://opds-spec.org/acquisition" href="/dl/1.mobi" type="application/x-mobipocket-ebook"/>
+            </entry></feed>"""
+        val entry = OpdsParser.parseFeed(xml, "https://catalog.example/").entries.single()
+        assertEquals(listOf("PDF", "MOBI"), entry.downloads.map { it.label })
+        assertEquals("Планета.pdf", entry.bestDownload()?.let { OpdsFormats.fileName(entry.title, it) })
+        assertEquals("Планета.mobi", entry.downloads.last().let { OpdsFormats.fileName(entry.title, it) })
+        assertTrue(OpdsFormats.label("", "https://x/book.prc") == "MOBI")
+        assertTrue(OpdsFormats.label("application/pdf", "https://x/anything") == "PDF")
     }
 
     @Test

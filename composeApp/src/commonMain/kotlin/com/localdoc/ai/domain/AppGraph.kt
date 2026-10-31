@@ -48,6 +48,9 @@ import com.localdoc.ai.net.DownloadSpeed
 import com.localdoc.ai.net.HostThrottle
 import com.localdoc.ai.net.RobotsPolicy
 import com.localdoc.ai.novel.AutoUpdateService
+import com.localdoc.ai.novel.NovelAutoRefresh
+import com.localdoc.ai.novel.NovelUpdate
+import com.localdoc.ai.novel.RefreshOutcome
 import com.localdoc.ai.novel.AutoUpdateSettings
 import com.localdoc.ai.novel.ChapterDiff
 import com.localdoc.ai.novel.NovelTracker
@@ -448,6 +451,19 @@ object AppGraph {
         NovelUpdateChecker(novelTracker, chapterSource, allowed = { webHttp.allowedByRobots(it) })
     }
 
+    /** Фоновая докачка: найденные проверкой главы скачиваются в книгу без участия пользователя. */
+    private val novelRefresher: NovelAutoRefresh by lazy {
+        NovelAutoRefresh(NovelDownloader(chapterSource, fileFetcher, files.asNovelFiles()), library, novelTracker)
+    }
+
+    /** Ручная проверка нашла новые главы: докачивает их тем же путём, что и запуск по расписанию. */
+    suspend fun refreshNovelUpdates(updates: List<NovelUpdate>) {
+        for (update in updates) {
+            val novel = novelTracker.all.value.firstOrNull { it.id == update.id } ?: continue
+            novelRefresher.refresh(novel, update.newChapters.map { it.url })
+        }
+    }
+
     val autoUpdate: AutoUpdateService by lazy {
         AutoUpdateService(
             settings = { autoUpdateSettings.value.value },
@@ -459,7 +475,19 @@ object AppGraph {
             now = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
             schedule = { at, unmetered -> BackgroundUpdates.schedule(at, unmetered) },
             cancel = { BackgroundUpdates.cancel() },
-            notify = { title, text -> BackgroundUpdates.notifyNewChapters(title, text) }
+            notify = { title, text -> BackgroundUpdates.notifyNewChapters(title, text) },
+            refresh = { updates ->
+                val done = ArrayList<NovelUpdate>()
+                for (update in updates) {
+                    val novel = novelTracker.all.value.firstOrNull { it.id == update.id } ?: continue
+                    when (val outcome = novelRefresher.refresh(novel, update.newChapters.map { it.url })) {
+                        is RefreshOutcome.Updated ->
+                            done.add(NovelUpdate(update.id, update.title, update.newChapters.take(outcome.chapters)))
+                        else -> done.add(update)
+                    }
+                }
+                done
+            }
         )
     }
 

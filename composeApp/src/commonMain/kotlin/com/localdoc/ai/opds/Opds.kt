@@ -6,6 +6,7 @@ import com.fleeksoft.ksoup.parser.Parser
 import com.localdoc.ai.book.WebNavigationDetector
 import com.localdoc.ai.domain.DownloadedFile
 import com.localdoc.ai.domain.NovelDownloader
+import com.localdoc.ai.net.HttpResult
 import com.localdoc.ai.net.HttpStatusException
 import com.localdoc.ai.net.WebHttp
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlin.io.encoding.Base64
+
+/** Учётные данные каталога: передаются как Basic-авторизация в каждом запросе. */
+data class OpdsAuth(val username: String, val password: String)
 
 /** Вариант скачивания книги: адрес, тип содержимого и подпись формата («EPUB»). */
 data class OpdsDownload(val url: String, val mime: String, val label: String)
@@ -49,15 +54,17 @@ class OpdsFeed(
 
 /** Форматы, которые приложение открывает без платформенных плагинов, в порядке предпочтения. */
 object OpdsFormats {
-    private val ORDER = listOf("EPUB", "FB2", "DOCX", "ODT", "RTF", "MD", "TXT")
+    private val ORDER = listOf("EPUB", "FB2", "PDF", "MOBI", "DOCX", "ODT", "RTF", "MD", "TXT")
 
-    /** Подпись формата по типу содержимого и адресу; null — формат не поддерживается (MOBI, PDF, архивы комиксов…). */
+    /** Подпись формата по типу содержимого и адресу; null — формат не поддерживается (архивы комиксов и т. п.). */
     fun label(mime: String, url: String): String? {
         val type = mime.substringBefore(';').trim().lowercase()
         val path = url.substringBefore('?').lowercase()
         return when {
             type == "application/epub+zip" || (type.isEmpty() && path.endsWith(".epub")) -> "EPUB"
             "fictionbook" in type || "fb2" in type || path.endsWith(".fb2") || path.endsWith(".fb2.zip") -> "FB2"
+            type == "application/pdf" || path.endsWith(".pdf") -> "PDF"
+            "mobipocket" in type || path.endsWith(".mobi") || path.endsWith(".prc") -> "MOBI"
             type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "DOCX"
             type == "application/vnd.oasis.opendocument.text" -> "ODT"
             type == "application/rtf" || type == "text/rtf" -> "RTF"
@@ -65,6 +72,8 @@ object OpdsFormats {
             type == "text/plain" -> "TXT"
             type.isEmpty() || type == "application/octet-stream" -> when {
                 path.endsWith(".txt") -> "TXT"
+                path.endsWith(".pdf") -> "PDF"
+                path.endsWith(".mobi") || path.endsWith(".prc") -> "MOBI"
                 path.endsWith(".docx") -> "DOCX"
                 path.endsWith(".odt") -> "ODT"
                 path.endsWith(".rtf") -> "RTF"
@@ -209,7 +218,18 @@ object OpdsParser {
 
 /** Известные каталоги: предустановленные и добавленные пользователем. */
 @Serializable
-data class OpdsCatalog(val id: String, val title: String, val url: String, val builtin: Boolean = false)
+data class OpdsCatalog(
+    val id: String,
+    val title: String,
+    val url: String,
+    val builtin: Boolean = false,
+    /** Необязательная Basic-авторизация: пустые строки — вход не требуется. */
+    val username: String = "",
+    val password: String = ""
+) {
+    /** true — серверу передаётся заголовок Authorization. */
+    val hasAuth: Boolean get() = username.isNotEmpty()
+}
 
 object OpdsCatalogs {
     /** Только каталоги с общественным достоянием; свои серверы (Calibre и т. п.) пользователь добавляет сам. */
@@ -241,12 +261,12 @@ class OpdsCatalogStore(private val load: () -> String?, private val save: (Strin
     val all: StateFlow<List<OpdsCatalog>> = _all.asStateFlow()
 
     /** Добавляет каталог; тот же адрес (без учёта `/` в конце и регистра) второй раз не добавляется. Возвращает false при неверном адресе. */
-    fun add(title: String, rawUrl: String): Boolean {
+    fun add(title: String, rawUrl: String, username: String = "", password: String = ""): Boolean {
         val url = OpdsCatalogs.normalizeAddress(rawUrl) ?: return false
         val key = url.trimEnd('/').lowercase()
         if (_all.value.any { it.url.trimEnd('/').lowercase() == key }) return true
         val name = title.trim().ifEmpty { url.substringAfter("://").substringBefore('/') }
-        commit(custom.value + OpdsCatalog("c" + NovelDownloader.folderId(url), name, url))
+        commit(custom.value + OpdsCatalog("c" + NovelDownloader.folderId(url), name, url, username = username.trim(), password = password))
         return true
     }
 
@@ -268,28 +288,36 @@ class OpdsCatalogStore(private val load: () -> String?, private val save: (Strin
 /** Сетевая часть: ленты и файлы идут через общий клиент с очередью запросов к сайту. */
 class OpdsClient(private val http: WebHttp) {
 
-    suspend fun load(url: String): OpdsFeed {
-        val result = http.get(url, headers = mapOf("Accept" to ACCEPT), maxBytes = MAX_FEED_BYTES)
+    private suspend fun fetch(url: String, auth: OpdsAuth?, accept: Boolean, maxBytes: Long): HttpResult {
+        val headers = buildMap {
+            if (accept) put("Accept", ACCEPT)
+            if (auth != null) put("Authorization", "Basic " + Base64.encode("${auth.username}:${auth.password}".encodeToByteArray()))
+        }
+        return http.get(url, headers = headers, maxBytes = maxBytes)
+    }
+
+    suspend fun load(url: String, auth: OpdsAuth? = null): OpdsFeed {
+        val result = fetch(url, auth, accept = true, maxBytes = MAX_FEED_BYTES)
         if (!result.isOk) throw HttpStatusException(result.status, result.url)
         return withContext(Dispatchers.Default) { OpdsParser.parseFeed(result.text(), result.url) }
     }
 
     /** Шаблон поиска каталога; если он лежит в описании OpenSearch, описание загружается один раз. */
-    suspend fun searchTemplate(feed: OpdsFeed): String? {
+    suspend fun searchTemplate(feed: OpdsFeed, auth: OpdsAuth? = null): String? {
         val search = feed.search ?: return null
         if (!search.isDescription) return search.href
-        val result = http.get(search.href, maxBytes = MAX_FEED_BYTES)
+        val result = fetch(search.href, auth, accept = false, maxBytes = MAX_FEED_BYTES)
         if (!result.isOk) throw HttpStatusException(result.status, result.url)
         return withContext(Dispatchers.Default) { OpdsParser.openSearchTemplate(result.text(), result.url) }
     }
 
-    suspend fun search(feed: OpdsFeed, query: String): OpdsFeed {
-        val template = searchTemplate(feed) ?: throw IllegalStateException("У этого каталога нет поиска")
-        return load(OpdsParser.searchUrl(template, query))
+    suspend fun search(feed: OpdsFeed, query: String, auth: OpdsAuth? = null): OpdsFeed {
+        val template = searchTemplate(feed, auth) ?: throw IllegalStateException("У этого каталога нет поиска")
+        return load(OpdsParser.searchUrl(template, query), auth)
     }
 
-    suspend fun download(download: OpdsDownload, title: String): DownloadedFile {
-        val result = http.get(download.url, maxBytes = WebHttp.MAX_DOWNLOAD_BYTES)
+    suspend fun download(download: OpdsDownload, title: String, auth: OpdsAuth? = null): DownloadedFile {
+        val result = fetch(download.url, auth, accept = false, maxBytes = WebHttp.MAX_DOWNLOAD_BYTES)
         if (!result.isOk) throw HttpStatusException(result.status, result.url)
         if (result.contentType.startsWith("text/html")) throw IllegalStateException("Сервер вместо книги прислал страницу — возможно, нужен вход")
         return DownloadedFile(OpdsFormats.fileName(title, download), result.body)

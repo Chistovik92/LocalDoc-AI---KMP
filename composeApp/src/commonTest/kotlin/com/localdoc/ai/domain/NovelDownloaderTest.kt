@@ -144,8 +144,7 @@ class NovelDownloaderTest {
     }
 
     @Test
-    fun `a ready made file offered by the site is preferred over crawling`() = runTest {
-        val text = ("Абзац книги. ".repeat(40) + "\n\n").repeat(10).encodeToByteArray()
+    fun `a ready made file offered by the site is preferred over crawling`() = runTest {        val text = ("Абзац книги. ".repeat(40) + "\n\n").repeat(10).encodeToByteArray()
         val link = PageLink("Скачать книгу (txt)", "https://site.example/files/book.txt")
         val site = FakeSite(4, mapOf("https://site.example/ch/2" to listOf(link)))
         var fetched = 0
@@ -159,6 +158,20 @@ class NovelDownloaderTest {
         assertNotNull(result.original)
         assertEquals(0, site.tocCalls, "оглавление не нужно, если есть готовый файл")
         assertTrue(result.book.plainText.contains("Абзац книги"))
+    }
+
+    @Test
+    fun `refresh skips the ready made file and rebuilds from chapters`() = runTest {
+        val text = ("Абзац книги. ".repeat(40) + "\n\n").repeat(10).encodeToByteArray()
+        val link = PageLink("Скачать книгу (txt)", "https://site.example/files/book.txt")
+        val site = FakeSite(5, mapOf("https://site.example/toc" to listOf(link)))
+        var fetched = 0
+        val result = downloader(site, fetcher = { fetched++; DownloadedFile("book.txt", text) })
+            .run("https://site.example/ch/1", "https://site.example/toc", emptyList(), allowFile = false) {}
+
+        assertEquals(0, fetched, "при докачке готовый файл сайта не трогаем")
+        assertEquals(5, result.chapters)
+        assertNull(result.original)
     }
 
     @Test

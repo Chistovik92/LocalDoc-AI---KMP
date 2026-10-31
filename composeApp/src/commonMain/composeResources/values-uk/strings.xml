@@ -224,6 +224,7 @@
     <string name="name">Назва</string>
     <string name="address_for_example_http_192_168">Адреса, наприклад http://192.168.1.5:8080/opds</string>
     <string name="an_http_or_https_address_is">Потрібна адреса http:// або https://</string>
+    <string name="opds_login_hint">Логін і пароль — якщо сервер вимагає вхід (Calibre тощо)</string>
     <string name="downloading">Завантажуємо…</string>
     <string name="download_2">Завантажити %1$s</string>
     <string name="edit_note">Змінити нотатку</string>
@@ -560,7 +561,7 @@
     <string name="could_not_check_2">Не вдалося перевірити</string>
     <string name="checking">Перевіряємо…</string>
     <string name="check_now">Перевірити зараз</string>
-    <string name="new_chapters_download_the_book_again">Нових розділів: %1$s — завантажте книгу ще раз, і вони додадуться</string>
+    <string name="new_chapters_download_the_book_again">Нових розділів: %1$s — вони будуть докачані автоматично при наступній перевірці</string>
     <string name="not_checked_yet">Ще не перевірялась</string>
     <string name="h">%1$s год</string>
     <string name="once_a_day">Раз на добу</string>
