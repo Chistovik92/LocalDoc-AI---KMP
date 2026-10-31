@@ -139,6 +139,7 @@
     <string name="copied_text_becomes_a_document">El texto copiado se convierte en documento</string>
     <string name="continue_reading">Seguir leyendo</string>
     <string name="listen">Escuchar</string>
+    <string name="listen_to_voice_sample">Escuchar una muestra de voz</string>
     <string name="download_the_whole_book">Descargar el libro completo…</string>
     <string name="delete_all_chapters">Eliminar todos los capítulos</string>
     <string name="last_opened">Abierto por última vez · %1$s%</string>
@@ -743,6 +744,9 @@
     <string name="model_phi3_5_mini_desc">Un modelo de Microsoft con contexto largo: fuerte en análisis y razonamiento, mejor en inglés.</string>
     <string name="model_gemma_3_4b_desc">El modelo compacto más potente de Google: relatos profundos y respuestas sobre textos complejos.</string>
     <string name="model_qwen3_4b_desc">Un buque insignia para teléfonos: calidad de modelos grandes, excelente ruso.</string>
+    <string name="model_qwen3_5_0_8b_desc">La nueva generación Qwen en un formato ultraligero: funciona incluso en teléfonos básicos, resúmenes rápidos.</string>
+    <string name="model_qwen3_5_2b_desc">Una Qwen 3.5 compacta y reciente: más inteligente que modelos anteriores del mismo tamaño, excelente ruso.</string>
+    <string name="model_qwen3_5_4b_desc">El buque insignia Qwen 3.5 para teléfonos: calidad de modelos grandes con el mejor ruso.</string>
     <string name="model_qwen2_5_7b_desc">Calidad de nivel de servidor. Requiere 12+ GB de RAM y calienta más la batería.</string>
     <string name="model_tag_weak_devices">Para dispositivos modestos</string>
     <string name="model_tag_battery_saver">Ahorra batería</string>

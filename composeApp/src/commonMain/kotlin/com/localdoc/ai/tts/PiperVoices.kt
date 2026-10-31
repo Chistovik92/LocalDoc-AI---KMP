@@ -21,12 +21,17 @@ data class PiperVoice(
 
     override val url: String get() = "$RELEASES/$id.tar.bz2"
 
+    /** Короткий WAV-сэмпл голоса (лежит в репозитории, проигрывается без установки пакета). */
+    val sampleUrl: String get() = "$SAMPLES/$id.wav"
+
     val sizeMb: Long get() = sizeBytes / (1024L * 1024L)
 
     companion object {
         private const val ID_PREFIX = "vits-piper-"
         // Официальные сборки голосов Piper для sherpa-onnx (лицензии голосов — в MODEL_CARD архива)
         private const val RELEASES = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models"
+        // Короткие сэмплы голосов, сгенерированные заранее и выложенные в репозиторий
+        private const val SAMPLES = "https://raw.githubusercontent.com/Chistovik92/LocalDoc-AI---KMP/main/voice-samples"
     }
 }
 

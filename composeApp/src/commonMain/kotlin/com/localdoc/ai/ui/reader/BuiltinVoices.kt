@@ -6,6 +6,7 @@ import com.localdoc.ai.resources.cancel_download
 import com.localdoc.ai.resources.delete_voice
 import com.localdoc.ai.resources.download_voice
 import com.localdoc.ai.resources.installed_offline
+import com.localdoc.ai.resources.listen_to_voice_sample
 import com.localdoc.ai.resources.mb
 import com.localdoc.ai.resources.of_mb_2
 import com.localdoc.ai.resources.piper_neural_voices_work_right_inside
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,6 +82,7 @@ internal fun BuiltinVoicesSection() {
                     onSelect = { select(pack) },
                     onDownload = { AppGraph.voicePacks.download(pack) },
                     onCancel = { AppGraph.voicePacks.cancel(pack) },
+                    onListen = { AppGraph.voiceSamplePlayer.play(pack.sampleUrl) { } },
                     onDelete = {
                         scope.launch {
                             if (selectedId == pack.id) {
@@ -121,6 +124,7 @@ private fun BuiltinVoiceRow(
     onSelect: () -> Unit,
     onDownload: () -> Unit,
     onCancel: () -> Unit,
+    onListen: () -> Unit,
     onDelete: () -> Unit
 ) {
     val installed = state == VoicePackState.Installed
@@ -135,6 +139,7 @@ private fun BuiltinVoiceRow(
         leadingContent = { RadioButton(selected = selected, onClick = onSelect, enabled = installed) },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onListen) { Icon(Icons.Default.PlayArrow, contentDescription = stringResource(Res.string.listen_to_voice_sample)) }
                 when (state) {
                     VoicePackState.Installed -> IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.delete_voice)) }
                     VoicePackState.Installing -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)

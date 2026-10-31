@@ -15,6 +15,9 @@ import com.localdoc.ai.resources.model_qwen2_5_3b_desc
 import com.localdoc.ai.resources.model_qwen2_5_7b_desc
 import com.localdoc.ai.resources.model_qwen3_1_7b_desc
 import com.localdoc.ai.resources.model_qwen3_4b_desc
+import com.localdoc.ai.resources.model_qwen3_5_0_8b_desc
+import com.localdoc.ai.resources.model_qwen3_5_2b_desc
+import com.localdoc.ai.resources.model_qwen3_5_4b_desc
 import com.localdoc.ai.resources.model_smollm2_1_7b_desc
 import com.localdoc.ai.resources.model_tag_analysis
 import com.localdoc.ai.resources.model_tag_balance
@@ -115,6 +118,15 @@ object ModelCatalog {
             tags = listOf(Res.string.model_tag_weak_devices)
         ),
         ModelSpec(
+            id = "qwen3.5-0.8b-q4km",
+            name = "Qwen 3.5 0.8B",
+            descriptionRes = Res.string.model_qwen3_5_0_8b_desc,
+            url = "$HF/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf",
+            sizeMb = 508, family = ModelFamily.QWEN, parameters = "0.8B", minRamGb = 3,
+            quality = 3, speed = 5, russian = 4, license = "Apache 2.0", template = ChatTemplate.QWEN3,
+            tags = listOf(Res.string.model_tag_weak_devices, Res.string.model_tag_new)
+        ),
+        ModelSpec(
             id = "gemma-3-1b-it-q4km",
             name = "Gemma 3 1B",
             descriptionRes = Res.string.model_gemma_3_1b_desc,
@@ -166,7 +178,16 @@ object ModelCatalog {
             url = "$HF/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
             sizeMb = 1056, family = ModelFamily.QWEN, parameters = "1.7B", minRamGb = 4,
             quality = 4, speed = 4, russian = 4, license = "Apache 2.0", template = ChatTemplate.QWEN3,
-            tags = listOf(Res.string.model_tag_new), recommended = true
+            tags = listOf(Res.string.model_tag_new)
+        ),
+        ModelSpec(
+            id = "qwen3.5-2b-q4km",
+            name = "Qwen 3.5 2B",
+            descriptionRes = Res.string.model_qwen3_5_2b_desc,
+            url = "$HF/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf",
+            sizeMb = 1221, family = ModelFamily.QWEN, parameters = "2B", minRamGb = 4,
+            quality = 4, speed = 4, russian = 5, license = "Apache 2.0", template = ChatTemplate.QWEN3,
+            tags = listOf(Res.string.model_tag_new)
         ),
         ModelSpec(
             id = "deepseek-r1-distill-qwen-1.5b-q4km",
@@ -227,6 +248,15 @@ object ModelCatalog {
             descriptionRes = Res.string.model_qwen3_4b_desc,
             url = "$HF/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
             sizeMb = 2382, family = ModelFamily.QWEN, parameters = "4B", minRamGb = 8,
+            quality = 5, speed = 2, russian = 5, license = "Apache 2.0", template = ChatTemplate.QWEN3,
+            tags = listOf(Res.string.model_tag_quality)
+        ),
+        ModelSpec(
+            id = "qwen3.5-4b-q4km",
+            name = "Qwen 3.5 4B",
+            descriptionRes = Res.string.model_qwen3_5_4b_desc,
+            url = "$HF/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
+            sizeMb = 2614, family = ModelFamily.QWEN, parameters = "4B", minRamGb = 8,
             quality = 5, speed = 2, russian = 5, license = "Apache 2.0", template = ChatTemplate.QWEN3,
             tags = listOf(Res.string.model_tag_quality, Res.string.model_tag_new), recommended = true
         ),
