@@ -171,7 +171,7 @@ internal fun TranslationSettingsContent() {
 
 /** Строка с переключателем и пояснением; длинный текст переносится, переключатель остаётся справа. */
 @Composable
-internal fun SwitchLine(title: String, description: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+fun SwitchLine(title: String, description: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 8.dp)

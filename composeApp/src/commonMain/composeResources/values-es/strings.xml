@@ -220,6 +220,8 @@
     <string name="opds_catalogs_open_libraries_project_gutenbe">Catálogos OPDS: bibliotecas abiertas (Project Gutenberg y similares) y tus propios servidores, como Calibre. Conecta solo catálogos de los que tengas derecho a descargar libros. Los catálogos protegidos con contraseña aún no son compatibles.</string>
     <string name="remove">Quitar</string>
     <string name="add_a_catalog">Añadir un catálogo</string>
+    <string name="home_http_catalogs_title">Catalogos de red domestica por http://</string>
+    <string name="home_http_catalogs_hint">Permitir http:// sin cifrado solo para direcciones de la red domestica: OPDS o WebDAV en tu NAS o router. Los sitios publicos nunca se abren por http.</string>
     <string name="new_opds_catalog">Nuevo catálogo OPDS</string>
     <string name="name">Nombre</string>
     <string name="address_for_example_http_192_168">Dirección, por ejemplo http://192.168.1.5:8080/opds</string>
@@ -813,4 +815,17 @@
     <string name="stream_translation_to_screen_hint">La traducción aparece en pantalla a medida que está lista</string>
     <string name="prefer_page_translation">Usar la traducción de la página</string>
     <string name="prefer_page_translation_hint">Si el sitio ofrece su propia traducción, se usa en lugar del modelo</string>
+
+    <string name="signup_login_or_nick">Usuario o apodo</string>
+    <string name="signup_email">Correo electrónico</string>
+    <string name="signup_password_min_6">Contraseña (mínimo 6 caracteres)</string>
+    <string name="site_signup_page">Página de registro</string>
+    <string name="sign_up_2">Registrarse</string>
+    <string name="signup_done_sign_in">Listo: ya puede iniciar sesión</string>
+    <string name="signup_wrong_data">El sitio rechazó los datos — revíselos</string>
+    <string name="signup_no_form">No hay formulario de registro en la página</string>
+    <string name="site_login_hint">Inicio de sesión y registro en el sitio de la página abierta</string>
+    <string name="sign_in_on_site">Iniciar sesión en el sitio</string>
+    <string name="open_site_login">Abrir la página de inicio de sesión</string>
+    <string name="site_auth_https_only">El inicio de sesión y el registro solo funcionan por https://</string>
 </resources>
