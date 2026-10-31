@@ -6,15 +6,10 @@ import platform.AVFAudio.AVAudioSessionInterruptionNotification
 import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
 import platform.AVFAudio.AVAudioSessionInterruptionTypeEnded
 import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
-import platform.AVFAudio.AVAudioSessionPortBluetoothA2DP
-import platform.AVFAudio.AVAudioSessionPortHeadphones
-import platform.AVFAudio.AVAudioSessionPortHeadset
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
-import platform.AVFAudio.AVAudioSessionRouteChangeOldRouteKey
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonKey
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonNewDeviceAvailable
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonOldDeviceUnavailable
-import platform.AVFAudio.AVAudioSessionRouteDescription
 import platform.Foundation.NSNotification
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
@@ -23,16 +18,12 @@ import platform.Foundation.NSOperationQueue
 /**
  * iOS: события аудиосессии.
  * - Прерывание (телефонный звонок, Siri, будильник): начало — пауза, окончание — продолжение.
- * - Наушники: смена маршрута на проводные/Bluetooth — продолжение чтения; исчезновение
- *   наушников из маршрута (выделили провод, выключили Bluetooth) — пауза, чтобы звук
- *   не хлынул в динамик.
+ * - Наушники: появление нового аудиоустройства — сигнал «подключено» (продолжает прерванную
+ *   озвучку), исчезновение устройства — сигнал «отключено» (пауза, чтобы звук не хлынул
+ *   в динамик). Решение по флагам прерываний принимает контроллер.
  */
 @OptIn(ExperimentalForeignApi::class)
 actual fun createAudioInterruptions(): AudioInterruptions? = IosAudioEvents()
-
-/** Типы портов вывода, считающиеся наушниками. */
-private val HEADPHONE_PORTS =
-    setOf(AVAudioSessionPortHeadphones, AVAudioSessionPortHeadset, AVAudioSessionPortBluetoothA2DP)
 
 @OptIn(ExperimentalForeignApi::class)
 private class IosAudioEvents : AudioInterruptions {
@@ -78,7 +69,7 @@ private class IosAudioEvents : AudioInterruptions {
 
     private fun dispatchInterruption(note: NSNotification?) {
         val info = note?.userInfo ?: return
-        val type = (info[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.ulongValue ?: return
+        val type = (info[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.intValue ?: return
         when (type) {
             AVAudioSessionInterruptionTypeBegan -> onInterrupted?.invoke()
             AVAudioSessionInterruptionTypeEnded -> onRegained?.invoke()
@@ -87,21 +78,10 @@ private class IosAudioEvents : AudioInterruptions {
 
     private fun dispatchRouteChange(note: NSNotification?) {
         val info = note?.userInfo ?: return
-        val reason = (info[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.ulongValue ?: return
+        val reason = (info[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.intValue ?: return
         when (reason) {
-            AVAudioSessionRouteChangeReasonNewDeviceAvailable ->
-                if (hasHeadphoneOutput()) onHeadphonesConnected?.invoke()
-            AVAudioSessionRouteChangeReasonOldDeviceUnavailable ->
-                if (oldRouteHadHeadphones(info)) onHeadphonesDisconnected?.invoke()
+            AVAudioSessionRouteChangeReasonNewDeviceAvailable -> onHeadphonesConnected?.invoke()
+            AVAudioSessionRouteChangeReasonOldDeviceUnavailable -> onHeadphonesDisconnected?.invoke()
         }
-    }
-
-    private fun hasHeadphoneOutput(): Boolean =
-        AVAudioSession.sharedInstance().currentRoute
-            .outputs.any { (it as? AVAudioSessionPortDescription)?.portType in HEADPHONE_PORTS }
-
-    private fun oldRouteHadHeadphones(info: Map<Any?, *>): Boolean {
-        val old = info[AVAudioSessionRouteChangeOldRouteKey] as? AVAudioSessionRouteDescription ?: return false
-        return old.outputs.any { (it as? AVAudioSessionPortDescription)?.portType in HEADPHONE_PORTS }
     }
 }
