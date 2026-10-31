@@ -123,6 +123,7 @@ class WebHttp(
         throttled: Boolean = true
     ): HttpResult {
         var url = requireHttp(startUrl)
+        NetSafety.checkCleartext(url)
         var verb = method
         var payload = body
         var previous: String? = null
@@ -162,7 +163,13 @@ class WebHttp(
             if (response.status in REDIRECT_CODES && !location.isNullOrBlank()) {
                 val next = WebNavigationDetector.resolveUrl(url, location)?.let(::requireHttp)
                     ?: throw IllegalStateException("Некорректное перенаправление")
+                NetSafety.checkCleartext(next)
                 NetSafety.checkRedirect(url, next)
+                // 307/308 сохраняют и пароль в теле формы, не только заголовки.
+                if (payload != null && response.status in listOf(307, 308) &&
+                    !sameOrigin(url, next)) {
+                    throw UnsafeRedirectException("Пересылка тела запроса на другой origin запрещена")
+                }
                 // 301/302/303 после POST превращаются в GET; 307/308 повторяют запрос как есть
                 if (response.status in listOf(301, 302, 303) && verb != "GET") { verb = "GET"; payload = null }
                 previous = url
@@ -201,6 +208,19 @@ class WebHttp(
     }
 
     companion object {
+        /** Строгое сравнение origin без нормализации www или смешивания портов. */
+        internal fun sameOrigin(first: String, second: String): Boolean {
+            fun origin(url: String): String? {
+                val scheme = url.substringBefore("://").lowercase()
+                if (scheme != "http" && scheme != "https") return null
+                val authority = url.substringAfter("://", "").substringBefore('/').substringBefore('?').substringBefore('#').lowercase()
+                if (authority.isBlank() || '@' in authority || '\\' in authority || authority.any { it.isWhitespace() }) return null
+                return "$scheme://$authority"
+            }
+            val expected = origin(first) ?: return false
+            return expected == origin(second)
+        }
+
         const val MAX_REDIRECTS = 10
         const val MAX_PAGE_BYTES = 12L * 1024 * 1024
         const val MAX_IMAGE_BYTES = 8L * 1024 * 1024

@@ -5,6 +5,7 @@ package com.localdoc.ai.platform
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.suspendCancellableCoroutine
+import com.localdoc.ai.net.NetSafety
 import com.localdoc.ai.net.WebHttp
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSURLAuthenticationChallenge
@@ -27,6 +28,7 @@ import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSHTTPCookie
 import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSHost
 import platform.Foundation.NSMutableData
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSURL
@@ -56,7 +58,20 @@ actual class RawHttp actual constructor() {
     actual val userAgent: String =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-    actual suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse =
+    actual suspend fun execute(request: RawRequest, maxBytes: Long): RawResponse {
+        NetSafety.checkCleartext(request.url)
+        // DNS-перепривязка: проверяем IP, к которому реально идёт соединение, а не только имя
+        val host = WebHttp.hostOf(request.url)
+        if (!NetSafety.isInternalHost(host)) {
+            val resolved = runCatching {
+                (NSHost.hostWithName(host)?.addresses as? List<*>)?.map(Any::toString) ?: emptyList()
+            }.getOrDefault(emptyList())
+            NetSafety.checkResolved(host, resolved)
+        }
+        return executeRequest(request, maxBytes)
+    }
+
+    private suspend fun executeRequest(request: RawRequest, maxBytes: Long): RawResponse =
         suspendCancellableCoroutine { cont ->
             val nsUrl = NSURL.URLWithString(request.url)
             if (nsUrl == null) {
