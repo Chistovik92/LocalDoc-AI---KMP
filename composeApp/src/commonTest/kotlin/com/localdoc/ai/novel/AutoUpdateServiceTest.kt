@@ -145,4 +145,32 @@ class AutoUpdateServiceTest {
         assertEquals("«Новелла 1» +1, «Новелла 2» +1", AutoUpdateService.noticeText(listOf(update(1), update(2))))
         assertEquals("Новых глав: 4 в 4 новеллах", AutoUpdateService.noticeText((1..4).map(::update)))
     }
+
+    @Test
+    fun `found chapters are refreshed before the notification`() = runTest {
+        val h = Harness(now = monday + 12 * hour)
+        val refreshed = ArrayList<List<NovelUpdate>>()
+        val service = AutoUpdateService(
+            settings = { h.settings },
+            checker = NovelUpdateChecker(h.tracker, h.source, now = { h.now }),
+            lastRun = { h.lastRun },
+            saveLastRun = { h.lastRun = it },
+            network = { h.network },
+            tzOffsetMinutes = { 0 },
+            now = { h.now },
+            schedule = { at, unmetered -> h.scheduled.add(at to unmetered) },
+            cancel = { h.cancelled++ },
+            notify = { title, text -> h.notices.add(title to text) },
+            refresh = { updates ->
+                refreshed.add(updates)
+                // Одна глава скачалась, другая осталась недоступной
+                updates.map { NovelUpdate(it.id, it.title, it.newChapters.take(1)) }
+            }
+        )
+        assertEquals(RunResult.DONE, service.runScheduled())
+        assertEquals(1, refreshed.size)
+        assertEquals(2, refreshed.single().single().newChapters.size, "в докачку передаются все найденные главы")
+        assertEquals(1, h.notices.single().second.count { it == '+' }, "уведомление только о реально скачанных главах")
+        assertTrue(h.notices.single().second.contains("+1"))
+    }
 }

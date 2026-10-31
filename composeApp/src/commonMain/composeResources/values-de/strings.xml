@@ -561,7 +561,7 @@
     <string name="could_not_check_2">Prüfung fehlgeschlagen</string>
     <string name="checking">Wird geprüft …</string>
     <string name="check_now">Jetzt prüfen</string>
-    <string name="new_chapters_download_the_book_again">Neue Kapitel: %1$s – lade das Buch erneut herunter, dann werden sie hinzugefügt</string>
+    <string name="new_chapters_download_the_book_again">Neue Kapitel: %1$s – sie werden bei der nächsten Prüfung automatisch heruntergeladen</string>
     <string name="not_checked_yet">Noch nicht geprüft</string>
     <string name="h">%1$s Std.</string>
     <string name="once_a_day">Einmal täglich</string>

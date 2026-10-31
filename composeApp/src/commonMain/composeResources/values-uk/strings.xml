@@ -561,7 +561,7 @@
     <string name="could_not_check_2">Не вдалося перевірити</string>
     <string name="checking">Перевіряємо…</string>
     <string name="check_now">Перевірити зараз</string>
-    <string name="new_chapters_download_the_book_again">Нових розділів: %1$s — завантажте книгу ще раз, і вони додадуться</string>
+    <string name="new_chapters_download_the_book_again">Нових розділів: %1$s — вони будуть докачані автоматично при наступній перевірці</string>
     <string name="not_checked_yet">Ще не перевірялась</string>
     <string name="h">%1$s год</string>
     <string name="once_a_day">Раз на добу</string>

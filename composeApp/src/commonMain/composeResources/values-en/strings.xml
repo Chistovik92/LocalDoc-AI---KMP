@@ -561,7 +561,7 @@
     <string name="could_not_check_2">Could not check</string>
     <string name="checking">Checking…</string>
     <string name="check_now">Check now</string>
-    <string name="new_chapters_download_the_book_again">New chapters: %1$s — download the book again and they will be added</string>
+    <string name="new_chapters_download_the_book_again">New chapters: %1$s — they will be downloaded automatically on the next check</string>
     <string name="not_checked_yet">Not checked yet</string>
     <string name="h">%1$s h</string>
     <string name="once_a_day">Once a day</string>

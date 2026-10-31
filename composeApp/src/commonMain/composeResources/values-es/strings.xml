@@ -561,7 +561,7 @@
     <string name="could_not_check_2">No se pudo comprobar</string>
     <string name="checking">Comprobando…</string>
     <string name="check_now">Comprobar ahora</string>
-    <string name="new_chapters_download_the_book_again">Capítulos nuevos: %1$s; descarga el libro otra vez y se añadirán</string>
+    <string name="new_chapters_download_the_book_again">Capítulos nuevos: %1$s; se descargarán automáticamente en la próxima comprobación</string>
     <string name="not_checked_yet">Aún sin comprobar</string>
     <string name="h">%1$s h</string>
     <string name="once_a_day">Una vez al día</string>
