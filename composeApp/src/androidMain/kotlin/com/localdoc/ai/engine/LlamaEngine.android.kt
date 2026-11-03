@@ -6,6 +6,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
+import android.util.Log
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
@@ -41,15 +42,21 @@ actual class LlamaEngine actual constructor() {
 
     actual suspend fun load(modelPath: String, contextSize: Int, gpuLayers: Int): Boolean =
         withContext(Dispatchers.IO) {
+            Log.d("LocalDocDebug", "engine load path=$modelPath context=$contextSize gpu=$gpuLayers")
             unload()
             val ptr = initNative(modelPath, contextSize, gpuLayers)
             sessionLock.withLock { sessionPtr = ptr }
+            Log.d("LocalDocDebug", "engine load result=${ptr != 0L}")
             ptr != 0L
         }
 
     actual fun generateStream(prompt: String, maxTokens: Int): Flow<String> = callbackFlow<String> {
+        Log.d("LocalDocDebug", "engine generate start promptChars=${prompt.length} maxTokens=$maxTokens")
         val ptr = sessionLock.withLock { sessionPtr.also { if (it != 0L) activeGenerations++ } }
-        check(ptr != 0L) { "Модель не загружена" }
+        if (ptr == 0L) {
+            Log.e("LocalDocDebug", "engine generate rejected: model not loaded")
+            check(false) { "Модель не загружена" }
+        }
 
         // Всё после захвата указателя — под finally, иначе счётчик «утечёт» и unload() зависнет
         val status = try {
@@ -67,6 +74,7 @@ actual class LlamaEngine actual constructor() {
         } finally {
             sessionLock.withLock { activeGenerations-- }
         }
+        Log.d("LocalDocDebug", "engine generate native returned status=$status")
         GenerationStatus.ensureOk(status)
         close()
     }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)

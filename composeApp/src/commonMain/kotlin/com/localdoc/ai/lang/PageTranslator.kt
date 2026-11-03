@@ -3,6 +3,7 @@ package com.localdoc.ai.lang
 import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.domain.SmartPipeline
+import com.localdoc.ai.platform.DebugLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -90,6 +91,7 @@ class PageTranslator(
 
     /** Запускает (или возвращает уже идущий) перевод страницы; готовые страницы отдаются из кэша (или с диска). */
     fun request(key: PageKey, blocks: List<Block>, target: Language, source: Language?): Deferred<List<Block>> {
+        DebugLog.d("translation request key=$key blocks=${blocks.size} target=${target.code}")
         cache[key]?.let { return CompletableDeferred(it) }
         // Перевод уже сохранён с прошлой сессии — отдаём его и не тратим модель
         store?.load(key)?.let { cached ->
@@ -101,10 +103,12 @@ class PageTranslator(
         val resume = partials.remove(key)
         val job = work.async {
             try {
+                DebugLog.d("translation start key=$key")
                 translatePage(key, blocks, target, source, resume)
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
+                DebugLog.e("translation failed key=$key", t)
                 _error.value = "Не удалось перевести: ${t.message ?: t::class.simpleName}"
                 throw t
             } finally {
@@ -123,6 +127,7 @@ class PageTranslator(
      *  настройкой (язык, разбивка). Страницу с уже переведёнными блоками не трогаем — локальная модель
      *  переводит страницу долго, и отменять её на каждом листании нельзя: ни одна не доходит до конца. */
     fun cancelFar(keep: PageKey, radius: Int = 1) {
+        DebugLog.d("translation cancelFar keep=$keep radius=$radius jobs=${jobs.size}")
         jobs.keys.filter { key ->
             key.docKey == keep.docKey &&
                 (key.target != keep.target || key.layout != keep.layout || kotlin.math.abs(key.page - keep.page) > radius)

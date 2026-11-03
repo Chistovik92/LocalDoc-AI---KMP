@@ -19,7 +19,7 @@ class PageGeometryTest {
         // Запас — константные dp, а не доля высоты: и на большом, и на маленьком экране он одинаков
         assertEquals(1592f, pageContentHeightPx(area, density), 0.01f)
         assertEquals(1596f, pageContentHeightPx(1600f, Density(1f, 1f)), 0.01f)
-        assertEquals(area / 2f, pageContentHeightPx(0f, density), 0.01f)
+        assertEquals(0f, pageContentHeightPx(0f, density), 0.01f)
     }
 
     @Test

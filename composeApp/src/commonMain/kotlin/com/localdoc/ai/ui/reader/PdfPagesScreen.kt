@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.book.Book
 import com.localdoc.ai.book.pdf.PdfPageResult
+import com.localdoc.ai.platform.DebugLog
 import com.localdoc.ai.book.pdf.PdfPageSource
 import com.localdoc.ai.book.pdf.blockOfPdfPage
 import com.localdoc.ai.book.pdf.pdfPageOfBlock
@@ -103,14 +104,15 @@ fun PdfPagesScreen(
     LaunchedEffect(fileName) {
         openedSource = fileName?.let { name ->
             kotlinx.coroutines.withContext(IoDispatcher) {
-                // Локальная копия не найдена или пуста: не тратим время на открытие
-                if ((AppGraph.files.sizeOf(name) ?: 0L) <= 0L) {
-                    println("PdfPagesScreen: копия файла не найдена — $name")
+                // Локальная копия не найдена или пуста: не тратим время на открытие.
+                // Это имя в хранилище приложения (filesDir/books), а не путь/URI — sizeOf() здесь не годится
+                if (AppGraph.files.appFileSize(name) <= 0L) {
+                    DebugLog.e("PDF copy missing name=$name")
                     null
                 } else try {
                     PdfPageSource(PdfPageRenderer(AppGraph.files.appFilePath(name)), IoDispatcher)
                 } catch (t: Throwable) {
-                    println("PdfPagesScreen: документ не открыт — ${t.message ?: t::class.simpleName}")
+                    DebugLog.e("PDF open failed name=$name", t)
                     null
                 }
             }
@@ -217,11 +219,13 @@ private fun PdfPageView(
     LaunchedEffect(index, widthPx, attempt) {
         when (val result = source.page(index, widthPx)) {
             is PdfPageResult.Ready -> {
+                DebugLog.d("PDF page ready index=$index width=$widthPx bytes=${result.bytes.size}")
                 val decoded = withContext(IoDispatcher) { decodeImageBitmap(result.bytes, widthPx, preferRgb565 = true) }
                 bitmap = decoded
                 failure = if (decoded == null) didNotOpen else null
             }
             is PdfPageResult.Failed -> {
+                DebugLog.e("PDF page failed index=$index reason=${result.reason}")
                 bitmap = null
                 failure = result.reason
             }

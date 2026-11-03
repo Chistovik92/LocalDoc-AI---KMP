@@ -155,6 +155,7 @@ import com.localdoc.ai.notes.AnnotationColor
 import com.localdoc.ai.notes.TextMark
 import com.localdoc.ai.notes.markAt
 import com.localdoc.ai.platform.ScreenControls
+import com.localdoc.ai.platform.DebugLog
 import com.localdoc.ai.platform.VolumeKeys
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -535,6 +536,7 @@ fun ReaderView(
     // «брать перевод у страницы» перезапускает эффект и не оставляет работу в другом переводчике.
     LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout, pageTranslator) {
         if (!translating || target == null) return@LaunchedEffect
+        DebugLog.d("reader translation effect doc=$docKey page=$page local=${pageTranslator === AppGraph.translator}")
         val nextKey = PageKey(docKey, page + 1, target.code, sourceCode, layout)
         pageTranslator.clearError()
         pageTranslator.cancelFar(pageKey)
@@ -546,6 +548,7 @@ fun ReaderView(
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
+            DebugLog.e("reader translation effect failed doc=$docKey page=$page", t)
             // Ошибка уже показана баннером из переводчика: здесь только чтобы эффект не упал
         }
     }
@@ -557,6 +560,7 @@ fun ReaderView(
     }
 
     fun startTranslation(enabled: Boolean) {
+        DebugLog.d("translation toggled doc=$docKey enabled=$enabled local=${pageTranslator === AppGraph.translator}")
         AppGraph.translating.value = if (enabled) AppGraph.translating.value + docKey else AppGraph.translating.value - docKey
         // Идущая озвучка продолжится с этого же места уже на новом языке
         if (isMine) AppGraph.startReading(docKey, book, speaking?.block ?: currentBlock)

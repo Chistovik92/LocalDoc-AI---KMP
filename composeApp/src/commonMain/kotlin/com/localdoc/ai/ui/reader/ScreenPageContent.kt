@@ -118,7 +118,8 @@ internal const val PAGE_SAFETY_DP = 4f
 
 /** Высота области текста страницы с запасом: разница между измерением и отрисовкой не режет глиф. */
 internal fun pageContentHeightPx(areaHeightPx: Float, density: androidx.compose.ui.unit.Density): Float =
-    (areaHeightPx - with(density) { PAGE_SAFETY_DP.dp.toPx() }).coerceAtLeast(areaHeightPx / 2f)
+    if (areaHeightPx <= 0f) areaHeightPx / 2f
+    else (areaHeightPx - with(density) { PAGE_SAFETY_DP.dp.toPx() }).coerceAtLeast(areaHeightPx / 2f)
 
 /**
  * Считает экранные страницы в фоне при каждой смене размера области, шрифта, интервала, полей, выключки
@@ -246,7 +247,7 @@ internal fun ScreenPageContent(
                     Column(
                         modifier = Modifier.onSizeChanged { rendered ->
                             if (rendered.height > budgetPx) {
-                                println("ScreenPageContent: страница выше бюджета — рендер ${rendered.height}, область ${area.height}px, запас ${PAGE_SAFETY_DP.dp.value}dp")
+                                println("ScreenPageContent: page exceeds budget — rendered=${rendered.height}, area=${area.height}px, reserve=${PAGE_SAFETY_DP.dp.value}dp")
                             }
                         }
                     ) {

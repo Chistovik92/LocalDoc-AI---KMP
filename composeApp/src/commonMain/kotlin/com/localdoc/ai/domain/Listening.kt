@@ -8,8 +8,10 @@ import com.localdoc.ai.lang.LanguageDetector
 import com.localdoc.ai.lang.Languages
 import com.localdoc.ai.lang.PageKey
 import com.localdoc.ai.lang.StreamingPageTranslation
+import com.localdoc.ai.platform.DebugLog
 import com.localdoc.ai.tts.SpeechPageSource
 import com.localdoc.ai.tts.VoiceSelector
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -21,6 +23,7 @@ class BookSpeechSource(
 ) : SpeechPageSource {
 
     override suspend fun blocks(page: Int): List<Block> {
+        DebugLog.d("speech blocks page=$page doc=$docKey translated=true")
         val p = pager.page(page)
         val original = book.blocks.subList(p.startBlock.coerceAtMost(book.blocks.size), p.endBlock.coerceAtMost(book.blocks.size))
         val target = AppGraph.translationTarget(docKey) ?: return original
@@ -28,7 +31,15 @@ class BookSpeechSource(
         val source = Languages.byCode(settings.sourceLanguage)
         // Веб-страницы переводит Google Translate, если включена настройка «брать перевод у страницы»
         val translator = if (settings.preferPageTranslation && docKey.startsWith("web:")) AppGraph.webTranslator else AppGraph.translator
-        return translator.translate(PageKey(docKey, page, target.code, settings.sourceLanguage, AppGraph.readerSettings.value.value.pageSize.chars), original, target, source)
+        return try {
+            translator.translate(PageKey(docKey, page, target.code, settings.sourceLanguage, AppGraph.readerSettings.value.value.pageSize.chars), original, target, source)
+        } catch (t: Throwable) {
+            if (t is CancellationException) throw t
+            DebugLog.e("speech page translation failed page=$page doc=$docKey", t)
+            // Озвучка не должна падать из-за недоступной/занятой локальной модели:
+            // безопасно продолжаем оригиналом, как в версиях до потокового перевода.
+            original
+        }
     }
 }
 
@@ -48,12 +59,18 @@ fun AppGraph.pagerFor(book: Book): BookPager =
  * переведённые абзацы звучат по мере готовности, поэтому голос начинает читать почти сразу.
  */
 fun AppGraph.startReading(docKey: String, book: Book, fromBlock: Int) {
+    DebugLog.d("startReading doc=$docKey fromBlock=$fromBlock translated=${translationTarget(docKey)?.code}")
     val pager = pagerFor(book)
     val target = translationTarget(docKey)
     val language = target ?: detectLanguage(book, pager, fromBlock)
     val source = speechSourceFor(docKey, book, pager, target)
     applyVoiceFor(language) {
-        readAloud.start(docKey, source, book.chapters, fromBlock, book.title)
+        try {
+            readAloud.start(docKey, source, book.chapters, fromBlock, book.title)
+        } catch (t: Throwable) {
+            DebugLog.e("startReading failed doc=$docKey", t)
+            throw t
+        }
     }
 }
 
@@ -138,13 +155,20 @@ private class StreamingSpeechSource(
      * начало страницы не замолчало надолго: первые абзацы уходят в голос по готовности.
      */
     override suspend fun blocks(page: Int): List<Block> {
+        DebugLog.d("stream speech blocks page=$page doc=$docKey")
         val p = pager.page(page)
         val original = book.blocks.subList(p.startBlock.coerceAtMost(book.blocks.size), p.endBlock.coerceAtMost(book.blocks.size))
         val settings = AppGraph.translationSettings.value.value
         val key = PageKey(docKey, page, target.code, settings.sourceLanguage, AppGraph.readerSettings.value.value.pageSize.chars)
-        return StreamingPageTranslation.translate(original, key, settings, translate = { k, blocks ->
+        return try {
+            StreamingPageTranslation.translate(original, key, settings, translate = { k, blocks ->
             translate(k, blocks, Languages.byCode(settings.sourceLanguage))
-        }, progress = progress)
+            }, progress = progress)
+        } catch (t: Throwable) {
+            if (t is CancellationException) throw t
+            DebugLog.e("stream speech translation failed page=$page doc=$docKey", t)
+            original
+        }
     }
 }
 

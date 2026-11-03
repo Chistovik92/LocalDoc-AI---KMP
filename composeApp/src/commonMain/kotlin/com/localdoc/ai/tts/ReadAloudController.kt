@@ -1,5 +1,7 @@
 package com.localdoc.ai.tts
 
+import com.localdoc.ai.platform.DebugLog
+
 import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BookPager
 import com.localdoc.ai.book.Chapter
@@ -145,6 +147,7 @@ class ReadAloudController(
         start(key, StaticPageSource(blocks, pager ?: BookPager.build(blocks, chapters)), chapters, fromBlock, title)
 
     fun start(key: String, source: SpeechPageSource, chapters: List<Chapter>, fromBlock: Int, title: String = "") {
+        DebugLog.d("readAloud.start key=$key fromBlock=$fromBlock chapters=${chapters.size}")
         session++
         loadJob?.cancel()
         slideJob?.cancel()
@@ -157,7 +160,12 @@ class ReadAloudController(
         chapterStarts = chapters.map { it.startBlock }.filter { it > 0 }.sorted()
         val mySession = session
         loadJob = scope.launch {
-            val opened = runCatchingPage { openWindow(source.pager.pageOfBlock(fromBlock), fromBlock) }
+            val opened = try {
+                runCatchingPage { openWindow(source.pager.pageOfBlock(fromBlock), fromBlock) }
+            } catch (t: Throwable) {
+                DebugLog.e("readAloud openWindow failed key=$key", t)
+                throw t
+            }
             if (mySession != session) return@launch
             if (!opened) {
                 _state.value = ReadAloudState(error = "В тексте нет фрагментов для озвучки")
@@ -222,6 +230,7 @@ class ReadAloudController(
     }
 
     fun stop() {
+        DebugLog.d("readAloud.stop key=$documentKey")
         session++
         loadJob?.cancel()
         slideJob?.cancel()
