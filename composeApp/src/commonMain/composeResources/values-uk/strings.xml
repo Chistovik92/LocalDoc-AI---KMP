@@ -684,6 +684,7 @@
     <string name="speed_fast_hint">Близько 2 секунд між розділами; сайт може обмежити доступ — вмикайте для своїх серверів</string>
     <string name="page_short">стор. %1$s</string>
     <string name="page_of_total">%1$s з %2$s</string>
+    <string name="page_of_incomplete">%1$s з …</string>
     <string name="screen_page_explanation">Сторінка — стільки тексту, скільки вміщується на екран за вибраних шрифту, інтервалу й полів.</string>
     <string name="speech_chunk_title">Порція для озвучування й перекладу</string>
     <string name="speech_chunk_hint">Озвучування, переклад і ШІ працюють порціями тексту в будь-якому режимі — велика книга не зависає.</string>

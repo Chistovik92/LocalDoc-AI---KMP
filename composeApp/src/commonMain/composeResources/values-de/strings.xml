@@ -680,6 +680,7 @@
     <string name="speed_fast_hint">Etwa 2 Sekunden zwischen Kapiteln; die Website kann den Zugriff einschränken – nutze es für eigene Server</string>
     <string name="page_short">S. %1$s</string>
     <string name="page_of_total">%1$s von %2$s</string>
+    <string name="page_of_incomplete">%1$s von …</string>
     <string name="screen_page_explanation">Eine Seite ist so viel Text, wie bei der gewählten Schrift, dem Zeilenabstand und den Rändern auf den Bildschirm passt.</string>
     <string name="speech_chunk_title">Abschnitt für Sprachausgabe und Übersetzung</string>
     <string name="speech_chunk_hint">Sprachausgabe, Übersetzung und KI arbeiten in jedem Modus in Textabschnitten – ein großes Buch hängt nicht.</string>

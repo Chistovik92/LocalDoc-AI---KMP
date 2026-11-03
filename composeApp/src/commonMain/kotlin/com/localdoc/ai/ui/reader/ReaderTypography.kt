@@ -106,9 +106,14 @@ internal fun imageSlotHeightPx(block: Block, spec: PageSpec, density: Density): 
 internal fun imageBodyHeightPx(block: Block, slotPx: Float, density: Density): Float =
     max(slotPx - imageExtraPx(block, density), 1f)
 
-/** Ширина колонки текста внутри области (без полей страницы), px. */
+/** Ширина колонки текста внутри области (без полей страницы), px: как её реально отдаёт Compose —
+ *  `widthIn(max = 720)` и `padding(horizontal = margin)` с округлением каждой стороны. */
 internal fun pageContentWidthPx(areaWidthPx: Float, settings: ReaderSettings, density: Density): Float =
-    max(min(areaWidthPx, with(density) { READER_COLUMN_MAX_DP.dp.toPx() }) - with(density) { (settings.margin * 2).dp.toPx() }, 1f)
+    max(
+        min(areaWidthPx, with(density) { READER_COLUMN_MAX_DP.dp.roundToPx().toFloat() }) -
+            2 * with(density) { settings.margin.dp.roundToPx().toFloat() },
+        1f
+    )
 
 /**
  * Измеритель страниц на Compose [TextMeasurer]: те же стили и отступы, что и при отрисовке
@@ -140,6 +145,10 @@ internal class ComposePageMeasurer(
         val count = layout.lineCount.coerceAtLeast(1)
         val heights = FloatArray(count) { layout.getLineBottom(it) - layout.getLineTop(it) }
         val starts = IntArray(count) { if (it == 0) 0 else (layout.getLineStart(it) - bullet).coerceAtLeast(0) }
-        return BlockMeasure(top, bottom, heights, starts)
+        // Абзац рисуется выше суммы строк: padding шрифта не входит в высоты строк. Если его не зарезервировать
+        // в bottom, страница переполняется и нижняя строка срезается по глифу (bottom расходуется, когда абзац
+        // завершается на странице, — как раз там, где заканчивается запас до обреза).
+        val extra = (layout.size.height - heights.sum()).coerceAtLeast(0f)
+        return BlockMeasure(top, bottom + extra, heights, starts)
     }
 }

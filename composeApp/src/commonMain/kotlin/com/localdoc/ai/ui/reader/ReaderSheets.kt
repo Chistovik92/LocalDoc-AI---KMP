@@ -206,8 +206,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlayerBar(state: ReadAloudState, title: String, onVoiceSettings: () -> Unit) {
     val player = AppGraph.readAloud
+    // Панель лежит поверх страницы: полупрозрачная, чтобы текст под ней оставался читаемым
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 6.dp,
         modifier = Modifier.fillMaxWidth()

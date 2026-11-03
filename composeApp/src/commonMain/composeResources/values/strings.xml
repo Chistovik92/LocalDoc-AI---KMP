@@ -684,6 +684,7 @@
     <string name="speed_fast_hint">Около 2 секунд между главами; сайт может ограничить доступ — включайте для своих серверов</string>
     <string name="page_short">стр. %1$s</string>
     <string name="page_of_total">%1$s из %2$s</string>
+    <string name="page_of_incomplete">%1$s из …</string>
     <string name="screen_page_explanation">Страница — столько текста, сколько помещается на экран при выбранных шрифте, интервале и полях.</string>
     <string name="speech_chunk_title">Порция для озвучки и перевода</string>
     <string name="speech_chunk_hint">Озвучка, перевод и ИИ работают порциями текста в любом режиме — большая книга не зависает.</string>

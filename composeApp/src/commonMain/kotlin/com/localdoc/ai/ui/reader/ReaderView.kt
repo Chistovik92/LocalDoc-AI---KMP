@@ -1160,6 +1160,8 @@ fun ReaderView(
                         page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
                         pageCount = if (screenMode) screenLayout.total else pager.size,
                         showPageButtons = pagedDisplay || screenMode,
+                        // Все страницы ещё не разложены: ползунок ведёт на ближайшую готовую страницу и откатывает читателя
+                        seekEnabled = !screenMode || screenLayout.isComplete,
                         onSeek = ::seekPage,
                         onListen = ::listen,
                         onAskAi = { showAi = true }

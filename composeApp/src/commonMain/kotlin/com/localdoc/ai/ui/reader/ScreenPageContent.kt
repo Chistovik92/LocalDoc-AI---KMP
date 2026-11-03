@@ -1,5 +1,6 @@
 package com.localdoc.ai.ui.reader
 
+import com.localdoc.ai.resources.page_of_incomplete
 import com.localdoc.ai.resources.page_of_total
 import com.localdoc.ai.resources.Res
 import org.jetbrains.compose.resources.stringResource
@@ -112,6 +113,13 @@ private const val PUBLISH_EVERY_PAGES = 25
 private const val PAGE_TOP_DP = 12
 private const val PAGE_BOTTOM_DP = 36
 
+/** Запас высоты страницы, dp: измерение и отрисовка совпадают не до пикселя, запас не режет строку. */
+internal const val PAGE_SAFETY_DP = 4f
+
+/** Высота области текста страницы с запасом: разница между измерением и отрисовкой не режет глиф. */
+internal fun pageContentHeightPx(areaHeightPx: Float, density: androidx.compose.ui.unit.Density): Float =
+    (areaHeightPx - with(density) { PAGE_SAFETY_DP.dp.toPx() }).coerceAtLeast(areaHeightPx / 2f)
+
 /**
  * Считает экранные страницы в фоне при каждой смене размера области, шрифта, интервала, полей, выключки
  * или поворота. Сначала раскладывается глава с места чтения [focus], затем соседние и остальные.
@@ -146,7 +154,7 @@ internal fun rememberScreenLayout(
         state.computing = true
         try {
             val family = readerFamily(settings, AppGraph.fonts.load(settings.fontFile))
-            val spec = PageSpec(pageContentWidthPx(area.width.toFloat(), settings, density), area.height.toFloat())
+            val spec = PageSpec(pageContentWidthPx(area.width.toFloat(), settings, density), pageContentHeightPx(area.height.toFloat(), density))
             val result = withContext(Dispatchers.Default) {
                 layoutBook(book, spec, ComposePageMeasurer(TextMeasurer(resolver, density, direction, 1), settings, family, density), focusNow().block) {
                     state.layout = it
@@ -183,10 +191,13 @@ private suspend fun layoutBook(book: Book, spec: PageSpec, measurer: ComposePage
     return layout
 }
 
-/** Метка внизу страницы: «N из M»; «~» — число страниц ещё уточняется. */
+/** Метка внизу страницы: «N из M»; пока книга разложена не вся — «N из …», число ещё считается. */
 @Composable
-internal fun pageLabel(ordinal: Int, exact: Boolean, total: Int, complete: Boolean): String =
-    stringResource(Res.string.page_of_total, (if (exact) "" else "~") + (ordinal + 1), (if (complete) "" else "~") + total)
+internal fun pageLabel(ordinal: Int, exact: Boolean, total: Int, complete: Boolean): String {
+    val number = (if (exact) "" else "~") + (ordinal + 1)
+    return if (complete) stringResource(Res.string.page_of_total, number, total)
+    else stringResource(Res.string.page_of_incomplete, number)
+}
 
 /**
  * Одна экранная страница: куски блоков по смещениям, без прокрутки. Область страницы сообщает свой размер
@@ -211,7 +222,10 @@ internal fun ScreenPageContent(
 ) {
     val density = LocalDensity.current
     var area by remember { mutableStateOf(IntSize.Zero) }
-    val pageSpec = PageSpec(pageContentWidthPx(area.width.toFloat(), settings, density), area.height.toFloat())
+    val pageSpec = PageSpec(pageContentWidthPx(area.width.toFloat(), settings, density), pageContentHeightPx(area.height.toFloat(), density))
+    // Реально отрисованная страница может не совпасть с измеренной до пикселя: если она выше бюджета,
+    // последняя строка обрезается — говорим об этом в лог, чтобы причину не искать вслепую
+    val budgetPx = pageContentHeightPx(area.height.toFloat(), density)
     Box(modifier = modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
         Box(
             modifier = Modifier
@@ -229,7 +243,13 @@ internal fun ScreenPageContent(
                         .padding(horizontal = settings.margin.dp)
                         .clipToBounds()
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier.onSizeChanged { rendered ->
+                            if (rendered.height > budgetPx) {
+                                println("ScreenPageContent: страница выше бюджета — рендер ${rendered.height}, область ${area.height}px, запас ${PAGE_SAFETY_DP.dp.value}dp")
+                            }
+                        }
+                    ) {
                         for (slice in page.slices(book.blocks)) {
                             val block = book.blocks[slice.block]
                             if (block.type == BlockType.IMAGE) {

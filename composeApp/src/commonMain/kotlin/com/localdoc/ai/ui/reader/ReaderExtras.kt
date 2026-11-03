@@ -261,12 +261,15 @@ internal fun BookmarksSheet(
     }
 }
 
-/** Нижняя панель чтения по страницам: ползунок, страницы, «Слушать» и «Спросить ИИ». */
+/** Нижняя панель чтения по страницам: ползунок, страницы, «Слушать» и «Спросить ИИ».
+ *  [seekEnabled] false — страницы ещё считаются: ползунок не должен забросить читателя
+ *  на «ближайшую готовую» страницу и откатиться назад. */
 @Composable
 internal fun PageBar(
     page: Int,
     pageCount: Int,
     showPageButtons: Boolean,
+    seekEnabled: Boolean = true,
     onSeek: (Int) -> Unit,
     onListen: () -> Unit,
     onAskAi: () -> Unit
@@ -276,8 +279,9 @@ internal fun PageBar(
     val span = lastPage.coerceAtLeast(1)
     val position = dragging ?: (page.toFloat() / span)
     val shownPage = (position * span).toInt().coerceIn(0, lastPage)
+    // Панель лежит поверх страницы: полупрозрачная, чтобы текст под ней оставался читаемым
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.9f),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 3.dp,
         modifier = Modifier.fillMaxWidth()
@@ -285,6 +289,7 @@ internal fun PageBar(
         Column(modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)) {
             Slider(
                 value = position.coerceIn(0f, 1f),
+                enabled = seekEnabled,
                 onValueChange = { dragging = it },
                 onValueChangeFinished = {
                     dragging?.let { onSeek((it * span).toInt().coerceIn(0, lastPage)) }

@@ -682,6 +682,7 @@
     <string name="speed_fast_hint">Unos 2 segundos entre capítulos; el sitio puede restringir el acceso: úsalo con tus propios servidores</string>
     <string name="page_short">pág. %1$s</string>
     <string name="page_of_total">%1$s de %2$s</string>
+    <string name="page_of_incomplete">%1$s de …</string>
     <string name="screen_page_explanation">Una página es el texto que cabe en pantalla con la fuente, el interlineado y los márgenes elegidos.</string>
     <string name="speech_chunk_title">Porción para narración y traducción</string>
     <string name="speech_chunk_hint">La narración, la traducción y la IA funcionan por porciones de texto en cualquier modo: un libro grande no se bloquea.</string>

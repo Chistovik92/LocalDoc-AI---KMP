@@ -680,6 +680,7 @@
     <string name="speed_fast_hint">About 2 seconds between chapters; the site may restrict access — use it for your own servers</string>
     <string name="page_short">p. %1$s</string>
     <string name="page_of_total">%1$s of %2$s</string>
+    <string name="page_of_incomplete">%1$s of …</string>
     <string name="screen_page_explanation">A page is as much text as fits on the screen with the chosen font, spacing and margins.</string>
     <string name="speech_chunk_title">Chunk for speech and translation</string>
     <string name="speech_chunk_hint">Speech, translation and AI work in chunks of text in any mode — a large book won’t freeze.</string>
