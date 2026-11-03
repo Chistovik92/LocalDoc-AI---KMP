@@ -2,9 +2,13 @@ package com.localdoc.ai.platform
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import java.io.File
 
 /** Android: MediaPlayer — декодирует MP3/WAV сам, играет из файла приложения. */
 actual fun createSampleAudio(): SampleAudio = AndroidSampleAudio()
+
+actual fun isBundledSample(url: String): Boolean =
+    url.startsWith("https://raw.githubusercontent.com/Chistovik92/LocalDoc-AI---KMP/main/voice-samples/")
 
 private class AndroidSampleAudio : SampleAudio {
 
@@ -20,7 +24,14 @@ private class AndroidSampleAudio : SampleAudio {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
             )
-            p.setDataSource(url)
+            if (url.startsWith("https://raw.githubusercontent.com/Chistovik92/LocalDoc-AI---KMP/main/voice-samples/")) {
+                val name = url.substringAfterLast('/')
+                val afd = AppContextHolder.appContext.assets.openFd("voice-samples/$name")
+                p.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                afd.close()
+            } else {
+                p.setDataSource(url)
+            }
             p.setOnCompletionListener { it.release() }
             p.prepare()
             p.start()
