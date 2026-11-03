@@ -27,6 +27,10 @@ typedef void (*token_callback_t)(const char* token_utf8, void* user_data);
 // Возвращает NULL при ошибке загрузки.
 LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_layers);
 
+// Android may select a device-specific thread count while keeping the shared
+// initializer used by iOS and other platforms unchanged.
+LocalDocSession* localdoc_init_android(const char* model_path, int n_ctx, int n_gpu_layers, int n_threads);
+
 // Синхронная потоковая генерация: callback вызывается на каждый валидный UTF-8 фрагмент.
 // max_tokens ограничивает длину ответа (<= 0 означает 1536).
 // Возвращает LOCALDOC_OK или один из кодов LOCALDOC_ERR_*.

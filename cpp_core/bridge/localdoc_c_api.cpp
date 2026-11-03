@@ -54,17 +54,9 @@ size_t utf8_complete_prefix(const std::string& buf) {
 }
 
 int thread_count() {
-#if defined(__ANDROID__)
-    // Android Emulator may execute the arm64 library through the native bridge.
-    // libomp aborts during the first ggml graph when it tries to fork workers there.
-    // Keep the native path deterministic; real devices still remain functional,
-    // while GPU offload is selected independently by the Kotlin layer.
-    return 1;
-#else
     const unsigned hw = std::thread::hardware_concurrency();
     if (hw == 0) return 4;
     return std::clamp(static_cast<int>(hw), 2, kMaxThreads);
-#endif
 }
 
 // Декодирование промпта порциями не больше n_batch:
@@ -94,7 +86,7 @@ struct GeneratingGuard {
 
 extern "C" {
 
-LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_layers) {
+LocalDocSession* localdoc_init_with_threads(const char* model_path, int n_ctx, int n_gpu_layers, int requested_threads) {
     if (!model_path || n_ctx <= 0) return nullptr;
 
     llama_backend_init();
@@ -109,7 +101,7 @@ LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_laye
         return nullptr;
     }
 
-    const int n_threads = thread_count();
+    const int n_threads = requested_threads > 0 ? requested_threads : thread_count();
     llama_context_params cparams = llama_context_default_params();
     cparams.n_ctx = static_cast<uint32_t>(n_ctx);
     cparams.n_batch = 512;
@@ -141,6 +133,14 @@ LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_laye
     session->ctx = ctx;
     session->sampler = sampler;
     return session;
+}
+
+LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_layers) {
+    return localdoc_init_with_threads(model_path, n_ctx, n_gpu_layers, 0);
+}
+
+LocalDocSession* localdoc_init_android(const char* model_path, int n_ctx, int n_gpu_layers, int n_threads) {
+    return localdoc_init_with_threads(model_path, n_ctx, n_gpu_layers, n_threads);
 }
 
 int localdoc_generate(

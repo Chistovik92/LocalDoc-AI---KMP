@@ -35,7 +35,7 @@ actual class LlamaEngine actual constructor() {
         fun onToken(utf8: ByteArray)
     }
 
-    private external fun initNative(modelPath: String, nCtx: Int, nGpuLayers: Int): Long
+    private external fun initNative(modelPath: String, nCtx: Int, nGpuLayers: Int, nThreads: Int): Long
     private external fun generateNative(sessionPtr: Long, promptUtf8: ByteArray, maxTokens: Int, callback: TokenCallback): Int
     private external fun stopNative(sessionPtr: Long)
     private external fun isGeneratingNative(sessionPtr: Long): Boolean
@@ -47,9 +47,10 @@ actual class LlamaEngine actual constructor() {
             // Vulkan-бэкенд, но аварийно завершает процесс внутри libomp при первом
             // llama_decode. На реальном устройстве сохраняем аппаратное ускорение.
             val effectiveGpuLayers = if (isEmulator()) 0 else gpuLayers
-            Log.d("LocalDocDebug", "engine load path=$modelPath context=$contextSize gpu=$gpuLayers effectiveGpu=$effectiveGpuLayers emulator=${isEmulator()}")
+            val effectiveThreads = if (isEmulator()) 1 else Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+            Log.d("LocalDocDebug", "engine load path=$modelPath context=$contextSize gpu=$gpuLayers effectiveGpu=$effectiveGpuLayers threads=$effectiveThreads emulator=${isEmulator()}")
             unload()
-            val ptr = initNative(modelPath, contextSize, effectiveGpuLayers)
+            val ptr = initNative(modelPath, contextSize, effectiveGpuLayers, effectiveThreads)
             sessionLock.withLock { sessionPtr = ptr }
             Log.d("LocalDocDebug", "engine load result=${ptr != 0L}")
             ptr != 0L
