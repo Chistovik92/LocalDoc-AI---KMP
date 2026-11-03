@@ -18,6 +18,7 @@ import com.localdoc.ai.book.LibraryRepository
 import com.localdoc.ai.lang.GoogleWebTranslator
 import com.localdoc.ai.lang.KvTranslationStore
 import com.localdoc.ai.lang.PageTranslator
+import com.localdoc.ai.lang.RemoteApiTranslator
 import com.localdoc.ai.lang.asStringKv
 import com.localdoc.ai.download.DownloadState
 import com.localdoc.ai.download.ModelDownloader
@@ -428,6 +429,38 @@ object AppGraph {
         )
     }
 
+    /**
+     * Перевод через удалённую OpenAI-compatible модель по API. Создаётся заново по настройкам:
+     * URL, имя модели и ключ (ключ — в защищённом хранилище) берутся из TranslationSettings.
+     * Ведёт общую очередь с web-переводчиком, чтобы не устраивать шквал запросов к одному серверу.
+     */
+    val remoteTranslator: PageTranslator by lazy {
+        PageTranslator(
+            { text, target, source ->
+                val s = translationSettings.value.value
+                val key = secure.get(REMOTE_API_KEY_STORAGE) ?: ""
+                if (s.remoteApiUrl.isBlank() || s.remoteModel.isBlank() || key.isBlank()) {
+                    flow { error("Не настроена удалённая модель: укажите URL, модель и ключ") }
+                } else {
+                    RemoteApiTranslator(translateHttp, s.remoteApiUrl, s.remoteModel, key)
+                        .translate(text, target, source)
+                }
+            },
+            appScope,
+            parallelBlocks = 3
+        )
+    }
+
+    /**
+     * Переводчик страниц для документа [docKey] по текущему режиму перевода:
+     * GOOGLE → web-переводчик (по умолчанию), REMOTE → удалённая модель по API, LOCAL → локальная модель.
+     */
+    fun translatorFor(docKey: String): PageTranslator = when (translationSettings.value.value.mode) {
+        TranslationMode.LOCAL -> translator
+        TranslationMode.GOOGLE -> webTranslator
+        TranslationMode.REMOTE -> remoteTranslator
+    }
+
     /** Плеер чтения вслух — общий для книг и веб-страниц; слушает звонки, чужие плееры и наушники. */
     val readAloud: ReadAloudController by lazy { ReadAloudController(speaker, appScope, createAudioInterruptions()) }
 
@@ -729,4 +762,6 @@ object AppGraph {
     private const val KEY_TRACKED_NOVELS = "tracked_novels_v1"
     private const val KEY_AUTO_UPDATE_LAST = "auto_update_last_run"
     private const val KEY_SYNC_STATE = "sync_state_v1"
+    /** Ключ API удалённой модели (OpenAI-compatible) в защищённом хранилище. */
+    const val REMOTE_API_KEY_STORAGE = "remote_translation_api_key"
 }

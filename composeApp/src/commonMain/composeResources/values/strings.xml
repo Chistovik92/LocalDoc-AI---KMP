@@ -819,6 +819,18 @@
     <string name="prefer_page_translation">Брать перевод со страницы</string>
     <string name="prefer_page_translation_hint">Веб-страницы переводит Google Translate (тот же сервис, что «свой» переводчик сайтов) — мгновенно и без загрузки локальной модели</string>
 
+    <string name="translation_mode">Способ перевода</string>
+    <string name="translation_mode_local">Локальная модель</string>
+    <string name="translation_mode_google">Google Translate</string>
+    <string name="translation_mode_remote">Удалённая модель по API</string>
+    <string name="translation_mode_local_hint">Офлайн, без интернета — медленнее, нужна скачанная модель</string>
+    <string name="translation_mode_google_hint">Быстро и без ключа — нужен интернет</string>
+    <string name="translation_mode_remote_hint">OpenAI-совместимая модель (OpenAI, OpenRouter, локальный сервер)</string>
+    <string name="remote_api_url">Адрес API (base URL)</string>
+    <string name="remote_api_model">Модель</string>
+    <string name="remote_api_key">Ключ API</string>
+    <string name="remote_api_save">Сохранить</string>
+
     <string name="signup_login_or_nick">Логин или ник</string>
     <string name="signup_email">Электронная почта</string>
     <string name="signup_password_min_6">Пароль (не короче 6 символов)</string>

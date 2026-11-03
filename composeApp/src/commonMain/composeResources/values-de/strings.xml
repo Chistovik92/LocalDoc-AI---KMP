@@ -815,6 +815,18 @@
     <string name="prefer_page_translation">Übersetzung der Seite nutzen</string>
     <string name="prefer_page_translation_hint">Webseiten übersetzt Google Translate (derselbe Dienst, den Seiten einbetten) — sofort, ohne lokales Modell zu laden</string>
 
+    <string name="translation_mode">Übersetzungsmethode</string>
+    <string name="translation_mode_local">Lokales Modell</string>
+    <string name="translation_mode_google">Google Translate</string>
+    <string name="translation_mode_remote">Remote-Modell per API</string>
+    <string name="translation_mode_local_hint">Offline, ohne Internet — langsamer, erfordert ein heruntergeladenes Modell</string>
+    <string name="translation_mode_google_hint">Schnell und ohne Schlüssel — erfordert Internet</string>
+    <string name="translation_mode_remote_hint">OpenAI-kompatibles Modell (OpenAI, OpenRouter, lokaler Server)</string>
+    <string name="remote_api_url">API-Adresse (Basis-URL)</string>
+    <string name="remote_api_model">Modell</string>
+    <string name="remote_api_key">API-Schlüssel</string>
+    <string name="remote_api_save">Speichern</string>
+
     <string name="signup_login_or_nick">Login oder Spitzname</string>
     <string name="signup_email">E-Mail</string>
     <string name="signup_password_min_6">Passwort (mindestens 6 Zeichen)</string>

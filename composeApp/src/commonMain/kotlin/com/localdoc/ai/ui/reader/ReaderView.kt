@@ -244,6 +244,7 @@ import com.localdoc.ai.domain.ReaderFont
 import com.localdoc.ai.domain.ReaderSettings
 import com.localdoc.ai.domain.applyOverride
 import com.localdoc.ai.domain.ReaderTheme
+import com.localdoc.ai.domain.TranslationMode
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.tts.ReadAloudStop
 import com.localdoc.ai.tts.SpeechSegment
@@ -321,10 +322,10 @@ fun ReaderView(
     val translationSettings by AppGraph.translationSettings.value.collectAsState()
     val translatingDocs by AppGraph.translating.collectAsState()
     val bookmarks by AppGraph.bookmarks.all.collectAsState()
-    // Веб-страницы переводит Google Translate (мгновенно, без локальной модели), когда включена
-    // настройка «брать перевод у страницы»; книги и выключенная настройка — локальной моделью
-    val pageTranslator = remember(docKey, translationSettings.preferPageTranslation) {
-        if (translationSettings.preferPageTranslation && docKey.startsWith("web:")) AppGraph.webTranslator else AppGraph.translator
+    // Документ переводит выбранный сервис: локальная модель, Google Translate или удалённая модель
+    // по API — в зависимости от режима перевода в настройках.
+    val pageTranslator = remember(docKey, translationSettings.mode) {
+        AppGraph.translatorFor(docKey)
     }
     // Прогресс и ошибки — у того переводчика, который реально переводит документ (веб → Google, иначе → модель)
     val translatedPages by pageTranslator.progress.collectAsState()
@@ -536,7 +537,7 @@ fun ReaderView(
     // «брать перевод у страницы» перезапускает эффект и не оставляет работу в другом переводчике.
     LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout, pageTranslator) {
         if (!translating || target == null) return@LaunchedEffect
-        DebugLog.d("reader translation effect doc=$docKey page=$page local=${pageTranslator === AppGraph.translator}")
+        DebugLog.d("reader translation effect doc=$docKey page=$page mode=${translationSettings.mode}")
         val nextKey = PageKey(docKey, page + 1, target.code, sourceCode, layout)
         pageTranslator.clearError()
         pageTranslator.cancelFar(pageKey)
@@ -553,14 +554,15 @@ fun ReaderView(
         }
     }
 
-    // Смена переводчика настройкой: в прежнем переводчике для этого документа не должно остаться незавершённых страниц
-    LaunchedEffect(docKey, translationSettings.preferPageTranslation) {
-        val other = if (pageTranslator === AppGraph.webTranslator) AppGraph.translator else AppGraph.webTranslator
-        other.cancelDoc(docKey)
+    // Смена режима перевода: в прежнем переводчике для этого документа не должно остаться незавершённых страниц
+    LaunchedEffect(docKey, translationSettings.mode) {
+        listOf(AppGraph.translator, AppGraph.webTranslator, AppGraph.remoteTranslator)
+            .filter { it !== pageTranslator }
+            .forEach { it.cancelDoc(docKey) }
     }
 
     fun startTranslation(enabled: Boolean) {
-        DebugLog.d("translation toggled doc=$docKey enabled=$enabled local=${pageTranslator === AppGraph.translator}")
+        DebugLog.d("translation toggled doc=$docKey enabled=$enabled mode=${translationSettings.mode}")
         AppGraph.translating.value = if (enabled) AppGraph.translating.value + docKey else AppGraph.translating.value - docKey
         // Идущая озвучка продолжится с этого же места уже на новом языке
         if (isMine) AppGraph.startReading(docKey, book, speaking?.block ?: currentBlock)
@@ -569,8 +571,8 @@ fun ReaderView(
     // Автоперевод: язык книги отличается от языка перевода
     LaunchedEffect(docKey, translationSettings.autoTranslate, pageTranslator) {
         if (!translationSettings.autoTranslate || docKey in AppGraph.translating.value || target == null) return@LaunchedEffect
-        // Веб-страницы переводит Google Translate — модель для автозапуска не нужна
-        val needModel = pageTranslator === AppGraph.translator
+        // Только локальному переводу нужна загруженная модель — Google и удалённый API работают без неё
+        val needModel = translationSettings.mode == TranslationMode.LOCAL
         val detected = LanguageDetector.detect(pageBlocks(page).joinToString("\n") { it.text })
         if (detected != null && !Languages.sameLanguage(detected, target.code) &&
             (!needModel || AppGraph.loadedModelId.value != null)

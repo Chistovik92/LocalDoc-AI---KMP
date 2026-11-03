@@ -29,8 +29,8 @@ class BookSpeechSource(
         val target = AppGraph.translationTarget(docKey) ?: return original
         val settings = AppGraph.translationSettings.value.value
         val source = Languages.byCode(settings.sourceLanguage)
-        // Веб-страницы переводит Google Translate, если включена настройка «брать перевод у страницы»
-        val translator = if (settings.preferPageTranslation && docKey.startsWith("web:")) AppGraph.webTranslator else AppGraph.translator
+        // Документ переводит выбранный режим: локальная модель, Google Translate или удалённая модель по API
+        val translator = AppGraph.translatorFor(docKey)
         return try {
             translator.translate(PageKey(docKey, page, target.code, settings.sourceLanguage, AppGraph.readerSettings.value.value.pageSize.chars), original, target, source)
         } catch (t: Throwable) {
@@ -82,9 +82,8 @@ private fun AppGraph.speechSourceFor(
     target: Language?
 ): SpeechPageSource {
     if (target == null) return BookSpeechSource(book, pager, docKey)
-    // Веб-страницы переводит Google Translate, если включена настройка «брать перевод у страницы»
-    val settings = translationSettings.value.value
-    val translator = if (settings.preferPageTranslation && docKey.startsWith("web:")) webTranslator else this.translator
+    // Документ переводит выбранный режим: локальная модель, Google Translate или удалённая модель по API
+    val translator = translatorFor(docKey)
     return StreamingSpeechSource(
         book = book,
         pager = pager,
