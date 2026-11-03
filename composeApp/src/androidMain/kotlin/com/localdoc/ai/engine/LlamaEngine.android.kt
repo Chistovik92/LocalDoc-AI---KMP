@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import android.util.Log
+import android.os.Build
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
@@ -42,13 +43,26 @@ actual class LlamaEngine actual constructor() {
 
     actual suspend fun load(modelPath: String, contextSize: Int, gpuLayers: Int): Boolean =
         withContext(Dispatchers.IO) {
-            Log.d("LocalDocDebug", "engine load path=$modelPath context=$contextSize gpu=$gpuLayers")
+            // Android Emulator (особенно x86_64 через native-bridge) может загрузить
+            // Vulkan-бэкенд, но аварийно завершает процесс внутри libomp при первом
+            // llama_decode. На реальном устройстве сохраняем аппаратное ускорение.
+            val effectiveGpuLayers = if (isEmulator()) 0 else gpuLayers
+            Log.d("LocalDocDebug", "engine load path=$modelPath context=$contextSize gpu=$gpuLayers effectiveGpu=$effectiveGpuLayers emulator=${isEmulator()}")
             unload()
-            val ptr = initNative(modelPath, contextSize, gpuLayers)
+            val ptr = initNative(modelPath, contextSize, effectiveGpuLayers)
             sessionLock.withLock { sessionPtr = ptr }
             Log.d("LocalDocDebug", "engine load result=${ptr != 0L}")
             ptr != 0L
         }
+
+    private fun isEmulator(): Boolean =
+        Build.FINGERPRINT.startsWith("generic") ||
+            Build.FINGERPRINT.startsWith("unknown") ||
+            Build.MODEL.contains("google_sdk", ignoreCase = true) ||
+            Build.MODEL.contains("emulator", ignoreCase = true) ||
+            Build.MODEL.contains("sdk_gphone", ignoreCase = true) ||
+            Build.HARDWARE.contains("goldfish", ignoreCase = true) ||
+            Build.HARDWARE.contains("ranchu", ignoreCase = true)
 
     actual fun generateStream(prompt: String, maxTokens: Int): Flow<String> = callbackFlow<String> {
         Log.d("LocalDocDebug", "engine generate start promptChars=${prompt.length} maxTokens=$maxTokens")

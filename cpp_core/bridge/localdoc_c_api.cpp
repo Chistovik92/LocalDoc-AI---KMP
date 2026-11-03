@@ -54,9 +54,17 @@ size_t utf8_complete_prefix(const std::string& buf) {
 }
 
 int thread_count() {
+#if defined(__ANDROID__)
+    // Android Emulator may execute the arm64 library through the native bridge.
+    // libomp aborts during the first ggml graph when it tries to fork workers there.
+    // Keep the native path deterministic; real devices still remain functional,
+    // while GPU offload is selected independently by the Kotlin layer.
+    return 1;
+#else
     const unsigned hw = std::thread::hardware_concurrency();
     if (hw == 0) return 4;
     return std::clamp(static_cast<int>(hw), 2, kMaxThreads);
+#endif
 }
 
 // Декодирование промпта порциями не больше n_batch:

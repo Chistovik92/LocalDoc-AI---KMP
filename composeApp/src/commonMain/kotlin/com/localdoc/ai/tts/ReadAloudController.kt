@@ -164,7 +164,10 @@ class ReadAloudController(
                 runCatchingPage { openWindow(source.pager.pageOfBlock(fromBlock), fromBlock) }
             } catch (t: Throwable) {
                 DebugLog.e("readAloud openWindow failed key=$key", t)
-                throw t
+                if (mySession == session) {
+                    _state.value = ReadAloudState(title = title, error = "Не удалось подготовить текст для озвучки")
+                }
+                return@launch
             }
             if (mySession != session) return@launch
             if (!opened) {
