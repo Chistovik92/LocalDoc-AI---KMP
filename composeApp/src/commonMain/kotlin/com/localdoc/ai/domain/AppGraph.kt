@@ -63,6 +63,7 @@ import com.localdoc.ai.opds.OpdsClient
 import com.localdoc.ai.platform.BackgroundUpdates
 import com.localdoc.ai.net.SiteAuth
 import com.localdoc.ai.net.SiteVault
+import com.localdoc.ai.net.CertificateAllowance
 import com.localdoc.ai.net.WebHttp
 import com.localdoc.ai.net.asStorage
 import com.localdoc.ai.net.asTransport
@@ -411,7 +412,11 @@ object AppGraph {
         WebHttp(
             RawHttp().asTransport(),
             cookieJar,
-            HostThrottle(intervalMs = 300L, speed = { DownloadSpeed.FAST })
+            HostThrottle(intervalMs = 300L, speed = { DownloadSpeed.FAST }),
+            // translate.googleapis.com — захардкоженный first-party эндпоинт Google (не ввод пользователя).
+            // На старых прошивках Android его промежуточный сертификат (GTS) иногда не в системном
+            // хранилище доверенных корней — «OTHER». Такой фиксированный сервис доверяем без запроса.
+            certificates = { host -> if (host == GOOGLE_TRANSLATE_HOST) CertificateAllowance(emptySet(), true) else CertificateAllowance.NONE }
         )
     }
 
@@ -764,4 +769,6 @@ object AppGraph {
     private const val KEY_SYNC_STATE = "sync_state_v1"
     /** Ключ API удалённой модели (OpenAI-compatible) в защищённом хранилище. */
     const val REMOTE_API_KEY_STORAGE = "remote_translation_api_key"
+    /** Хост открытого эндпоинта Google Translate (захардкожен, не ввод пользователя). */
+    private const val GOOGLE_TRANSLATE_HOST = "translate.googleapis.com"
 }

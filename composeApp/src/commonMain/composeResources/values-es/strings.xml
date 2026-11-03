@@ -814,9 +814,6 @@
     <string name="speak_only_translation_hint">Escuchar la traducción al leer en voz alta, pero mantener el idioma original en pantalla</string>
     <string name="stream_translation_to_screen">Mostrar la traducción por párrafos</string>
     <string name="stream_translation_to_screen_hint">La traducción aparece en pantalla a medida que está lista</string>
-    <string name="prefer_page_translation">Usar la traducción de la página</string>
-    <string name="prefer_page_translation_hint">Las páginas web las traduce Google Translate (el mismo servicio que integran los sitios) — al instante, sin cargar el modelo local</string>
-
     <string name="translation_mode">Método de traducción</string>
     <string name="translation_mode_local">Modelo local</string>
     <string name="translation_mode_google">Google Translate</string>

@@ -816,9 +816,6 @@
     <string name="speak_only_translation_hint">Слышать перевод в озвучке, но оставить на экране язык оригинала</string>
     <string name="stream_translation_to_screen">Показывать перевод по абзацам</string>
     <string name="stream_translation_to_screen_hint">Перевод появляется на экране по мере готовности, а не всей страницей сразу</string>
-    <string name="prefer_page_translation">Брать перевод со страницы</string>
-    <string name="prefer_page_translation_hint">Веб-страницы переводит Google Translate (тот же сервис, что «свой» переводчик сайтов) — мгновенно и без загрузки локальной модели</string>
-
     <string name="translation_mode">Способ перевода</string>
     <string name="translation_mode_local">Локальная модель</string>
     <string name="translation_mode_google">Google Translate</string>

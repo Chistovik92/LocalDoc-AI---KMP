@@ -29,8 +29,6 @@ import com.localdoc.ai.resources.translate_text
 import com.localdoc.ai.resources.translation
 import com.localdoc.ai.resources.translation_is_done_by_a_local
 import com.localdoc.ai.resources.translation_language
-import com.localdoc.ai.resources.prefer_page_translation
-import com.localdoc.ai.resources.prefer_page_translation_hint
 import com.localdoc.ai.resources.translation_mode
 import com.localdoc.ai.resources.translation_mode_local
 import com.localdoc.ai.resources.translation_mode_google
@@ -182,9 +180,6 @@ internal fun TranslationSettingsContent() {
         }
         SwitchLine(stringResource(Res.string.stream_translation_to_screen), stringResource(Res.string.stream_translation_to_screen_hint), settings.streamToScreen) { v ->
             AppGraph.translationSettings.update { it.copy(streamToScreen = v) }
-        }
-        SwitchLine(stringResource(Res.string.prefer_page_translation), stringResource(Res.string.prefer_page_translation_hint), settings.preferPageTranslation) { v ->
-            AppGraph.translationSettings.update { it.copy(preferPageTranslation = v) }
         }
     }
     if (pickTarget) {

@@ -148,8 +148,6 @@ data class TranslationSettings(
     val speakOnlyTranslation: Boolean = false,
     /** Показывать перевод на экране по абзацам по мере готовности, не дожидаясь конца страницы. */
     val streamToScreen: Boolean = true,
-    /** Брать перевод у самой страницы (встроенный переводчик сайта), если он там есть. */
-    val preferPageTranslation: Boolean = true,
     /** Режим REMOTE: OpenAI-compatible base URL (например `https://api.openai.com/v1`). */
     val remoteApiUrl: String = "",
     /** Режим REMOTE: имя модели (например `gpt-4o-mini`). */

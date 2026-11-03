@@ -812,9 +812,6 @@
     <string name="speak_only_translation_hint">Übersetzung beim Vorlesen hören, auf dem Bildschirm bleibt die Originalsprache</string>
     <string name="stream_translation_to_screen">Übersetzung abschnittsweise anzeigen</string>
     <string name="stream_translation_to_screen_hint">Die Übersetzung erscheint auf dem Bildschirm, sobald sie fertig ist</string>
-    <string name="prefer_page_translation">Übersetzung der Seite nutzen</string>
-    <string name="prefer_page_translation_hint">Webseiten übersetzt Google Translate (derselbe Dienst, den Seiten einbetten) — sofort, ohne lokales Modell zu laden</string>
-
     <string name="translation_mode">Übersetzungsmethode</string>
     <string name="translation_mode_local">Lokales Modell</string>
     <string name="translation_mode_google">Google Translate</string>
