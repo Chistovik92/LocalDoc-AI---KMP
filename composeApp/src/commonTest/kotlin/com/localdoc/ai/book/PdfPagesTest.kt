@@ -2,6 +2,7 @@ package com.localdoc.ai.book
 
 import com.localdoc.ai.book.pdf.PageCache
 import com.localdoc.ai.book.pdf.PageRenderer
+import com.localdoc.ai.book.pdf.PdfPageResult
 import com.localdoc.ai.book.pdf.PdfPageSource
 import com.localdoc.ai.book.pdf.PdfPages
 import com.localdoc.ai.book.pdf.PdfRenderSize
@@ -14,6 +15,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -82,12 +84,14 @@ class PdfPagesTest {
         val renderer = FakeRenderer(pageCount = 5000, pageBytes = 2 * 1024 * 1024)
         val source = PdfPageSource(renderer, Dispatchers.Default, maxCacheBytes = 8L * 1024 * 1024)
         val results = (0 until 60).map { i -> async { source.page(i * 80, 1080) } }.awaitAll()
-        assertTrue(results.all { it != null })
+        assertTrue(results.all { it is PdfPageResult.Ready })
         assertEquals(1, renderer.peakConcurrent)
         assertTrue(source.cachedBytes <= 8L * 1024 * 1024, "в кэше ${source.cachedBytes} байт")
         // Повторный запрос последней страницы берётся из кэша без нового рендера
         val before = renderer.rendered
-        assertContentEquals(results.last(), source.page(59 * 80, 1080))
+        val repeated = source.page(59 * 80, 1080)
+        assertIs<PdfPageResult.Ready>(repeated)
+        assertContentEquals(assertIs<PdfPageResult.Ready>(results.last()).bytes, repeated.bytes)
         assertEquals(before, renderer.rendered)
         source.close()
         assertTrue(renderer.closed)
@@ -95,16 +99,22 @@ class PdfPagesTest {
     }
 
     @Test
-    fun `out of range pages and render failures give null`() = runTest {
+    fun `out of range pages and render failures report a reason instead of null`() = runTest {
         val failing = object : PageRenderer {
             override val pageCount = 3
             override fun render(index: Int, widthPx: Int): ByteArray? = error("не рисуется")
             override fun close() = Unit
         }
         val source = PdfPageSource(failing, Dispatchers.Default)
-        assertNull(source.page(0, 500))
-        assertNull(source.page(3, 500))
-        assertNull(source.page(-1, 500))
+        // Сброс рендера: причина, а не молчаливый null — у экрана появляется экран «Повторить»
+        val fromRender = source.page(0, 500)
+        assertIs<PdfPageResult.Failed>(fromRender)
+        assertTrue(fromRender.reason.isNotBlank())
+        // За границами документа: причина тоже внятная
+        val outOfRange = source.page(3, 500)
+        assertIs<PdfPageResult.Failed>(outOfRange)
+        assertTrue(outOfRange.reason.contains("вне документа"))
+        assertIs<PdfPageResult.Failed>(source.page(-1, 500))
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.localdoc.ai.book.pdf
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -15,9 +16,11 @@ interface PageRenderer {
     fun close()
 }
 
-/** Размер картинки страницы: ширина экрана, но не больше [MAX_PIXELS] — одна страница не должна съедать память. */
+/** Размер картинки страницы: ширина экрана, но не больше [MAX_PIXELS] — одна страница не должна съедать память.
+ *  3 Мпикс — это 6–12 МБ на страницу в памяти декодирования (RGB_565×2 / ARGB_8888×4 байта);
+ *  нормально отрисованный разворот А4 в экран влезает впятеро. */
 object PdfRenderSize {
-    const val MAX_PIXELS = 6_000_000L
+    const val MAX_PIXELS = 3_000_000L
     const val MAX_SIDE = 4096
 
     /** Размер в пикселях для страницы [pageWidth] × [pageHeight] пунктов при желаемой ширине [targetWidth]. */
@@ -69,9 +72,16 @@ class PageCache(private val maxBytes: Long) {
     }
 }
 
+/** Готовая страница или причина ее сбоя, вместо молчаливого null. */
+sealed interface PdfPageResult {
+    data class Ready(val bytes: ByteArray) : PdfPageResult
+    data class Failed(val reason: String) : PdfPageResult
+}
+
 /**
  * Источник страниц для читалки: рисует по одной странице за раз (рендерер не потокобезопасен и держит
- * страницу в памяти), хранит результат в [PageCache].
+ * страницу в памяти), хранит результат в [PageCache]. Отмена не превращается в «страницу не открыли»:
+ * она выбрасывается как есть, а позади экрана запрос можно перезапустить.
  */
 class PdfPageSource(
     private val renderer: PageRenderer,
@@ -83,14 +93,25 @@ class PdfPageSource(
 
     val pageCount: Int get() = renderer.pageCount
 
-    suspend fun page(index: Int, widthPx: Int): ByteArray? {
-        if (index !in 0 until pageCount) return null
+    suspend fun page(index: Int, widthPx: Int): PdfPageResult {
+        if (index !in 0 until pageCount) return PdfPageResult.Failed(noPageReason(index))
         val key = "$index@$widthPx"
         return lock.withLock {
-            cache.get(key) ?: withContext(dispatcher) { runCatching { renderer.render(index, widthPx) }.getOrNull() }
-                ?.also { cache.put(key, it) }
+            cache.get(key)?.let { return PdfPageResult.Ready(it) }
+            val bytes = try {
+                withContext(dispatcher) { renderer.render(index, widthPx) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                println("PdfPageSource: страница $index не нарисована — ${t.message ?: t::class.simpleName}")
+                null
+            }
+            bytes?.also { cache.put(key, it) }?.let { PdfPageResult.Ready(it) }
+                ?: PdfPageResult.Failed("Рендер не дал картинку: память, шифрование или повреждённый файл")
         }
     }
+
+    private fun noPageReason(index: Int): String = "Страница ${index + 1} вне документа (всего $pageCount)"
 
     val cachedBytes: Long get() = cache.bytes
 

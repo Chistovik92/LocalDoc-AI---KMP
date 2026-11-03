@@ -26,7 +26,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -35,11 +34,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,8 +56,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.book.Book
+import com.localdoc.ai.book.pdf.PdfPageResult
 import com.localdoc.ai.book.pdf.PdfPageSource
 import com.localdoc.ai.book.pdf.blockOfPdfPage
 import com.localdoc.ai.book.pdf.pdfPageOfBlock
@@ -64,14 +67,21 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.images.decodeImageBitmap
 import com.localdoc.ai.platform.IoDispatcher
 import com.localdoc.ai.platform.PdfPageRenderer
+import com.localdoc.ai.resources.repeat
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 
 private const val MAX_ZOOM = 4f
 private const val DOUBLE_TAP_ZOOM = 2.5f
-private const val RENDER_OVERSAMPLE = 1.5f
+private const val RENDER_OVERSAMPLE = 1.25f
 private const val MAX_RENDER_WIDTH = 2200
 private const val MIN_RENDER_WIDTH = 320
+
+/** Предел ширины рендера от размера кучи: страница ARGB_8888 занимает ширину×высоту×4,
+ *  устройству с малой кучей слишком широкий рендер устраивает OOM на каждой странице. */
+private fun maxRenderWidth(): Int =
+    (Runtime.getRuntime().maxMemory() / (160L * 1024 * 1024) * 1100L)
+        .coerceIn(MIN_RENDER_WIDTH.toLong(), MAX_RENDER_WIDTH.toLong()).toInt()
 
 /**
  * PDF страницами-картинками: одна страница в памяти, соседние подгружаются заранее, кэш ограничен.
@@ -93,7 +103,16 @@ fun PdfPagesScreen(
     LaunchedEffect(fileName) {
         openedSource = fileName?.let { name ->
             kotlinx.coroutines.withContext(IoDispatcher) {
-                runCatching { PdfPageSource(PdfPageRenderer(AppGraph.files.appFilePath(name)), IoDispatcher) }.getOrNull()
+                // Локальная копия не найдена или пуста: не тратим время на открытие
+                if ((AppGraph.files.sizeOf(name) ?: 0L) <= 0L) {
+                    println("PdfPagesScreen: копия файла не найдена — $name")
+                    null
+                } else try {
+                    PdfPageSource(PdfPageRenderer(AppGraph.files.appFilePath(name)), IoDispatcher)
+                } catch (t: Throwable) {
+                    println("PdfPagesScreen: документ не открыт — ${t.message ?: t::class.simpleName}")
+                    null
+                }
             }
         }
         opened = true
@@ -128,7 +147,7 @@ fun PdfPagesScreen(
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF1B1B1B))) {
         val density = LocalDensity.current.density
-        val widthPx = (maxWidth.value * density * RENDER_OVERSAMPLE).toInt().coerceIn(MIN_RENDER_WIDTH, MAX_RENDER_WIDTH)
+        val widthPx = (maxWidth.value * density * RENDER_OVERSAMPLE).toInt().coerceIn(MIN_RENDER_WIDTH, maxRenderWidth())
 
         // Соседние страницы готовятся заранее; кэш при этом не растёт сверх лимита
         LaunchedEffect(pagerState.currentPage, widthPx) {
@@ -138,7 +157,12 @@ fun PdfPagesScreen(
         }
 
         HorizontalPager(state = pagerState, userScrollEnabled = !zoomed, modifier = Modifier.fillMaxSize()) { index ->
-            PdfPageView(source, index, widthPx, onZoomChanged = { zoomed = it }, onTap = { controls = !controls })
+            PdfPageView(
+                source, index, widthPx,
+                onZoomChanged = { zoomed = it },
+                onTap = { controls = !controls },
+                onShowText = onShowText
+            )
         }
 
         if (controls) {
@@ -176,14 +200,32 @@ fun PdfPagesScreen(
 }
 
 @Composable
-private fun PdfPageView(source: PdfPageSource, index: Int, widthPx: Int, onZoomChanged: (Boolean) -> Unit, onTap: () -> Unit) {
+private fun PdfPageView(
+    source: PdfPageSource,
+    index: Int,
+    widthPx: Int,
+    onZoomChanged: (Boolean) -> Unit,
+    onTap: () -> Unit,
+    onShowText: () -> Unit
+) {
     var bitmap by remember(index, widthPx) { mutableStateOf<ImageBitmap?>(null) }
-    var failed by remember(index, widthPx) { mutableStateOf(false) }
-    LaunchedEffect(index, widthPx) {
-        val bytes = source.page(index, widthPx)
-        val decoded = bytes?.let { withContext(IoDispatcher) { decodeImageBitmap(it, widthPx) } }
-        bitmap = decoded
-        failed = decoded == null
+    var failure by remember(index, widthPx) { mutableStateOf<String?>(null) }
+    var attempt by remember(index, widthPx) { mutableIntStateOf(0) }
+    val didNotOpen = stringResource(Res.string.the_page_did_not_open)
+    val repeatLabel = stringResource(Res.string.repeat)
+    val textModeLabel = stringResource(Res.string.text_mode)
+    LaunchedEffect(index, widthPx, attempt) {
+        when (val result = source.page(index, widthPx)) {
+            is PdfPageResult.Ready -> {
+                val decoded = withContext(IoDispatcher) { decodeImageBitmap(result.bytes, widthPx, preferRgb565 = true) }
+                bitmap = decoded
+                failure = if (decoded == null) didNotOpen else null
+            }
+            is PdfPageResult.Failed -> {
+                bitmap = null
+                failure = result.reason
+            }
+        }
     }
 
     var scale by remember(index) { mutableFloatStateOf(1f) }
@@ -225,6 +267,7 @@ private fun PdfPageView(source: PdfPageSource, index: Int, widthPx: Int, onZoomC
         contentAlignment = Alignment.Center
     ) {
         val image = bitmap
+        val failureText = failure
         when {
             image != null -> Image(
                 bitmap = image,
@@ -234,7 +277,20 @@ private fun PdfPageView(source: PdfPageSource, index: Int, widthPx: Int, onZoomC
                     scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y
                 )
             )
-            failed -> Icon(Icons.Default.BrokenImage, contentDescription = stringResource(Res.string.the_page_did_not_open), tint = Color.White)
+            failureText != null -> Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(24.dp)
+            ) {
+                // Причина сбоя видна пользователю: понятно, что это не зависание — файл зашифрован или кончилась память
+                Text(
+                    failureText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center
+                )
+                TextButton(onClick = { attempt++ }) { Text(repeatLabel) }
+                TextButton(onClick = onShowText) { Text(textModeLabel) }
+            }
             else -> CircularProgressIndicator(color = Color.White)
         }
     }
