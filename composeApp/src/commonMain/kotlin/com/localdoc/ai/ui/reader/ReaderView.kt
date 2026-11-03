@@ -156,6 +156,7 @@ import com.localdoc.ai.notes.TextMark
 import com.localdoc.ai.notes.markAt
 import com.localdoc.ai.platform.ScreenControls
 import com.localdoc.ai.platform.VolumeKeys
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import com.localdoc.ai.domain.pagerFor
@@ -530,15 +531,29 @@ fun ReaderView(
         AppGraph.currentDoc.value = ParsedDoc(title = book.title, content = pageBlocks(page).joinToString("\n\n") { it.text }, source = book.source)
     }
 
-    // Перевод текущей страницы и подготовка соседней
-    LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout) {
+    // Перевод текущей страницы и подготовка соседней. Переводчик включён в ключи: смена настройки
+    // «брать перевод у страницы» перезапускает эффект и не оставляет работу в другом переводчике.
+    LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout, pageTranslator) {
         if (!translating || target == null) return@LaunchedEffect
         val nextKey = PageKey(docKey, page + 1, target.code, sourceCode, layout)
         pageTranslator.clearError()
-        pageTranslator.retainOnly(setOf(pageKey, nextKey))
+        pageTranslator.cancelFar(pageKey)
         val source = Languages.byCode(sourceCode)
-        pageTranslator.request(pageKey, pageBlocks(page), target, source)
-        if (page + 1 < pager.size) pageTranslator.request(nextKey, pageBlocks(page + 1), target, source)
+        // Текущая страница идёт вперёд предзагрузки: модель одна, соседняя страница ждёт очереди, а не делит её
+        try {
+            pageTranslator.request(pageKey, pageBlocks(page), target, source).await()
+            if (page + 1 < pager.size) pageTranslator.request(nextKey, pageBlocks(page + 1), target, source)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            // Ошибка уже показана баннером из переводчика: здесь только чтобы эффект не упал
+        }
+    }
+
+    // Смена переводчика настройкой: в прежнем переводчике для этого документа не должно остаться незавершённых страниц
+    LaunchedEffect(docKey, translationSettings.preferPageTranslation) {
+        val other = if (pageTranslator === AppGraph.webTranslator) AppGraph.translator else AppGraph.webTranslator
+        other.cancelDoc(docKey)
     }
 
     fun startTranslation(enabled: Boolean) {

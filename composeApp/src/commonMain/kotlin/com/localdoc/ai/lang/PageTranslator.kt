@@ -53,9 +53,14 @@ class PageTranslator(
 ) {
     // Сбой перевода одной страницы не должен ронять родительский скоуп (экран, приложение)
     private val work = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]))
+    /** Мьютекс генерации одного блока: движок отвечает на один запрос за раз. На всю страницу не берём —
+     *  иначе предзагрузка соседней страницы встаёт в очередь поперёк той, что читает пользователь. */
     private val gate = Mutex()
     private val cache = LinkedHashMap<PageKey, List<Block>>()
     private val jobs = HashMap<PageKey, Deferred<List<Block>>>()
+    /** Частично переведённые страницы: отменённая страница не теряет готовые блоки и потом
+     *  доканчивается с того же места, модель не переводит то же самое заново. */
+    private val partials = LinkedHashMap<PageKey, List<Block?>>()
 
     private val _progress = MutableStateFlow<Map<PageKey, List<Block?>>>(emptyMap())
     /** Переведённые на данный момент блоки страниц в работе (null — ещё не готов). */
@@ -73,8 +78,9 @@ class PageTranslator(
 
     fun cached(key: PageKey): List<Block>? = cache[key]
 
-    /** Удаляет сохранённые на диске переводы документа (книга удалена). */
+    /** Удаляет сохранённые на диске переводы документа (книга удалена) и отменяет идущий перевод. */
     fun clearDoc(docKey: String) {
+        cancelDoc(docKey)
         store?.clearDoc(docKey)
     }
 
@@ -92,9 +98,10 @@ class PageTranslator(
             return CompletableDeferred(cached)
         }
         jobs[key]?.let { return it }
+        val resume = partials.remove(key)
         val job = work.async {
             try {
-                gate.withLock { translatePage(key, blocks, target, source) }
+                translatePage(key, blocks, target, source, resume)
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
@@ -112,11 +119,30 @@ class PageTranslator(
     suspend fun translate(key: PageKey, blocks: List<Block>, target: Language, source: Language?): List<Block> =
         request(key, blocks, target, source).await()
 
-    /** Отменяет переводы страниц, которые больше не нужны (пользователь ушёл далеко). */
-    fun retainOnly(keep: Set<PageKey>) {
-        jobs.filterKeys { it !in keep }.forEach { (key, job) ->
-            job.cancel()
-            jobs.remove(key)
+    /** Отменяет переводы страниц, которые больше не нужны: страницы дальше [radius] от текущей и с другой
+     *  настройкой (язык, разбивка). Страницу с уже переведёнными блоками не трогаем — локальная модель
+     *  переводит страницу долго, и отменять её на каждом листании нельзя: ни одна не доходит до конца. */
+    fun cancelFar(keep: PageKey, radius: Int = 1) {
+        jobs.keys.filter { key ->
+            key.docKey == keep.docKey &&
+                (key.target != keep.target || key.layout != keep.layout || kotlin.math.abs(key.page - keep.page) > radius)
+        }.forEach { key ->
+            jobs.remove(key)?.also { job ->
+                // Занятая страница — та, где уже есть хоть один переведённый блок: пусть дотранслируется.
+                // Стартовый нулевой прогресс здесь не считается, иначе не отменялась бы ни одна.
+                val busy = _progress.value[key]?.any { it != null } == true
+                if (!busy) job.cancel()
+            }
+            // Смена настройки делает частичный перевод бесполезным: вокруг страницы его не удерживаем
+            if (partials[key].orEmpty().all { it == null }) partials.remove(key)
+        }
+    }
+
+    /** Отменяет все переводы документа: экран закрыт или документ перешёл к другому переводчику. */
+    fun cancelDoc(docKey: String) {
+        jobs.keys.filter { it.docKey == docKey }.forEach { key ->
+            jobs.remove(key)?.cancel()
+            partials.remove(key)
         }
     }
 
@@ -124,6 +150,7 @@ class PageTranslator(
         jobs.values.forEach { it.cancel() }
         jobs.clear()
         cache.clear()
+        partials.clear()
         _progress.value = emptyMap()
         _error.value = null
     }
@@ -141,16 +168,36 @@ class PageTranslator(
         _generating.first { !it }
     }
 
-    private suspend fun translatePage(key: PageKey, blocks: List<Block>, target: Language, source: Language?): List<Block> {
+    private suspend fun translatePage(key: PageKey, blocks: List<Block>, target: Language, source: Language?, resume: List<Block?>? = null): List<Block> {
         val pageLanguage = LanguageDetector.detect(blocks.joinToString("\n") { it.text })
         val alreadyInTarget = Languages.sameLanguage(pageLanguage, target.code)
         val result = arrayOfNulls<Block>(blocks.size)
-        val toTranslate = blocks.withIndex().filter { !alreadyInTarget && needsTranslation(it.value) }
+        // Отданные уже переведённые блоки: страница продолжается с того места, на котором оборвалась
+        resume?.forEachIndexed { i, block -> if (block != null && i < result.size) result[i] = block }
+        val toTranslate = blocks.withIndex().filter { !alreadyInTarget && needsTranslation(it.value) && result[it.index] == null }
+        var failures = 0
+        publishProgress(key, result)
         if (parallelBlocks <= 1) {
+            // Локальная модель генерирует по одному запросу. Мьютекс держим только на один блок:
+            // соседние страницы двигаются между блоками, а отмена не выкидывает уже переведённое.
+            var succeeded = 0
             for ((i, block) in blocks.withIndex()) {
-                result[i] = if (alreadyInTarget || !needsTranslation(block)) block else translateBlock(block, target, source)
-                // Абзац готов: его сразу видно на экране и можно озвучивать, не дожидаясь конца страницы
-                _progress.value = _progress.value + (key to result.toList())
+                if (result[i] != null || alreadyInTarget || !needsTranslation(block)) {
+                    if (result[i] == null) result[i] = block
+                } else {
+                    try {
+                        result[i] = gate.withLock { translateBlock(block, target, source) }
+                        succeeded++
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (t: Throwable) {
+                        if (succeeded == 0) throw t
+                        // Один блок не перевёлся: он останется в оригинале, дальнейшие переводим дальше
+                        println("PageTranslator: блок $i не переведён — ${t.message ?: t::class.simpleName}")
+                        failures++
+                    }
+                }
+                publishProgress(key, result)
             }
         } else {
             // Внешний переводчик страниц: абзацы идут пачкой (эндпоинт держит параллельные запросы),
@@ -162,25 +209,44 @@ class PageTranslator(
                 toTranslate.forEach { (i, block) ->
                     launch {
                         semaphore.withPermit {
-                            runCatching { translateBlock(block, target, source) }
-                                .onSuccess { translated ->
-                                    result[i] = translated
-                                    _progress.value = _progress.value + (key to result.toList())
-                                }
-                                .onFailure { e ->
-                                    // Блок не перевёлся: останется в оригинале, но сбой виден в логе
-                                    println("PageTranslator: блок $i не переведён — ${e.message ?: e::class.simpleName}")
-                                }
+                            try {
+                                result[i] = translateBlock(block, target, source)
+                                publishProgress(key, result)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (t: Throwable) {
+                                // Блок не перевёлся: останется в оригинале, страница при этом не рушится
+                                println("PageTranslator: блок $i не переведён — ${t.message ?: t::class.simpleName}")
+                                failures++
+                            }
                         }
                     }
                 }
             }
         }
         val done = result.mapIndexed { i, b -> b ?: blocks[i] }
+        if (failures > 0) {
+            // Страница переведена не до конца: в долговременный стор не пишем, чтобы модель позже
+            // докончила её с того же места, а до тех пор показывали оригинал неудавшихся абзацев
+            return done
+        }
         cache[key] = done
         while (cache.size > maxCached) cache.remove(cache.keys.first())
+        partials.remove(key)
         store?.save(key, done)
         return done
+    }
+
+    /** Прогресс страницы по готовым блокам; частичный снимок остаётся отдельно, чтобы пережить отмену. */
+    private fun publishProgress(key: PageKey, result: Array<Block?>) {
+        val snapshot = result.toList()
+        _progress.value = _progress.value + (key to snapshot)
+        partials.remove(key)
+        partials[key] = snapshot
+        while (partials.size > MAX_PARTIALS) {
+            val victim = partials.keys.firstOrNull { !jobs.containsKey(it) } ?: break
+            partials.remove(victim)
+        }
     }
 
     private fun needsTranslation(block: Block) = block.type != BlockType.CODE && block.type != BlockType.IMAGE && block.text.any { it.isLetter() }
@@ -202,6 +268,8 @@ class PageTranslator(
 
     companion object {
         private const val MAX_CHUNK_CHARS = 1_200
+        /** Сколько частично переведённых страниц держим в памяти, не считая идущих сейчас. */
+        private const val MAX_PARTIALS = 12
         private val SENTENCE_BREAK = Regex("(?<=[.!?…。！？])\\s+")
 
         /** Делит длинный абзац на части по предложениям, чтобы запрос влез в контекст модели. */
