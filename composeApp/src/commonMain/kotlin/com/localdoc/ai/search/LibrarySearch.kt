@@ -31,7 +31,9 @@ class LibrarySearch(
     private suspend fun syncAll(onProgress: (done: Int, total: Int) -> Unit): Int {
         val entries = books()
         val wanted = entries.associateBy { libDoc(it.id) }
-        index.indexedDocs().filter { it.startsWith(LIB_PREFIX) && it !in wanted }.forEach(index::remove)
+        for (doc in index.indexedDocs().filter { it.startsWith(LIB_PREFIX) && it !in wanted }) {
+            index.remove(doc)
+        }
         var updated = 0
         entries.forEachIndexed { i, entry ->
             val doc = libDoc(entry.id)
@@ -61,7 +63,7 @@ class LibrarySearch(
     }
 
     /** Книга изменилась (повторный импорт): её индекс устарел. */
-    fun invalidate(entryId: String) = index.invalidate(libDoc(entryId))
+    suspend fun invalidate(entryId: String) = index.invalidate(libDoc(entryId))
 
     suspend fun search(query: String, perBook: Int = 3, limit: Int = 60): SearchResults {
         if (SearchTokenizer.tokens(query).isEmpty()) return SearchResults(emptyList(), emptyList())

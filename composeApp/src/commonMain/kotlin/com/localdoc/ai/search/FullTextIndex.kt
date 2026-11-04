@@ -2,8 +2,6 @@ package com.localdoc.ai.search
 
 import com.localdoc.ai.domain.NovelFiles
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.yield
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
@@ -68,6 +66,11 @@ private class Shard(
  * безопасны — они лишь приводят к лишнему чтению, а результат фильтруется по факту.
  *
  * Манифест (какие документы проиндексированы и с какой подписью) хранится строкой через [loadManifest]/[saveManifest].
+ *
+ * **Не потокобезопасен:** все методы изменения (`index`, `remove`, `invalidate`, `clear`, `batch`) должны
+ * вызываться последовательно (например, через `Dispatchers.Default.limitedParallelism(1)`). Методы только для
+ * чтения (`indexedDocs`, `isCurrent`, `search`) можно вызывать параллельно с изменениями, но результат не
+ * гарантируется консистентным.
  */
 class FullTextIndex(
     private val files: NovelFiles,
@@ -80,7 +83,6 @@ class FullTextIndex(
     private var manifest: MutableMap<String, String> = readManifest()
     private val cache = LinkedHashMap<String, Shard>()
 
-    private val mutex = Mutex()
     private var batchDepth = 0
     private var manifestDirty = false
     private var dictFileDirty = false
@@ -95,10 +97,10 @@ class FullTextIndex(
      * манифест заново (квадратичный рост). Обрыв посреди группы безопасен: файлы индекса без записи в манифесте
      * при следующей синхронизации просто строятся заново.
      */
-    suspend fun <T> batch(block: suspend () -> T): T = mutex.withLock {
+    suspend fun <T> batch(block: suspend () -> T): T {
         batchDepth++
         try {
-            block()
+            return block()
         } finally {
             batchDepth--
             if (batchDepth == 0) {
@@ -127,8 +129,8 @@ class FullTextIndex(
     fun isCurrent(docId: String, signature: String): Boolean = manifest[docId] == signature
 
     /** Индексирует документ, если подпись изменилась; true — индекс обновлён. [units] — тексты блоков по порядку. */
-    suspend fun index(docId: String, signature: String, units: List<String>, refs: List<String> = emptyList()): Boolean = mutex.withLock {
-        if (isCurrent(docId, signature) && files.read(fileName(docId)) != null) return@withLock false
+    suspend fun index(docId: String, signature: String, units: List<String>, refs: List<String> = emptyList()): Boolean {
+        if (isCurrent(docId, signature) && files.read(fileName(docId)) != null) return false
         val oldTerms = shardTerms(docId)
         val postings = HashMap<String, MutableList<Int>>()
         units.forEachIndexed { unit, text ->
@@ -147,10 +149,10 @@ class FullTextIndex(
         persistDict()
         manifest[docId] = signature
         persistManifest()
-        return@withLock true
+        return true
     }
 
-    suspend fun remove(docId: String) = mutex.withLock {
+    suspend fun remove(docId: String) {
         val terms = shardTerms(docId)
         files.deleteAll(fileName(docId))
         cache.remove(docId)
@@ -159,7 +161,7 @@ class FullTextIndex(
     }
 
     /** Забывает документ: при следующей синхронизации он будет проиндексирован заново. */
-    suspend fun invalidate(docId: String) = mutex.withLock {
+    suspend fun invalidate(docId: String) {
         val terms = shardTerms(docId)
         removeFromDict(docId, terms)
         if (manifest.remove(docId) != null) flushManifest()
@@ -167,7 +169,7 @@ class FullTextIndex(
     }
 
     /** Стирает весь индекс (после восстановления из резервной копии книги другие, индекс строится заново). */
-    suspend fun clear() = mutex.withLock {
+    suspend fun clear() {
         manifest.keys.toList().forEach { files.deleteAll(fileName(it)) }
         manifest.clear()
         cache.clear()
@@ -190,7 +192,12 @@ class FullTextIndex(
         val candidates = candidateDocs(stems, docs)
         val found = ArrayList<Pair<Int, List<IndexHit>>>()
         for (docId in candidates) {
-            val shard = shard(docId) ?: continue
+            val shard = shard(docId)
+            if (shard == null) {
+                // Повреждённый или удалённый файл индекса: помечаем документ устаревшим для реиндексации
+                if (docId in manifest) invalidate(docId)
+                continue
+            }
             val units = matchingUnits(shard, stems)
             if (units.isEmpty()) continue
             found.add(units.size to units.take(perDoc).map { IndexHit(docId, it, shard.refs.getOrNull(it)) })
@@ -236,8 +243,7 @@ class FullTextIndex(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // Повреждённый файл индекса: документ будет проиндексирован заново
-            invalidate(docId)
+            // Повреждённый файл индекса: документ будет проиндексирован заново при следующей синхронизации
             return null
         }
         cache[docId] = shard
