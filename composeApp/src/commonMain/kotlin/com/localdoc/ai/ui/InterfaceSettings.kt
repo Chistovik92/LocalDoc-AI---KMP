@@ -25,8 +25,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.domain.AppGraph
+import com.localdoc.ai.domain.AppTheme
 import com.localdoc.ai.platform.AppLocale
 import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.app_theme_title
 import com.localdoc.ai.resources.font_size_follows_the_system
 import com.localdoc.ai.resources.high_contrast_hint
 import com.localdoc.ai.resources.high_contrast_theme
@@ -41,11 +43,26 @@ import com.localdoc.ai.resources.reduce_motion
 import com.localdoc.ai.resources.reduce_motion_hint
 import org.jetbrains.compose.resources.stringResource
 
-/** Раздел «Интерфейс и доступность»: язык, контраст, анимации, подсказки по шрифту и клавиатуре. */
+/** Раздел «Интерфейс и доступность»: тема оформления, язык, контраст, анимации, подсказки по шрифту и клавиатуре. */
 @Composable
 fun InterfaceSection() {
     var language by remember { mutableStateOf(AppLanguage.fromTag(AppLocale.savedTag())) }
     val accessibility by AppGraph.accessibilitySettings.value.collectAsState()
+
+    SectionTitle(stringResource(Res.string.app_theme_title))
+    Column(Modifier.fillMaxWidth().selectableGroup()) {
+        AppTheme.entries.forEach { option ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().selectable(selected = accessibility.appTheme == option, role = Role.RadioButton) {
+                    AppGraph.accessibilitySettings.update { it.copy(appTheme = option) }
+                }
+            ) {
+                RadioButton(selected = accessibility.appTheme == option, onClick = null, modifier = Modifier.padding(12.dp))
+                Text(stringResource(option.label), style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
 
     SectionTitle(stringResource(Res.string.interface_language))
     Column(Modifier.fillMaxWidth().selectableGroup()) {

@@ -601,6 +601,7 @@
     <string name="language_applies_now">Die Sprache wird sofort übernommen.</string>
     <string name="language_applies_after_restart">Die Sprache ändert sich nach einem Neustart: Schließe die App und öffne sie erneut.</string>
     <string name="motion_title">Kontrast und Bewegung</string>
+    <string name="app_theme_title">Design-Theme</string>
     <string name="high_contrast_theme">Hochkontrast-Design</string>
     <string name="high_contrast_hint">Schwarz auf Weiß (oder umgekehrt) mit klaren Rändern. Wird auch durch die Systemeinstellung aktiviert.</string>
     <string name="reduce_motion">Bewegung reduzieren</string>

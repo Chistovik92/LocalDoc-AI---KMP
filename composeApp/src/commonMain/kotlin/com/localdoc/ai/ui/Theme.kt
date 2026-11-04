@@ -9,6 +9,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -100,6 +102,78 @@ private val DarkColors = darkColorScheme(
     inversePrimary = Color(0xFF0B57D0)
 )
 
+/** AMOLED-тема «Ночь»: чистый чёрный фон, приглушённый текст (как тёмная, но без подсветки чёрного). */
+private val BlackColors = darkColorScheme(
+    primary = Color(0xFFA8C7FA),
+    onPrimary = Color(0xFF062E6F),
+    primaryContainer = Color(0xFF0842A0),
+    onPrimaryContainer = Color(0xFFD3E3FD),
+    secondary = Color(0xFF7FCFFF),
+    onSecondary = Color(0xFF003355),
+    secondaryContainer = Color(0xFF004A77),
+    onSecondaryContainer = Color(0xFFC2E7FF),
+    tertiary = Color(0xFF6DD58C),
+    onTertiary = Color(0xFF0A3818),
+    tertiaryContainer = Color(0xFF0F5223),
+    onTertiaryContainer = Color(0xFFC4EED0),
+    error = Color(0xFFF2B8B5),
+    onError = Color(0xFF601410),
+    errorContainer = Color(0xFF8C1D18),
+    onErrorContainer = Color(0xFFF9DEDC),
+    background = Color.Black,
+    onBackground = Color(0xFFE0E0E0),
+    surface = Color.Black,
+    onSurface = Color(0xFFE0E0E0),
+    surfaceVariant = Color(0xFF2A2A2A),
+    onSurfaceVariant = Color(0xFFB0B0B0),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF0A0A0A),
+    surfaceContainer = Color(0xFF111111),
+    surfaceContainerHigh = Color(0xFF1A1A1A),
+    surfaceContainerHighest = Color(0xFF222222),
+    outline = Color(0xFF8E918F),
+    outlineVariant = Color(0xFF2A2A2A),
+    inverseSurface = Color(0xFFE0E0E0),
+    inverseOnSurface = Color(0xFF202020),
+    inversePrimary = Color(0xFF0B57D0)
+)
+
+/** Тёплая «сепия»: мягкий кремовый фон вместо белого, приглушённый синий акцент. */
+private val SepiaColors = lightColorScheme(
+    primary = Color(0xFF6B4A00),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFF3DFA9),
+    onPrimaryContainer = Color(0xFF221B00),
+    secondary = Color(0xFF6B5E3F),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF5E1B2),
+    onSecondaryContainer = Color(0xFF241A05),
+    tertiary = Color(0xFF4C662B),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFCEECA4),
+    onTertiaryContainer = Color(0xFF102000),
+    error = Color(0xFFB3261E),
+    onError = Color.White,
+    errorContainer = Color(0xFFF9DEDC),
+    onErrorContainer = Color(0xFF410E0B),
+    background = Color(0xFFF6EEDC),
+    onBackground = Color(0xFF1F1B12),
+    surface = Color(0xFFF6EEDC),
+    onSurface = Color(0xFF1F1B12),
+    surfaceVariant = Color(0xFFECE1CC),
+    onSurfaceVariant = Color(0xFF4E473A),
+    surfaceContainerLowest = Color(0xFFFBF5E8),
+    surfaceContainerLow = Color(0xFFF2E9D4),
+    surfaceContainer = Color(0xFFEDE3CC),
+    surfaceContainerHigh = Color(0xFFE7DCC4),
+    surfaceContainerHighest = Color(0xFFE1D6BD),
+    outline = Color(0xFF7A715E),
+    outlineVariant = Color(0xFFCFC3AA),
+    inverseSurface = Color(0xFF353020),
+    inverseOnSurface = Color(0xFFF4EFE4),
+    inversePrimary = Color(0xFFE3C46B)
+)
+
 /** Высококонтрастные схемы: текст и границы не слабее 7:1 к фону. */
 private val HighContrastLight = lightColorScheme(
     primary = Color(0xFF002D9C), onPrimary = Color.White,
@@ -163,9 +237,18 @@ expect fun dynamicColorScheme(dark: Boolean): ColorScheme?
 
 @Composable
 fun LocalDocTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+    val settings by com.localdoc.ai.domain.AppGraph.accessibilitySettings.value.collectAsState()
+    val theme = settings.appTheme
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (theme) {
+        com.localdoc.ai.domain.AppTheme.SYSTEM -> systemDark
+        com.localdoc.ai.domain.AppTheme.LIGHT, com.localdoc.ai.domain.AppTheme.SEPIA -> false
+        com.localdoc.ai.domain.AppTheme.DARK, com.localdoc.ai.domain.AppTheme.BLACK -> true
+    }
     val colors = when {
         highContrastEnabled() -> if (dark) HighContrastDark else HighContrastLight
+        theme == com.localdoc.ai.domain.AppTheme.BLACK && !highContrastEnabled() -> BlackColors
+        theme == com.localdoc.ai.domain.AppTheme.SEPIA && !highContrastEnabled() -> SepiaColors
         else -> dynamicColorScheme(dark) ?: if (dark) DarkColors else LightColors
     }
     MaterialTheme(

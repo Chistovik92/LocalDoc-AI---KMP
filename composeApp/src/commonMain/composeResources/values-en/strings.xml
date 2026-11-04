@@ -601,6 +601,7 @@
     <string name="language_applies_now">The language is applied immediately.</string>
     <string name="language_applies_after_restart">The language will change after a restart: close the app and open it again.</string>
     <string name="motion_title">Contrast and motion</string>
+    <string name="app_theme_title">App theme</string>
     <string name="high_contrast_theme">High-contrast theme</string>
     <string name="high_contrast_hint">Black on white (or the reverse) with clear borders. Also turned on by the system setting.</string>
     <string name="reduce_motion">Reduce motion</string>

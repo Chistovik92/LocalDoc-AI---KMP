@@ -605,6 +605,7 @@
     <string name="language_applies_now">Мова застосовується одразу.</string>
     <string name="language_applies_after_restart">Мова зміниться після перезапуску: закрийте застосунок і відкрийте знову.</string>
     <string name="motion_title">Контраст і анімації</string>
+    <string name="app_theme_title">Тема оформлення</string>
     <string name="high_contrast_theme">Висококонтрастна тема</string>
     <string name="high_contrast_hint">Чорне на білому (або навпаки), чіткі межі. Вмикається й системним налаштуванням.</string>
     <string name="reduce_motion">Зменшити анімацію</string>
