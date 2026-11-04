@@ -821,7 +821,7 @@
     <string name="translation_mode_google">Google Translate</string>
     <string name="translation_mode_remote">Удалённая модель по API</string>
     <string name="translation_mode_local_hint">Офлайн, без интернета — медленнее, нужна скачанная модель</string>
-    <string name="translation_mode_google_hint">Быстро и без ключа — нужен интернет</string>
+    <string name="translation_mode_google_hint">Быстро и без ключа — для маломощных телефонов</string>
     <string name="translation_mode_remote_hint">OpenAI-совместимая модель (OpenAI, OpenRouter, локальный сервер)</string>
     <string name="remote_api_url">Адрес API (base URL)</string>
     <string name="remote_api_model">Модель</string>

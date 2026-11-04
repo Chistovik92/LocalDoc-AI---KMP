@@ -819,7 +819,7 @@
     <string name="translation_mode_google">Google Translate</string>
     <string name="translation_mode_remote">Modelo remoto por API</string>
     <string name="translation_mode_local_hint">Sin conexión, sin internet — más lento, requiere un modelo descargado</string>
-    <string name="translation_mode_google_hint">Rápido y sin clave — requiere internet</string>
+    <string name="translation_mode_google_hint">Rápido y sin clave — para teléfonos modestos</string>
     <string name="translation_mode_remote_hint">Modelo compatible con OpenAI (OpenAI, OpenRouter, servidor local)</string>
     <string name="remote_api_url">Dirección de la API (URL base)</string>
     <string name="remote_api_model">Modelo</string>
