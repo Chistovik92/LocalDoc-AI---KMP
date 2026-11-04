@@ -75,7 +75,7 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
             tag == "tr" -> {
                 val cells = el.children().joinToString(" · ") { it.text() }
                 flush()
-                val clean = normalizeSpaces(cells)
+                val clean = normalizeSpaces(NormalizeQuotes.map(cells))
                 if (clean.isNotBlank()) blocks.add(Block(BlockType.PARAGRAPH, clean))
             }
             tag in BLOCK_CONTAINERS -> {
@@ -153,7 +153,7 @@ internal class HtmlBlockBuilder(private val images: ImageResolver? = null) {
 
     private fun emitCode(el: Element) {
         flush()
-        val text = el.wholeTextSafe().trimEnd()
+        val text = NormalizeQuotes.map(el.wholeTextSafe().trimEnd())
         if (text.isNotBlank()) blocks.add(Block(BlockType.CODE, text))
     }
 

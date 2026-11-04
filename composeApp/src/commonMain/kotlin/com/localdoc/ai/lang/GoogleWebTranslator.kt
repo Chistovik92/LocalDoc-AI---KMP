@@ -55,26 +55,7 @@ class GoogleWebTranslator(private val http: WebHttp) {
             ?: error("неожиданный формат ответа")
         return segments.mapNotNull { segment ->
             ((segment as? JsonArray)?.firstOrNull()?.jsonPrimitive?.content)
-        }.joinToString("").normalizeQuotes()
-    }
-
-    /**
-     * Эндпоинт Google иногда вставляет «умные» кавычки U+2018–U+201D (вместо «ёлочек»/прямых),
-     * которых нет во многих читалочных шрифтах — на экране они дают квадратики-артефакты.
-     * Приводим их к обычным кавычкам, которые есть в любом шрифте.
-     */
-    private fun String.normalizeQuotes(): String {
-        val sb = StringBuilder(length)
-        var openDouble = true
-        for (ch in this) {
-            when (ch) {
-                '\u201C', '\u201D' -> { sb.append(if (openDouble) '«' else '»'); openDouble = !openDouble }
-                '\u2018', '\u2019', '\u02BC' -> sb.append('\'')
-                '\u00A0' -> sb.append(' ')
-                else -> sb.append(ch)
-            }
-        }
-        return sb.toString()
+        }.joinToString("")
     }
 
     private fun encode(text: String): String = buildString(text.length * 3) {
