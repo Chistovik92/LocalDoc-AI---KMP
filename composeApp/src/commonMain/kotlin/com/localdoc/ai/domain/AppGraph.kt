@@ -69,9 +69,11 @@ import com.localdoc.ai.net.asStorage
 import com.localdoc.ai.net.asTransport
 import com.localdoc.ai.parser.WebArticleParser
 import com.localdoc.ai.platform.RawHttp
+import com.localdoc.ai.platform.RingLog
 import com.localdoc.ai.platform.SecureStore
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
+import com.localdoc.ai.platform.asRingLogFiles
 import com.localdoc.ai.platform.PlatformActions
 import com.localdoc.ai.platform.localUtcOffsetMillis
 import com.localdoc.ai.rag.HashingEmbedder
@@ -164,6 +166,10 @@ object AppGraph {
     val webParser: WebArticleParser = WebArticleParser { webHttp }
     val pdfExtractor: PdfExtractor = PdfExtractor()
     val files: FileAccess = FileAccess()
+
+    // Кольцевой журнал отладки пишется в хранилище приложения; до bind строки держатся только в памяти
+    init { RingLog.bind(files.asRingLogFiles()) }
+
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
     val library: LibraryRepository by lazy { LibraryRepository(kv, files) { id -> appScope.launch(indexDispatcher) { search.invalidate(id) } } }
 

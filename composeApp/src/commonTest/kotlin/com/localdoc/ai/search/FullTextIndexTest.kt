@@ -15,8 +15,9 @@ class FullTextIndexTest {
 
     private class MemoryFiles : NovelFiles {
         val data = HashMap<String, ByteArray>()
+        var reads = 0
         override fun write(name: String, bytes: ByteArray) { data[name] = bytes }
-        override fun read(name: String) = data[name]
+        override fun read(name: String): ByteArray? { reads++; return data[name] }
         override fun deleteAll(prefix: String) { data.keys.filter { it.startsWith(prefix) }.forEach(data::remove) }
     }
 
@@ -163,5 +164,33 @@ class FullTextIndexTest {
         f.catalog = f.catalog.map { it.copy(series = "Космос") }
         assertEquals(1, search.sync())
         assertEquals(8, search.search("космос").catalog.size)
+    }
+
+    @Test
+    fun `search reads shards only for matching books, not the whole library`() = runTest {
+        val f = Fixture()
+        f.addBook("target", "Цель", "Квинтэссенция искомое слово.")
+        repeat(200) { i -> f.addBook("b$i", "Книга $i", "Обычный текст про море и город.") }
+        val search = f.search()
+        search.sync()
+
+        f.files.reads = 0
+        val hits = search.search("искомое")
+        assertEquals(listOf("target"), hits.books.map { it.entry.id })
+        assertTrue(f.files.reads < 20, "поиск прочитал ${f.files.reads} шардов вместо 200 — общий словарь не сузил кандидатов")
+    }
+
+    @Test
+    fun `common dictionary survives restart so search needs no re-index`() = runTest {
+        val f = Fixture()
+        f.addBook("a", "Лес", "Грибы растут в лесу.")
+        f.search().sync()
+
+        // «Перезапуск»: новый индекс читает манифест и общий словарь с диска
+        val restarted = f.search(f.index())
+        assertEquals(1, restarted.search("грибы").books.size)
+
+        // Словарь на диске — отдельный файл, он переживает перезапуск
+        assertTrue(f.files.data.keys.any { it == "idx.dict.json" }, "общий словарь должен лежать на диске")
     }
 }
