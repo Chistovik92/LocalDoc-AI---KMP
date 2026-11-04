@@ -58,7 +58,12 @@ private class Shard(
 /**
  * Полнотекстовый индекс на диске: на каждый документ (книгу) свой файл с обратным индексом «слово → блоки».
  * Обновление инкрементальное: файл пересобирается только у изменившейся книги (по подписи `signature`),
- * у удалённой — стирается. Поиск читает файлы по одному, поэтому память не растёт с размером библиотеки.
+ * у удалённой — стирается.
+ *
+ * Чтобы поиск по тысячам книг не читал шард каждой книги с диска, поверх файлов-шардов ведётся общий словарь
+ * слов «слово → документы» ([DICT_FILE]). Запрос сначала находит по нему книги-кандидаты, и лишь их шарды
+ * читаются для точных номеров блоков. Словарь обновляется инкрементально вместе с шардами; устаревшие записи
+ * безопасны — они лишь приводят к лишнему чтению, а результат фильтруется по факту.
  *
  * Манифест (какие документы проиндексированы и с какой подписью) хранится строкой через [loadManifest]/[saveManifest].
  */
@@ -69,11 +74,18 @@ class FullTextIndex(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val manifestSerializer = MapSerializer(String.serializer(), String.serializer())
+    private val dictSerializer = MapSerializer(String.serializer(), String.serializer())
     private var manifest: MutableMap<String, String> = readManifest()
     private val cache = LinkedHashMap<String, Shard>()
 
     private var batchDepth = 0
     private var manifestDirty = false
+    private var dictFileDirty = false
+
+    // --- Общий словарь слов «слово → документы» ---
+    private var dictMap: MutableMap<String, MutableSet<String>>? = null
+    private var sortedTermsCache: List<String> = emptyList()
+    private var sortedDirty = true
 
     /**
      * Группа изменений с одной записью манифеста в конце: без неё каждая из тысяч книг сериализовала бы весь
@@ -86,7 +98,10 @@ class FullTextIndex(
             return block()
         } finally {
             batchDepth--
-            if (batchDepth == 0 && manifestDirty) persistManifest()
+            if (batchDepth == 0) {
+                if (manifestDirty) flushManifest()
+                if (dictFileDirty) flushDict()
+            }
         }
     }
 
@@ -111,6 +126,7 @@ class FullTextIndex(
     /** Индексирует документ, если подпись изменилась; true — индекс обновлён. [units] — тексты блоков по порядку. */
     suspend fun index(docId: String, signature: String, units: List<String>, refs: List<String> = emptyList()): Boolean {
         if (isCurrent(docId, signature) && files.read(fileName(docId)) != null) return false
+        val oldTerms = shardTerms(docId)
         val postings = HashMap<String, MutableList<Int>>()
         units.forEachIndexed { unit, text ->
             for (token in SearchTokenizer.tokens(text).toSet()) postings.getOrPut(token) { ArrayList() }.add(unit)
@@ -120,19 +136,29 @@ class FullTextIndex(
         files.write(fileName(docId), json.encodeToString(Shard.serializer(), shard).encodeToByteArray())
         cache[docId] = shard
         trimCache()
+        // Общий словарь: ушедшие слова удаляются, новые добавляются (общие остаются)
+        val dict = ensureDict()
+        val newTerms = postings.keys
+        for (term in oldTerms.orEmpty()) if (term !in newTerms) dictRemove(dict, term, docId)
+        for (term in newTerms) if (term !in oldTerms.orEmpty()) dictAdd(dict, term, docId)
+        persistDict()
         manifest[docId] = signature
         persistManifest()
         return true
     }
 
     fun remove(docId: String) {
+        val terms = shardTerms(docId)
         files.deleteAll(fileName(docId))
         cache.remove(docId)
+        removeFromDict(docId, terms)
         if (manifest.remove(docId) != null) flushManifest()
     }
 
     /** Забывает документ: при следующей синхронизации он будет проиндексирован заново. */
     fun invalidate(docId: String) {
+        val terms = shardTerms(docId)
+        removeFromDict(docId, terms)
         if (manifest.remove(docId) != null) flushManifest()
         cache.remove(docId)
     }
@@ -142,18 +168,25 @@ class FullTextIndex(
         manifest.keys.toList().forEach { files.deleteAll(fileName(it)) }
         manifest.clear()
         cache.clear()
+        files.deleteAll(DICT_FILE)
+        dictMap = null
+        sortedDirty = true
+        sortedTermsCache = emptyList()
+        dictFileDirty = false
         flushManifest()
     }
 
     /**
      * Ищет блоки, где есть все слова запроса (по началу слова, см. [SearchTokenizer.stem]). Результаты — по документам
      * в порядке числа совпавших блоков; в документе не больше [perDoc] мест, всего не больше [limit].
+     * Книги-кандидаты определяются по общему словарю — шарды остальных книг с диска не читаются.
      */
     suspend fun search(query: String, docs: Collection<String> = indexedDocs(), perDoc: Int = 3, limit: Int = 60): List<IndexHit> {
         val stems = SearchTokenizer.tokens(query).map(SearchTokenizer::stem).distinct()
         if (stems.isEmpty()) return emptyList()
+        val candidates = candidateDocs(stems, docs)
         val found = ArrayList<Pair<Int, List<IndexHit>>>()
-        for (docId in docs) {
+        for (docId in candidates) {
             val shard = shard(docId) ?: continue
             val units = matchingUnits(shard, stems)
             if (units.isEmpty()) continue
@@ -161,6 +194,24 @@ class FullTextIndex(
             yield()
         }
         return found.sortedByDescending { it.first }.flatMap { it.second }.take(limit)
+    }
+
+    /** Книги, где могут встретиться все слова запроса: пересечение документов по каждому слову через общий словарь. */
+    private fun candidateDocs(stems: List<String>, docs: Collection<String>): List<String> {
+        val dict = ensureDict()
+        if (dict.isEmpty()) return emptyList()
+        val allowed = docs.toSet()
+        var result: Set<String>? = null
+        for (stem in stems) {
+            val matched = HashSet<String>()
+            val terms = sortedTerms()
+            val from = lowerBound(terms, stem)
+            val to = lowerBound(terms, stem + '\uFFFF')
+            for (i in from until to) dict[terms[i]]?.forEach { if (it in allowed) matched.add(it) }
+            result = result?.intersect(matched) ?: matched
+            if (result.isEmpty()) return emptyList()
+        }
+        return result.orEmpty().toList()
     }
 
     private fun matchingUnits(shard: Shard, stems: List<String>): List<Int> {
@@ -191,8 +242,86 @@ class FullTextIndex(
         return shard
     }
 
+    /** Слова документа по шарду в кэше или на диске; null — файла нет или он повреждён (без побочных эффектов). */
+    private fun shardTerms(docId: String): Set<String>? {
+        cache[docId]?.let { return it.terms.keys }
+        val bytes = files.read(fileName(docId)) ?: return null
+        return runCatching { json.decodeFromString(Shard.serializer(), bytes.decodeToString()) }.getOrNull()?.terms?.keys
+    }
+
     private fun trimCache() {
         while (cache.size > CACHED_SHARDS) cache.remove(cache.keys.first())
+    }
+
+    // --- Общий словарь слов ---
+
+    private fun ensureDict(): MutableMap<String, MutableSet<String>> {
+        dictMap?.let { return it }
+        val loaded: Map<String, String> = files.read(DICT_FILE)?.let { bytes ->
+            runCatching { json.decodeFromString(dictSerializer, bytes.decodeToString()) }.getOrNull()
+        }.orEmpty()
+        val map = HashMap<String, MutableSet<String>>()
+        for ((term, docs) in loaded) if (docs.isNotEmpty()) map[term] = docs.split(',').toCollection(HashSet())
+        dictMap = map
+        sortedDirty = true
+        return map
+    }
+
+    private fun sortedTerms(): List<String> {
+        if (sortedDirty) {
+            sortedTermsCache = dictMap?.keys.orEmpty().sorted()
+            sortedDirty = false
+        }
+        return sortedTermsCache
+    }
+
+    private fun dictAdd(dict: MutableMap<String, MutableSet<String>>, term: String, docId: String) {
+        val set = dict[term]
+        if (set == null) {
+            dict[term] = HashSet<String>().apply { add(docId) }
+            sortedDirty = true
+        } else {
+            set.add(docId)
+        }
+    }
+
+    private fun dictRemove(dict: MutableMap<String, MutableSet<String>>, term: String, docId: String) {
+        val set = dict[term] ?: return
+        if (!set.remove(docId)) return
+        if (set.isEmpty()) {
+            dict.remove(term)
+            sortedDirty = true
+        }
+    }
+
+    private fun removeFromDict(docId: String, terms: Collection<String>?) {
+        if (terms.isNullOrEmpty()) return
+        val dict = ensureDict()
+        for (term in terms) dictRemove(dict, term, docId)
+        persistDict()
+    }
+
+    private fun persistDict() {
+        if (batchDepth > 0) dictFileDirty = true else flushDict()
+    }
+
+    private fun flushDict() {
+        dictFileDirty = false
+        val map = dictMap ?: return
+        val serialized = HashMap<String, String>(map.size)
+        for ((term, docs) in map) serialized[term] = docs.sorted().joinToString(",")
+        files.write(DICT_FILE, json.encodeToString(dictSerializer, serialized).encodeToByteArray())
+    }
+
+    /** Первый индекс, начиная с которого элемент не меньше [key]. */
+    private fun lowerBound(list: List<String>, key: String): Int {
+        var lo = 0
+        var hi = list.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (list[mid] < key) lo = mid + 1 else hi = mid
+        }
+        return lo
     }
 
     private fun readManifest(): MutableMap<String, String> =
@@ -213,6 +342,7 @@ class FullTextIndex(
     private companion object {
         const val YIELD_EVERY = 200
         const val CACHED_SHARDS = 6
+        const val DICT_FILE = "idx.dict.json"
     }
 }
 
