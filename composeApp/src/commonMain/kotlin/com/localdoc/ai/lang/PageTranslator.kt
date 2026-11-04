@@ -262,7 +262,7 @@ class PageTranslator(
             _generating.value = true
             try {
                 val raw = translateText(chunk, target, source).toList().joinToString("")
-                SmartPipeline.stripThinking(raw).trim().ifBlank { chunk }
+                normalizeQuotes(SmartPipeline.stripThinking(raw).trim().ifBlank { chunk })
             } finally {
                 _generating.value = false
             }
@@ -271,11 +271,32 @@ class PageTranslator(
         return Block(block.type, parts.joinToString(" "), block.level)
     }
 
+    /**
+     * «Умные» кавычки U+2018–U+201D (вместо «ёлочек»/прямых) не отрисовываются во многих
+     * читалочных шрифтах и дают квадратики-артефакты на экране. Приводим их к обычным
+     * кавычкам, которые есть в любом шрифте — независимо от того, кто переводил.
+     */
+    private fun normalizeQuotes(text: String): String {
+        if (text.none { it in SMART_QUOTES }) return text
+        val sb = StringBuilder(text.length)
+        var openDouble = true
+        for (ch in text) {
+            when (ch) {
+                '\u201C', '\u201D' -> { sb.append(if (openDouble) '«' else '»'); openDouble = !openDouble }
+                '\u2018', '\u2019', '\u02BC' -> sb.append('\'')
+                '\u00A0' -> sb.append(' ')
+                else -> sb.append(ch)
+            }
+        }
+        return sb.toString()
+    }
+
     companion object {
         private const val MAX_CHUNK_CHARS = 1_200
         /** Сколько частично переведённых страниц держим в памяти, не считая идущих сейчас. */
         private const val MAX_PARTIALS = 12
         private val SENTENCE_BREAK = Regex("(?<=[.!?…。！？])\\s+")
+        private val SMART_QUOTES = setOf('\u201C', '\u201D', '\u2018', '\u2019', '\u02BC', '\u00A0')
 
         /** Делит длинный абзац на части по предложениям, чтобы запрос влез в контекст модели. */
         fun splitForTranslation(text: String, maxChars: Int): List<String> {
