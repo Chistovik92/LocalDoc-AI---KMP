@@ -81,7 +81,7 @@ private const val MIN_RENDER_WIDTH = 320
 /** Предел ширины рендера от размера кучи: страница ARGB_8888 занимает ширину×высоту×4,
  *  устройству с малой кучей слишком широкий рендер устраивает OOM на каждой странице. */
 private fun maxRenderWidth(): Int =
-    (Runtime.getRuntime().maxMemory() / (160L * 1024 * 1024) * 1100L)
+    (com.localdoc.ai.platform.appMaxMemoryBytes / (160L * 1024 * 1024) * 1100L)
         .coerceIn(MIN_RENDER_WIDTH.toLong(), MAX_RENDER_WIDTH.toLong()).toInt()
 
 /**
