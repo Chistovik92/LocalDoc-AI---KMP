@@ -9,8 +9,9 @@ import org.jetbrains.skia.Surface
 // На iOS картинка декодируется целиком при отрисовке, поэтому предел ниже, чем на Android
 private const val MAX_PIXELS = 24_000_000L
 
-/** Декодирует картинку и уменьшает большую сторону до [maxDimension], чтобы обложка не занимала память полного кадра. */
-actual fun decodeImageBitmap(bytes: ByteArray, maxDimension: Int): ImageBitmap? = try {
+/** Декодирует картинку и уменьшает большую сторону до [maxDimension], чтобы обложка не занимала память полного кадра.
+ *  [preferRgb565] на iOS игнорируется: Skia всё равно кэширует текстуру как N32, сократить нечего. */
+actual fun decodeImageBitmap(bytes: ByteArray, maxDimension: Int, preferRgb565: Boolean): ImageBitmap? = try {
     val image = Image.makeFromEncoded(bytes)
     val longest = maxOf(image.width, image.height)
     when {

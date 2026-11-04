@@ -76,7 +76,7 @@ class KvTranslationStore(
     }
 
     private fun kvKey(key: PageKey): String =
-        "translation_v1:${key.docKey}:${key.page}:${key.target}:${key.layout}"
+        "translation_v2:${key.docKey}:${key.page}:${key.target}:${key.layout}"
 
     private fun registryKey(docKey: String): String = "translation_registry:$docKey"
 }

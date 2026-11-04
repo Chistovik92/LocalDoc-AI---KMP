@@ -2,6 +2,7 @@ package com.localdoc.ai.tts
 
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.createSampleAudio
+import com.localdoc.ai.platform.isBundledSample
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
@@ -67,6 +68,13 @@ class VoiceSamplePlayer(
     }
 
     private suspend fun playOnce(url: String, epoch: Long): Boolean {
+        if (isBundledSample(url)) {
+            if (epoch != latest.value || !alive.value) return false
+            return playMutex.withLock {
+                if (epoch != latest.value || !alive.value) return@withLock false
+                withContext(io) { audio.play(url) }
+            }
+        }
         val bytes = cachedBytes(url) ?: return false
         if (epoch != latest.value || !alive.value) return false
         return playMutex.withLock {

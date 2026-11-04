@@ -155,7 +155,8 @@ object DocxParser {
             for (c in piece) {
                 val space = c.isWhitespace()
                 if (space && previousSpace) continue
-                text.append(if (space) ' ' else c)
+                if (space) text.append(' ')
+                else NormalizeQuotes.expand(c)?.let { text.append(it) } ?: text.append(NormalizeQuotes.map(c))
                 previousSpace = space
             }
             if (text.length == start) return

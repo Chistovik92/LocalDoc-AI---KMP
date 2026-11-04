@@ -605,6 +605,7 @@
     <string name="language_applies_now">Мова застосовується одразу.</string>
     <string name="language_applies_after_restart">Мова зміниться після перезапуску: закрийте застосунок і відкрийте знову.</string>
     <string name="motion_title">Контраст і анімації</string>
+    <string name="app_theme_title">Тема оформлення</string>
     <string name="high_contrast_theme">Висококонтрастна тема</string>
     <string name="high_contrast_hint">Чорне на білому (або навпаки), чіткі межі. Вмикається й системним налаштуванням.</string>
     <string name="reduce_motion">Зменшити анімацію</string>
@@ -684,6 +685,7 @@
     <string name="speed_fast_hint">Близько 2 секунд між розділами; сайт може обмежити доступ — вмикайте для своїх серверів</string>
     <string name="page_short">стор. %1$s</string>
     <string name="page_of_total">%1$s з %2$s</string>
+    <string name="page_of_incomplete">%1$s з …</string>
     <string name="screen_page_explanation">Сторінка — стільки тексту, скільки вміщується на екран за вибраних шрифту, інтервалу й полів.</string>
     <string name="speech_chunk_title">Порція для озвучування й перекладу</string>
     <string name="speech_chunk_hint">Озвучування, переклад і ШІ працюють порціями тексту в будь-якому режимі — велика книга не зависає.</string>
@@ -815,8 +817,17 @@
     <string name="speak_only_translation_hint">Чути переклад в озвучці, але залишити на екрані мову оригіналу</string>
     <string name="stream_translation_to_screen">Показувати переклад абзацами</string>
     <string name="stream_translation_to_screen_hint">Переклад з\'являється на екрані в міру готовності, а не всією сторінкою одразу</string>
-    <string name="prefer_page_translation">Брати переклад зі сторінки</string>
-    <string name="prefer_page_translation_hint">Веб-сторінки перекладає Google Translate (той самий сервіс, що вбудовують сайти) — миттєво, без завантаження локальної моделі</string>
+    <string name="translation_mode">Спосіб перекладу</string>
+    <string name="translation_mode_local">Локальна модель</string>
+    <string name="translation_mode_google">Google Translate</string>
+    <string name="translation_mode_remote">Віддалена модель через API</string>
+    <string name="translation_mode_local_hint">Офлайн, без інтернету — повільніше, потрібна завантажена модель</string>
+    <string name="translation_mode_google_hint">Швидко й без ключа — для слабких телефонів</string>
+    <string name="translation_mode_remote_hint">OpenAI-сумісна модель (OpenAI, OpenRouter, локальний сервер)</string>
+    <string name="remote_api_url">Адреса API (базова URL)</string>
+    <string name="remote_api_model">Модель</string>
+    <string name="remote_api_key">Ключ API</string>
+    <string name="remote_api_save">Зберегти</string>
 
     <string name="signup_login_or_nick">Логін або нік</string>
     <string name="signup_email">Електронна пошта</string>

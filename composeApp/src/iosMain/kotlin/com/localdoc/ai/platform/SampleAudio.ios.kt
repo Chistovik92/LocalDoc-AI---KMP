@@ -10,6 +10,8 @@ import platform.Foundation.dataWithContentsOfFile
 @OptIn(ExperimentalForeignApi::class)
 actual fun createSampleAudio(): SampleAudio = IosSampleAudio()
 
+actual fun isBundledSample(url: String): Boolean = false
+
 @OptIn(ExperimentalForeignApi::class)
 private class IosSampleAudio : SampleAudio {
 

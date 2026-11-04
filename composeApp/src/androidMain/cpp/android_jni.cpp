@@ -38,11 +38,11 @@ static void jni_token_trampoline(const char* token_utf8, void* user_data) {
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_localdoc_ai_engine_LlamaEngine_initNative(
-        JNIEnv* env, jobject /*thiz*/, jstring path, jint n_ctx, jint n_gpu_layers) {
+        JNIEnv* env, jobject /*thiz*/, jstring path, jint n_ctx, jint n_gpu_layers, jint n_threads) {
     if (!path) return 0;
     const char* c_path = env->GetStringUTFChars(path, nullptr);
     if (!c_path) return 0;
-    auto* session = localdoc_init(c_path, n_ctx, n_gpu_layers);
+    auto* session = localdoc_init_android(c_path, n_ctx, n_gpu_layers, n_threads);
     env->ReleaseStringUTFChars(path, c_path);
     return reinterpret_cast<jlong>(session);
 }

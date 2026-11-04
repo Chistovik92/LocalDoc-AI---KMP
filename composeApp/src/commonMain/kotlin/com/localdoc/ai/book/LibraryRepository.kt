@@ -55,7 +55,17 @@ class LibraryRepository(
     suspend fun load(id: String): Book? = withContext(Dispatchers.Default) {
         files.readAppFile(fileName(id))?.let { bytes ->
             runCatching { json.decodeFromString(Book.serializer(), bytes.decodeToString()) }.getOrNull()
-        }
+        }?.normalized()
+    }
+
+    /**
+     * Чистит «умные» кавычки в уже сохранённом тексте книги: старые страницы/файлы, разобранные до
+     * появления нормализации, могли сохраниться с артефактными кавычками U+2018–U+201D.
+     */
+    private fun Book.normalized(): Book {
+        val any = blocks.any { NormalizeQuotes.REPLACEABLE.any { c -> c in it.text } }
+        if (!any) return this
+        return copy(blocks = blocks.map { b -> b.copy(text = NormalizeQuotes.map(b.text)) })
     }
 
     /** Книга вместе с байтами её картинок — для экспорта и конвертации. */

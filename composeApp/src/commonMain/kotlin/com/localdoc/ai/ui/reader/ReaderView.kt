@@ -155,7 +155,9 @@ import com.localdoc.ai.notes.AnnotationColor
 import com.localdoc.ai.notes.TextMark
 import com.localdoc.ai.notes.markAt
 import com.localdoc.ai.platform.ScreenControls
+import com.localdoc.ai.platform.DebugLog
 import com.localdoc.ai.platform.VolumeKeys
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import com.localdoc.ai.domain.pagerFor
@@ -242,6 +244,7 @@ import com.localdoc.ai.domain.ReaderFont
 import com.localdoc.ai.domain.ReaderSettings
 import com.localdoc.ai.domain.applyOverride
 import com.localdoc.ai.domain.ReaderTheme
+import com.localdoc.ai.domain.TranslationMode
 import com.localdoc.ai.parser.ParsedDoc
 import com.localdoc.ai.tts.ReadAloudStop
 import com.localdoc.ai.tts.SpeechSegment
@@ -319,10 +322,10 @@ fun ReaderView(
     val translationSettings by AppGraph.translationSettings.value.collectAsState()
     val translatingDocs by AppGraph.translating.collectAsState()
     val bookmarks by AppGraph.bookmarks.all.collectAsState()
-    // Веб-страницы переводит Google Translate (мгновенно, без локальной модели), когда включена
-    // настройка «брать перевод у страницы»; книги и выключенная настройка — локальной моделью
-    val pageTranslator = remember(docKey, translationSettings.preferPageTranslation) {
-        if (translationSettings.preferPageTranslation && docKey.startsWith("web:")) AppGraph.webTranslator else AppGraph.translator
+    // Документ переводит выбранный сервис: локальная модель, Google Translate или удалённая модель
+    // по API — в зависимости от режима перевода в настройках.
+    val pageTranslator = remember(docKey, translationSettings.mode) {
+        AppGraph.translatorFor(docKey)
     }
     // Прогресс и ошибки — у того переводчика, который реально переводит документ (веб → Google, иначе → модель)
     val translatedPages by pageTranslator.progress.collectAsState()
@@ -530,18 +533,36 @@ fun ReaderView(
         AppGraph.currentDoc.value = ParsedDoc(title = book.title, content = pageBlocks(page).joinToString("\n\n") { it.text }, source = book.source)
     }
 
-    // Перевод текущей страницы и подготовка соседней
-    LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout) {
+    // Перевод текущей страницы и подготовка соседней. Переводчик включён в ключи: смена настройки
+    // «брать перевод у страницы» перезапускает эффект и не оставляет работу в другом переводчике.
+    LaunchedEffect(translating, target?.code, sourceCode, page, pager, retry, layout, pageTranslator) {
         if (!translating || target == null) return@LaunchedEffect
+        DebugLog.d("reader translation effect doc=$docKey page=$page mode=${translationSettings.mode}")
         val nextKey = PageKey(docKey, page + 1, target.code, sourceCode, layout)
         pageTranslator.clearError()
-        pageTranslator.retainOnly(setOf(pageKey, nextKey))
+        pageTranslator.cancelFar(pageKey)
         val source = Languages.byCode(sourceCode)
-        pageTranslator.request(pageKey, pageBlocks(page), target, source)
-        if (page + 1 < pager.size) pageTranslator.request(nextKey, pageBlocks(page + 1), target, source)
+        // Текущая страница идёт вперёд предзагрузки: модель одна, соседняя страница ждёт очереди, а не делит её
+        try {
+            pageTranslator.request(pageKey, pageBlocks(page), target, source).await()
+            if (page + 1 < pager.size) pageTranslator.request(nextKey, pageBlocks(page + 1), target, source)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            DebugLog.e("reader translation effect failed doc=$docKey page=$page", t)
+            // Ошибка уже показана баннером из переводчика: здесь только чтобы эффект не упал
+        }
+    }
+
+    // Смена режима перевода: в прежнем переводчике для этого документа не должно остаться незавершённых страниц
+    LaunchedEffect(docKey, translationSettings.mode) {
+        listOf(AppGraph.translator, AppGraph.webTranslator, AppGraph.remoteTranslator)
+            .filter { it !== pageTranslator }
+            .forEach { it.cancelDoc(docKey) }
     }
 
     fun startTranslation(enabled: Boolean) {
+        DebugLog.d("translation toggled doc=$docKey enabled=$enabled mode=${translationSettings.mode}")
         AppGraph.translating.value = if (enabled) AppGraph.translating.value + docKey else AppGraph.translating.value - docKey
         // Идущая озвучка продолжится с этого же места уже на новом языке
         if (isMine) AppGraph.startReading(docKey, book, speaking?.block ?: currentBlock)
@@ -550,8 +571,8 @@ fun ReaderView(
     // Автоперевод: язык книги отличается от языка перевода
     LaunchedEffect(docKey, translationSettings.autoTranslate, pageTranslator) {
         if (!translationSettings.autoTranslate || docKey in AppGraph.translating.value || target == null) return@LaunchedEffect
-        // Веб-страницы переводит Google Translate — модель для автозапуска не нужна
-        val needModel = pageTranslator === AppGraph.translator
+        // Только локальному переводу нужна загруженная модель — Google и удалённый API работают без неё
+        val needModel = translationSettings.mode == TranslationMode.LOCAL
         val detected = LanguageDetector.detect(pageBlocks(page).joinToString("\n") { it.text })
         if (detected != null && !Languages.sameLanguage(detected, target.code) &&
             (!needModel || AppGraph.loadedModelId.value != null)
@@ -1160,6 +1181,8 @@ fun ReaderView(
                         page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
                         pageCount = if (screenMode) screenLayout.total else pager.size,
                         showPageButtons = pagedDisplay || screenMode,
+                        // Все страницы ещё не разложены: ползунок ведёт на ближайшую готовую страницу и откатывает читателя
+                        seekEnabled = !screenMode || screenLayout.isComplete,
                         onSeek = ::seekPage,
                         onListen = ::listen,
                         onAskAi = { showAi = true }

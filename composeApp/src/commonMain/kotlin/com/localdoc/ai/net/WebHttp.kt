@@ -114,6 +114,22 @@ class WebHttp(
         return send("POST", url, formEncode(fields).encodeToByteArray(), headers, maxBytes)
     }
 
+    /**
+     * POST JSON с заголовком авторизации — для удалённого перевода по OpenAI-compatible API.
+     * Куки и robots.txt сюда не примешиваются (это не сайт, а программный эндпоинт).
+     */
+    suspend fun postJson(
+        url: String,
+        jsonBody: String,
+        bearerToken: String,
+        maxBytes: Long = MAX_PAGE_BYTES
+    ): HttpResult {
+        val headers = HashMap<String, String>()
+        headers["Content-Type"] = "application/json"
+        if (bearerToken.isNotBlank()) headers["Authorization"] = "Bearer $bearerToken"
+        return send("POST", url, jsonBody.encodeToByteArray(), headers, maxBytes, throttled = false)
+    }
+
     private suspend fun send(
         method: String,
         startUrl: String,

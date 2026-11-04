@@ -15,3 +15,6 @@ interface SampleAudio {
 }
 
 expect fun createSampleAudio(): SampleAudio
+
+/** True when [url] is packaged in the application and needs no network fetch. */
+expect fun isBundledSample(url: String): Boolean

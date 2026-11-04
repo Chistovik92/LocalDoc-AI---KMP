@@ -6,6 +6,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
+import android.util.Log
+import android.os.Build
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
@@ -33,7 +35,7 @@ actual class LlamaEngine actual constructor() {
         fun onToken(utf8: ByteArray)
     }
 
-    private external fun initNative(modelPath: String, nCtx: Int, nGpuLayers: Int): Long
+    private external fun initNative(modelPath: String, nCtx: Int, nGpuLayers: Int, nThreads: Int): Long
     private external fun generateNative(sessionPtr: Long, promptUtf8: ByteArray, maxTokens: Int, callback: TokenCallback): Int
     private external fun stopNative(sessionPtr: Long)
     private external fun isGeneratingNative(sessionPtr: Long): Boolean
@@ -41,15 +43,35 @@ actual class LlamaEngine actual constructor() {
 
     actual suspend fun load(modelPath: String, contextSize: Int, gpuLayers: Int): Boolean =
         withContext(Dispatchers.IO) {
+            // Android Emulator (особенно x86_64 через native-bridge) может загрузить
+            // Vulkan-бэкенд, но аварийно завершает процесс внутри libomp при первом
+            // llama_decode. На реальном устройстве сохраняем аппаратное ускорение.
+            val effectiveGpuLayers = if (isEmulator()) 0 else gpuLayers
+            val effectiveThreads = if (isEmulator()) 1 else Runtime.getRuntime().availableProcessors().coerceIn(2, 6)
+            Log.d("LocalDocDebug", "engine load path=$modelPath context=$contextSize gpu=$gpuLayers effectiveGpu=$effectiveGpuLayers threads=$effectiveThreads emulator=${isEmulator()}")
             unload()
-            val ptr = initNative(modelPath, contextSize, gpuLayers)
+            val ptr = initNative(modelPath, contextSize, effectiveGpuLayers, effectiveThreads)
             sessionLock.withLock { sessionPtr = ptr }
+            Log.d("LocalDocDebug", "engine load result=${ptr != 0L}")
             ptr != 0L
         }
 
+    private fun isEmulator(): Boolean =
+        Build.FINGERPRINT.startsWith("generic") ||
+            Build.FINGERPRINT.startsWith("unknown") ||
+            Build.MODEL.contains("google_sdk", ignoreCase = true) ||
+            Build.MODEL.contains("emulator", ignoreCase = true) ||
+            Build.MODEL.contains("sdk_gphone", ignoreCase = true) ||
+            Build.HARDWARE.contains("goldfish", ignoreCase = true) ||
+            Build.HARDWARE.contains("ranchu", ignoreCase = true)
+
     actual fun generateStream(prompt: String, maxTokens: Int): Flow<String> = callbackFlow<String> {
+        Log.d("LocalDocDebug", "engine generate start promptChars=${prompt.length} maxTokens=$maxTokens")
         val ptr = sessionLock.withLock { sessionPtr.also { if (it != 0L) activeGenerations++ } }
-        check(ptr != 0L) { "Модель не загружена" }
+        if (ptr == 0L) {
+            Log.e("LocalDocDebug", "engine generate rejected: model not loaded")
+            check(false) { "Модель не загружена" }
+        }
 
         // Всё после захвата указателя — под finally, иначе счётчик «утечёт» и unload() зависнет
         val status = try {
@@ -67,6 +89,7 @@ actual class LlamaEngine actual constructor() {
         } finally {
             sessionLock.withLock { activeGenerations-- }
         }
+        Log.d("LocalDocDebug", "engine generate native returned status=$status")
         GenerationStatus.ensureOk(status)
         close()
     }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)

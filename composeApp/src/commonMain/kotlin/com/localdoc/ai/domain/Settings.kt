@@ -119,11 +119,21 @@ data class VoiceSettings(
     val perLanguage: Map<String, LanguageVoice> = emptyMap()
 )
 
+/**
+ * Каким сервисом переводить документы. [GOOGLE] — быстрый обходной вариант без ключа (режим
+ * по умолчанию); [LOCAL] — офлайн локальная модель (медленнее); [REMOTE] — внешняя
+ * OpenAI-compatible модель по API (URL + модель + ключ).
+ */
+@Serializable
+enum class TranslationMode { LOCAL, GOOGLE, REMOTE }
+
 /** Перевод «на лету»: язык перевода, язык оригинала (null — определять автоматически) и автозапуск. */
 @Serializable
 data class TranslationSettings(
     val targetLanguage: String = "ru",
     val sourceLanguage: String? = null,
+    /** Каким сервисом переводить: локальная модель, Google Translate или удалённая модель по API. */
+    val mode: TranslationMode = TranslationMode.GOOGLE,
     /** Переводить открытые книги автоматически, если язык текста отличается от языка перевода. */
     val autoTranslate: Boolean = false,
     /**
@@ -138,8 +148,10 @@ data class TranslationSettings(
     val speakOnlyTranslation: Boolean = false,
     /** Показывать перевод на экране по абзацам по мере готовности, не дожидаясь конца страницы. */
     val streamToScreen: Boolean = true,
-    /** Брать перевод у самой страницы (встроенный переводчик сайта), если он там есть. */
-    val preferPageTranslation: Boolean = true
+    /** Режим REMOTE: OpenAI-compatible base URL (например `https://api.openai.com/v1`). */
+    val remoteApiUrl: String = "",
+    /** Режим REMOTE: имя модели (например `gpt-4o-mini`). */
+    val remoteModel: String = ""
 )
 
 /** Настройка, сохраняемая в KV-хранилище в виде JSON. */

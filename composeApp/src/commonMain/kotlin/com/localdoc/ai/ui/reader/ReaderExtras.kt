@@ -29,8 +29,17 @@ import com.localdoc.ai.resources.translate_text
 import com.localdoc.ai.resources.translation
 import com.localdoc.ai.resources.translation_is_done_by_a_local
 import com.localdoc.ai.resources.translation_language
-import com.localdoc.ai.resources.prefer_page_translation
-import com.localdoc.ai.resources.prefer_page_translation_hint
+import com.localdoc.ai.resources.translation_mode
+import com.localdoc.ai.resources.translation_mode_local
+import com.localdoc.ai.resources.translation_mode_google
+import com.localdoc.ai.resources.translation_mode_remote
+import com.localdoc.ai.resources.translation_mode_local_hint
+import com.localdoc.ai.resources.translation_mode_google_hint
+import com.localdoc.ai.resources.translation_mode_remote_hint
+import com.localdoc.ai.resources.remote_api_url
+import com.localdoc.ai.resources.remote_api_model
+import com.localdoc.ai.resources.remote_api_key
+import com.localdoc.ai.resources.remote_api_save
 import com.localdoc.ai.resources.turn_translation_on_when_the_book
 import com.localdoc.ai.resources.Res
 import org.jetbrains.compose.resources.stringResource
@@ -65,6 +74,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -80,10 +90,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localdoc.ai.book.Bookmark
 import com.localdoc.ai.domain.AppGraph
+import com.localdoc.ai.domain.TranslationMode
 import com.localdoc.ai.lang.Languages
 
 /** Выбор языка из списка; [allowAuto] добавляет пункт «Определять автоматически» (результат null). */
@@ -123,6 +135,8 @@ internal fun TranslationSettingsContent() {
     val settings by AppGraph.translationSettings.value.collectAsState()
     var pickTarget by remember { mutableStateOf(false) }
     var pickSource by remember { mutableStateOf(false) }
+    var pickMode by remember { mutableStateOf(false) }
+    var pickRemote by remember { mutableStateOf(false) }
     val target = Languages.byCode(settings.targetLanguage)
     val source = Languages.byCode(settings.sourceLanguage)
 
@@ -139,6 +153,22 @@ internal fun TranslationSettingsContent() {
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clickable { pickSource = true }
         )
+        ListItem(
+            headlineContent = { Text(stringResource(Res.string.translation_mode)) },
+            supportingContent = {
+                Text(
+                    when (settings.mode) {
+                        TranslationMode.LOCAL -> stringResource(Res.string.translation_mode_local)
+                        TranslationMode.GOOGLE -> stringResource(Res.string.translation_mode_google)
+                        TranslationMode.REMOTE -> stringResource(Res.string.translation_mode_remote)
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier.clickable { pickMode = true }
+        )
         SwitchLine(stringResource(Res.string.translate_automatically), stringResource(Res.string.turn_translation_on_when_the_book), settings.autoTranslate) { v ->
             AppGraph.translationSettings.update { it.copy(autoTranslate = v) }
         }
@@ -150,9 +180,6 @@ internal fun TranslationSettingsContent() {
         }
         SwitchLine(stringResource(Res.string.stream_translation_to_screen), stringResource(Res.string.stream_translation_to_screen_hint), settings.streamToScreen) { v ->
             AppGraph.translationSettings.update { it.copy(streamToScreen = v) }
-        }
-        SwitchLine(stringResource(Res.string.prefer_page_translation), stringResource(Res.string.prefer_page_translation_hint), settings.preferPageTranslation) { v ->
-            AppGraph.translationSettings.update { it.copy(preferPageTranslation = v) }
         }
     }
     if (pickTarget) {
@@ -167,6 +194,88 @@ internal fun TranslationSettingsContent() {
             pickSource = false
         }, onDismiss = { pickSource = false })
     }
+    if (pickMode) {
+        TranslationModeDialog(
+            current = settings.mode,
+            onPick = { mode ->
+                AppGraph.translationSettings.update { it.copy(mode = mode) }
+                pickMode = false
+                if (mode == TranslationMode.REMOTE) pickRemote = true
+            },
+            onDismiss = { pickMode = false }
+        )
+    }
+    if (pickRemote) {
+        RemoteApiDialog(
+            url = settings.remoteApiUrl,
+            model = settings.remoteModel,
+            initialKey = AppGraph.secure.get(AppGraph.REMOTE_API_KEY_STORAGE) ?: "",
+            onSave = { url, model, key ->
+                AppGraph.translationSettings.update { it.copy(remoteApiUrl = url, remoteModel = model) }
+                if (key.isNotBlank()) AppGraph.secure.put(AppGraph.REMOTE_API_KEY_STORAGE, key)
+                else AppGraph.secure.remove(AppGraph.REMOTE_API_KEY_STORAGE)
+                pickRemote = false
+            },
+            onDismiss = { pickRemote = false }
+        )
+    }
+}
+
+/** Выбор способа перевода: локальная модель, Google Translate или удалённая модель по API. */
+@Composable
+private fun TranslationModeDialog(current: TranslationMode, onPick: (TranslationMode) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.translation_mode)) },
+        text = {
+            Column {
+                TranslationModeRow(TranslationMode.LOCAL, current, onPick)
+                TranslationModeRow(TranslationMode.GOOGLE, current, onPick)
+                TranslationModeRow(TranslationMode.REMOTE, current, onPick)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.close), maxLines = 1, softWrap = false) } }
+    )
+}
+
+@Composable
+private fun TranslationModeRow(mode: TranslationMode, current: TranslationMode, onPick: (TranslationMode) -> Unit) {
+    val (title, hint) = when (mode) {
+        TranslationMode.LOCAL -> stringResource(Res.string.translation_mode_local) to stringResource(Res.string.translation_mode_local_hint)
+        TranslationMode.GOOGLE -> stringResource(Res.string.translation_mode_google) to stringResource(Res.string.translation_mode_google_hint)
+        TranslationMode.REMOTE -> stringResource(Res.string.translation_mode_remote) to stringResource(Res.string.translation_mode_remote_hint)
+    }
+    ListItem(
+        headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(hint) },
+        leadingContent = { RadioButton(selected = current == mode, onClick = { onPick(mode) }) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.clickable(role = Role.Button, onClick = { onPick(mode) })
+    )
+}
+
+/** Настройки удалённой OpenAI-compatible модели: base URL, имя модели и ключ API. */
+@Composable
+private fun RemoteApiDialog(url: String, model: String, initialKey: String, onSave: (String, String, String) -> Unit, onDismiss: () -> Unit) {
+    var urlValue by remember { mutableStateOf(url) }
+    var modelValue by remember { mutableStateOf(model) }
+    var keyValue by remember { mutableStateOf(initialKey) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.translation_mode_remote)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(urlValue, { urlValue = it }, label = { Text(stringResource(Res.string.remote_api_url)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(modelValue, { modelValue = it }, label = { Text(stringResource(Res.string.remote_api_model)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    keyValue, { keyValue = it }, label = { Text(stringResource(Res.string.remote_api_key)) }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(urlValue.trim(), modelValue.trim(), keyValue.trim()) }) { Text(stringResource(Res.string.remote_api_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.close)) } }
+    )
 }
 
 /** Строка с переключателем и пояснением; длинный текст переносится, переключатель остаётся справа. */
@@ -261,12 +370,15 @@ internal fun BookmarksSheet(
     }
 }
 
-/** Нижняя панель чтения по страницам: ползунок, страницы, «Слушать» и «Спросить ИИ». */
+/** Нижняя панель чтения по страницам: ползунок, страницы, «Слушать» и «Спросить ИИ».
+ *  [seekEnabled] false — страницы ещё считаются: ползунок не должен забросить читателя
+ *  на «ближайшую готовую» страницу и откатиться назад. */
 @Composable
 internal fun PageBar(
     page: Int,
     pageCount: Int,
     showPageButtons: Boolean,
+    seekEnabled: Boolean = true,
     onSeek: (Int) -> Unit,
     onListen: () -> Unit,
     onAskAi: () -> Unit
@@ -276,8 +388,9 @@ internal fun PageBar(
     val span = lastPage.coerceAtLeast(1)
     val position = dragging ?: (page.toFloat() / span)
     val shownPage = (position * span).toInt().coerceIn(0, lastPage)
+    // Панель лежит поверх страницы: полупрозрачная, чтобы текст под ней оставался читаемым
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.9f),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 3.dp,
         modifier = Modifier.fillMaxWidth()
@@ -285,6 +398,7 @@ internal fun PageBar(
         Column(modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)) {
             Slider(
                 value = position.coerceIn(0f, 1f),
+                enabled = seekEnabled,
                 onValueChange = { dragging = it },
                 onValueChangeFinished = {
                     dragging?.let { onSeek((it * span).toInt().coerceIn(0, lastPage)) }

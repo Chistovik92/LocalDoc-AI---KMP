@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -149,16 +150,59 @@ class PageTranslatorTest {
     }
 
     @Test
-    fun `retainOnly cancels pages that are no longer needed`() = runTest {
-        val translator = PageTranslator({ text, _, _ -> flow { kotlinx.coroutines.delay(1_000); emit(text) } }, backgroundScope)
+    fun `cancelFar cancels far idle pages but keeps neighbors`() = runTest {
+        val translator = PageTranslator(fake(), backgroundScope)
         val far = PageKey("b", 50, "ru", null)
-        val job = translator.request(far, page(englishText), ru, null)
+        val near = PageKey("b", 2, "ru", null)
+        // Обе страницы в работе, но модель «занята» — как долгий перевод локальной моделью
+        translator.hold()
+        val farJob = translator.request(far, page(englishText), ru, null)
+        val nearJob = translator.request(near, page(englishText), ru, null)
+        runCurrent()
 
-        translator.retainOnly(emptySet())
+        // Далёкую страницу отменяем: один мьютекс генерации освобождается, соседняя доживает до конца
+        translator.cancelFar(PageKey("b", 3, "ru", null))
+        translator.release()
+        runCurrent()
         advanceUntilIdle()
 
-        assertTrue(job.isCancelled)
+        assertTrue(farJob.isCancelled)
         assertNull(translator.cached(far))
+        assertFalse(nearJob.isCancelled)
+        assertTrue(nearJob.isCompleted)
+        assertNotNull(translator.cached(near))
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun `partially failed page continues with translated blocks and does not count them again`() = runTest {
+        var failSecond = true
+        var modelCalls = 0
+        val translator = PageTranslator(
+            { text, _, _ ->
+                flow {
+                    modelCalls++
+                    if (text.startsWith("Second") && failSecond) throw IllegalStateException("fail")
+                    emit("ok $text")
+                }
+            },
+            backgroundScope
+        )
+        val blocks = page("Hello, first english block.", "Second english block goes here, mate.")
+
+        val first = translator.translate(key, blocks, ru, null)
+        // Сбой одного блока не рушит страницу: первый переведён, второй остался оригиналом
+        assertEquals("ok Hello, first english block.", first[0].text)
+        assertEquals("Second english block goes here, mate.", first[1].text)
+        assertEquals(2, modelCalls)
+        assertNull(translator.cached(key))
+
+        failSecond = false
+        val second = translator.translate(key, blocks, ru, null)
+        // Первый блок не запрошен повторно — частичный прогресс с прошлой попытки
+        assertEquals(3, modelCalls)
+        assertEquals("ok Second english block goes here, mate.", second[1].text)
+        assertNotNull(translator.cached(key))
     }
 
     @Test

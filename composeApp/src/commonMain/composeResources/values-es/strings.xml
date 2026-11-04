@@ -603,6 +603,7 @@
     <string name="language_applies_now">El idioma se aplica de inmediato.</string>
     <string name="language_applies_after_restart">El idioma cambiará tras reiniciar: cierra la app y ábrela de nuevo.</string>
     <string name="motion_title">Contraste y movimiento</string>
+    <string name="app_theme_title">Tema de la app</string>
     <string name="high_contrast_theme">Tema de alto contraste</string>
     <string name="high_contrast_hint">Negro sobre blanco (o al revés) con bordes nítidos. También se activa con el ajuste del sistema.</string>
     <string name="reduce_motion">Reducir movimiento</string>
@@ -682,6 +683,7 @@
     <string name="speed_fast_hint">Unos 2 segundos entre capítulos; el sitio puede restringir el acceso: úsalo con tus propios servidores</string>
     <string name="page_short">pág. %1$s</string>
     <string name="page_of_total">%1$s de %2$s</string>
+    <string name="page_of_incomplete">%1$s de …</string>
     <string name="screen_page_explanation">Una página es el texto que cabe en pantalla con la fuente, el interlineado y los márgenes elegidos.</string>
     <string name="speech_chunk_title">Porción para narración y traducción</string>
     <string name="speech_chunk_hint">La narración, la traducción y la IA funcionan por porciones de texto en cualquier modo: un libro grande no se bloquea.</string>
@@ -813,8 +815,17 @@
     <string name="speak_only_translation_hint">Escuchar la traducción al leer en voz alta, pero mantener el idioma original en pantalla</string>
     <string name="stream_translation_to_screen">Mostrar la traducción por párrafos</string>
     <string name="stream_translation_to_screen_hint">La traducción aparece en pantalla a medida que está lista</string>
-    <string name="prefer_page_translation">Usar la traducción de la página</string>
-    <string name="prefer_page_translation_hint">Las páginas web las traduce Google Translate (el mismo servicio que integran los sitios) — al instante, sin cargar el modelo local</string>
+    <string name="translation_mode">Método de traducción</string>
+    <string name="translation_mode_local">Modelo local</string>
+    <string name="translation_mode_google">Google Translate</string>
+    <string name="translation_mode_remote">Modelo remoto por API</string>
+    <string name="translation_mode_local_hint">Sin conexión, sin internet — más lento, requiere un modelo descargado</string>
+    <string name="translation_mode_google_hint">Rápido y sin clave — para teléfonos modestos</string>
+    <string name="translation_mode_remote_hint">Modelo compatible con OpenAI (OpenAI, OpenRouter, servidor local)</string>
+    <string name="remote_api_url">Dirección de la API (URL base)</string>
+    <string name="remote_api_model">Modelo</string>
+    <string name="remote_api_key">Clave de API</string>
+    <string name="remote_api_save">Guardar</string>
 
     <string name="signup_login_or_nick">Usuario o apodo</string>
     <string name="signup_email">Correo electrónico</string>

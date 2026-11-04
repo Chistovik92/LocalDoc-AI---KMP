@@ -86,7 +86,7 @@ struct GeneratingGuard {
 
 extern "C" {
 
-LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_layers) {
+LocalDocSession* localdoc_init_with_threads(const char* model_path, int n_ctx, int n_gpu_layers, int requested_threads) {
     if (!model_path || n_ctx <= 0) return nullptr;
 
     llama_backend_init();
@@ -101,7 +101,7 @@ LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_laye
         return nullptr;
     }
 
-    const int n_threads = thread_count();
+    const int n_threads = requested_threads > 0 ? requested_threads : thread_count();
     llama_context_params cparams = llama_context_default_params();
     cparams.n_ctx = static_cast<uint32_t>(n_ctx);
     cparams.n_batch = 512;
@@ -133,6 +133,14 @@ LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_laye
     session->ctx = ctx;
     session->sampler = sampler;
     return session;
+}
+
+LocalDocSession* localdoc_init(const char* model_path, int n_ctx, int n_gpu_layers) {
+    return localdoc_init_with_threads(model_path, n_ctx, n_gpu_layers, 0);
+}
+
+LocalDocSession* localdoc_init_android(const char* model_path, int n_ctx, int n_gpu_layers, int n_threads) {
+    return localdoc_init_with_threads(model_path, n_ctx, n_gpu_layers, n_threads);
 }
 
 int localdoc_generate(

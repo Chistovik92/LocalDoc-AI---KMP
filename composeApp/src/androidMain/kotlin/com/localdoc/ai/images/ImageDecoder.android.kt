@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 
 private const val MAX_PIXELS = 60_000_000L
 
-actual fun decodeImageBitmap(bytes: ByteArray, maxDimension: Int): ImageBitmap? {
+actual fun decodeImageBitmap(bytes: ByteArray, maxDimension: Int, preferRgb565: Boolean): ImageBitmap? {
     return try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -17,7 +17,7 @@ actual fun decodeImageBitmap(bytes: ByteArray, maxDimension: Int): ImageBitmap? 
         while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxDimension) sample *= 2
         val options = BitmapFactory.Options().apply {
             inSampleSize = sample
-            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inPreferredConfig = if (preferRgb565) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
         }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
     } catch (e: OutOfMemoryError) {
