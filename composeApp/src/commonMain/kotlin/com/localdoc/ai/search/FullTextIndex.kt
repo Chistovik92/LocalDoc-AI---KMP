@@ -2,6 +2,8 @@ package com.localdoc.ai.search
 
 import com.localdoc.ai.domain.NovelFiles
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.yield
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
@@ -78,6 +80,7 @@ class FullTextIndex(
     private var manifest: MutableMap<String, String> = readManifest()
     private val cache = LinkedHashMap<String, Shard>()
 
+    private val mutex = Mutex()
     private var batchDepth = 0
     private var manifestDirty = false
     private var dictFileDirty = false
@@ -92,10 +95,10 @@ class FullTextIndex(
      * манифест заново (квадратичный рост). Обрыв посреди группы безопасен: файлы индекса без записи в манифесте
      * при следующей синхронизации просто строятся заново.
      */
-    suspend fun <T> batch(block: suspend () -> T): T {
+    suspend fun <T> batch(block: suspend () -> T): T = mutex.withLock {
         batchDepth++
         try {
-            return block()
+            block()
         } finally {
             batchDepth--
             if (batchDepth == 0) {
@@ -124,8 +127,8 @@ class FullTextIndex(
     fun isCurrent(docId: String, signature: String): Boolean = manifest[docId] == signature
 
     /** Индексирует документ, если подпись изменилась; true — индекс обновлён. [units] — тексты блоков по порядку. */
-    suspend fun index(docId: String, signature: String, units: List<String>, refs: List<String> = emptyList()): Boolean {
-        if (isCurrent(docId, signature) && files.read(fileName(docId)) != null) return false
+    suspend fun index(docId: String, signature: String, units: List<String>, refs: List<String> = emptyList()): Boolean = mutex.withLock {
+        if (isCurrent(docId, signature) && files.read(fileName(docId)) != null) return@withLock false
         val oldTerms = shardTerms(docId)
         val postings = HashMap<String, MutableList<Int>>()
         units.forEachIndexed { unit, text ->
@@ -144,10 +147,10 @@ class FullTextIndex(
         persistDict()
         manifest[docId] = signature
         persistManifest()
-        return true
+        return@withLock true
     }
 
-    fun remove(docId: String) {
+    suspend fun remove(docId: String) = mutex.withLock {
         val terms = shardTerms(docId)
         files.deleteAll(fileName(docId))
         cache.remove(docId)
@@ -156,7 +159,7 @@ class FullTextIndex(
     }
 
     /** Забывает документ: при следующей синхронизации он будет проиндексирован заново. */
-    fun invalidate(docId: String) {
+    suspend fun invalidate(docId: String) = mutex.withLock {
         val terms = shardTerms(docId)
         removeFromDict(docId, terms)
         if (manifest.remove(docId) != null) flushManifest()
@@ -164,7 +167,7 @@ class FullTextIndex(
     }
 
     /** Стирает весь индекс (после восстановления из резервной копии книги другие, индекс строится заново). */
-    fun clear() {
+    suspend fun clear() = mutex.withLock {
         manifest.keys.toList().forEach { files.deleteAll(fileName(it)) }
         manifest.clear()
         cache.clear()

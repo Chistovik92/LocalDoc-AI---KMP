@@ -61,8 +61,8 @@ object RingLog {
 
     private fun record(level: String, message: String, error: Throwable?) {
         val errorPart = error?.let { " | ${it::class.simpleName ?: "Throwable"}: ${it.message}" }.orEmpty()
-        val line = "${clock()} $level $message$errorPart"
         lock.withLock {
+            val line = "${clock()} $level $message$errorPart"
             buffer.addLast(line)
             while (buffer.size > MAX_BUFFER_LINES) buffer.removeFirst()
             if (buffer.size >= FLUSH_AT_LINES) flushLocked()

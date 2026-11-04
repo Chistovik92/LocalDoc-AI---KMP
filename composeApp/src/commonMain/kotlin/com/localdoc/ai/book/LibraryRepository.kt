@@ -2,6 +2,7 @@ package com.localdoc.ai.book
 
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
+import com.localdoc.ai.platform.SyncLock
 import com.localdoc.ai.net.nowMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ class LibraryRepository(
     val entries: StateFlow<List<BookEntry>> = _entries.asStateFlow()
 
     /** Прогресс чтения меняется в памяти сразу, а на диск пишется не чаще раза в [PROGRESS_WRITE_MS]. */
+    private val progressLock = SyncLock()
     private var progressDirty = false
     private var lastProgressWrite = 0L
 
@@ -116,16 +118,16 @@ class LibraryRepository(
         update(listOf(entry) + _entries.value.filterNot { it.id == id })
     }
 
-    fun saveProgress(id: String, block: Int) {
+    fun saveProgress(id: String, block: Int) = progressLock.withLock {
         val list = _entries.value
-        if (list.none { it.id == id && it.progressBlock != block }) return
+        if (list.none { it.id == id && it.progressBlock != block }) return@withLock
         _entries.value = list.map { if (it.id == id) it.copy(progressBlock = block) else it }
         progressDirty = true
         if (clock() - lastProgressWrite >= PROGRESS_WRITE_MS) writeEntries()
     }
 
     /** Сохраняет накопленный прогресс чтения немедленно (закрытие читалки, уход в фон). */
-    fun flushProgress() {
+    fun flushProgress() = progressLock.withLock {
         if (progressDirty) writeEntries()
     }
 
