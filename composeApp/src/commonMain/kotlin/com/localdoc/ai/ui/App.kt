@@ -270,7 +270,7 @@ fun App() {
             PlatformBackHandler(enabled = true) { openBook = null }
             key(bookKey(reading.entryId)) {
             // Закрытая читалка не должна засчитываться как чтение: интервал закрывается, накопленное сохраняется
-            DisposableEffect(reading.entryId) { onDispose { AppGraph.readingStats.onPause() } }
+            DisposableEffect(reading.entryId) { onDispose { AppGraph.readingStats.onPause(); AppGraph.library.flushProgress() } }
             Box(Modifier.fillMaxSize()) {
             // PDF с копией файла открывается страницами-картинками; режим «текст» — по кнопке в панели
             var pdfAsText by remember(reading.entryId) { mutableStateOf(false) }

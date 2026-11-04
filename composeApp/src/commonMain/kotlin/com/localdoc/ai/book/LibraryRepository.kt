@@ -2,6 +2,7 @@ package com.localdoc.ai.book
 
 import com.localdoc.ai.platform.FileAccess
 import com.localdoc.ai.platform.KeyValueStore
+import com.localdoc.ai.net.nowMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlin.random.Random
 class LibraryRepository(
     private val kv: KeyValueStore,
     private val files: FileAccess,
+    private val clock: () -> Long = ::nowMillis,
     /** Содержимое книги заменено повторным импортом: производные данные (поисковый индекс) устарели. */
     private val onContentReplaced: (String) -> Unit = {}
 ) {
@@ -24,6 +26,10 @@ class LibraryRepository(
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
     private val _entries = MutableStateFlow(loadEntries())
     val entries: StateFlow<List<BookEntry>> = _entries.asStateFlow()
+
+    /** Прогресс чтения меняется в памяти сразу, а на диск пишется не чаще раза в [PROGRESS_WRITE_MS]. */
+    private var progressDirty = false
+    private var lastProgressWrite = 0L
 
     suspend fun add(book: Book): BookEntry = withContext(Dispatchers.Default) {
         val existing = _entries.value.firstOrNull { it.source.isNotBlank() && it.source == book.source && it.format == book.format }
@@ -113,7 +119,14 @@ class LibraryRepository(
     fun saveProgress(id: String, block: Int) {
         val list = _entries.value
         if (list.none { it.id == id && it.progressBlock != block }) return
-        update(list.map { if (it.id == id) it.copy(progressBlock = block) else it })
+        _entries.value = list.map { if (it.id == id) it.copy(progressBlock = block) else it }
+        progressDirty = true
+        if (clock() - lastProgressWrite >= PROGRESS_WRITE_MS) writeEntries()
+    }
+
+    /** Сохраняет накопленный прогресс чтения немедленно (закрытие читалки, уход в фон). */
+    fun flushProgress() {
+        if (progressDirty) writeEntries()
     }
 
     fun remove(id: String) {
@@ -133,7 +146,13 @@ class LibraryRepository(
 
     private fun update(list: List<BookEntry>) {
         _entries.value = list
-        kv.put(KEY_ENTRIES, json.encodeToString(ENTRIES_SERIALIZER, list))
+        writeEntries()
+    }
+
+    private fun writeEntries() {
+        progressDirty = false
+        lastProgressWrite = clock()
+        kv.put(KEY_ENTRIES, json.encodeToString(ENTRIES_SERIALIZER, _entries.value))
     }
 
     private fun loadEntries(): List<BookEntry> =
@@ -147,6 +166,8 @@ class LibraryRepository(
 
     companion object {
         private const val KEY_ENTRIES = "library_v1"
+        /** Прогресс чтения пишется на диск не чаще раза в этот интервал (листание страниц не сериализует всю библиотеку). */
+        private const val PROGRESS_WRITE_MS = 1_000L
         private val ENTRIES_SERIALIZER = kotlinx.serialization.builtins.ListSerializer(BookEntry.serializer())
     }
 }
