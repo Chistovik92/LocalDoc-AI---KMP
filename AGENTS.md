@@ -28,9 +28,9 @@
 
 ## Проверка сборки
 
-- Android: `./gradlew :composeApp:assembleDebug` (нужны Android SDK + NDK).
+- Android: `./gradlew :androidApp:assembleDebug` (нужны Android SDK + NDK).
 - iOS: `./cpp_core/scripts/build_ios_xcframework.sh` и
-  `./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64` (macOS + Xcode).
+  `./gradlew :shared:linkDebugFrameworkIosSimulatorArm64` (macOS + Xcode).
 
 ## Тестирование на устройстве (adb)
 
