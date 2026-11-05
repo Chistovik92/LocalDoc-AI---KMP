@@ -289,9 +289,9 @@ fun paperColors(theme: ReaderTheme): PaperColors {
 @Composable
 private fun ReaderMenuItem(
     label: String,
-    onClick: () -> Unit,
     icon: ImageVector? = null,
     checked: Boolean = false,
+    onClick: () -> Unit,
 ) {
     DropdownMenuItem(
         text = { Text(label) },
