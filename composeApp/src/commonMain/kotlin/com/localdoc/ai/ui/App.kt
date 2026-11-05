@@ -278,6 +278,8 @@ fun App() {
             var currentBlock by remember(reading.entryId) { mutableStateOf(reading.startBlock) }
             // Исправленный текст пересоздаёт читалку: её позиция хранится в состоянии, привязанном к старым номерам блоков
             var repairEpoch by remember(reading.entryId) { mutableStateOf(0) }
+            // OCR PDF по требованию (распознавание сканов) идёт в фоне; пока — индикатор поверх страниц
+            var pdfOcrRunning by remember(reading.entryId) { mutableStateOf(false) }
             if (reading.book.pdfFile != null && !pdfAsText) {
                 PdfPagesScreen(
                     book = reading.book,
@@ -288,7 +290,26 @@ fun App() {
                         AppGraph.readingStats.onPosition(reading.entryId, reading.book, it)
                     },
                     onBack = { openBook = null },
-                    onShowText = { pdfAsText = true }
+                    onShowText = { pdfAsText = true },
+                    onRunOcr = {
+                        scope.launch {
+                            pdfOcrRunning = true
+                            try {
+                                AppGraph.recognizePdfText(reading.entryId, reading.book)?.let { updated ->
+                                    currentBlock = 0
+                                    openBook = OpenBook(reading.entryId, updated, 0)
+                                    pdfAsText = true
+                                }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (t: Throwable) {
+                                // Сбой распознавания оставляет страницы-картинки; пользователь может повторить
+                            } finally {
+                                pdfOcrRunning = false
+                            }
+                        }
+                    },
+                    ocrRunning = pdfOcrRunning
                 )
             } else key(repairEpoch) {
             ReaderView(

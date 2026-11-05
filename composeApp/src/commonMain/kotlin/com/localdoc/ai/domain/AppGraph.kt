@@ -15,6 +15,8 @@ import com.localdoc.ai.backup.RestoreResult
 import com.localdoc.ai.book.BookImporter
 import com.localdoc.ai.book.BookmarkRepository
 import com.localdoc.ai.book.LibraryRepository
+import com.localdoc.ai.book.PdfTextAdapter
+import com.localdoc.ai.book.TextRepair
 import com.localdoc.ai.lang.GoogleWebTranslator
 import com.localdoc.ai.lang.KvTranslationStore
 import com.localdoc.ai.lang.PageTranslator
@@ -172,6 +174,20 @@ object AppGraph {
 
     val importer: BookImporter by lazy { BookImporter(files, pdfExtractor) }
     val library: LibraryRepository by lazy { LibraryRepository(kv, files) { id -> appScope.launch(indexDispatcher) { search.invalidate(id) } } }
+
+    /**
+     * Распознавание текста PDF по требованию из читалки: запускает локальный OCR по копии PDF
+     * в хранилище приложения и заменяет текст/оглавление книги, сохраняя обложку и PDF-копию.
+     * Возвращает обновлённую книгу (null — копии нет или распознавание не дало текста).
+     */
+    suspend fun recognizePdfText(id: String, book: com.localdoc.ai.book.Book): com.localdoc.ai.book.Book? {
+        val pdfFile = book.pdfFile ?: return null
+        val path = files.appFilePath(pdfFile)
+        val parsed = pdfExtractor.extract(path, withOcr = true)
+        val rebuilt = TextRepair.repairBook(PdfTextAdapter.toBook(book.title, parsed.content, book.source ?: path))
+        if (rebuilt.blocks.isEmpty()) return null
+        return library.replacePdfText(id, rebuilt.blocks, rebuilt.chapters)
+    }
 
     val fonts: com.localdoc.ai.book.FontLibrary by lazy { com.localdoc.ai.book.FontLibrary(files) }
 

@@ -243,6 +243,8 @@
     <string name="unpacking">Распаковка…</string>
     <string name="of_mb_2">%1$s из %2$s МБ</string>
     <string name="text_mode">Режим «текст»</string>
+    <string name="pdf_recognize_text">Распознать текст (OCR)</string>
+    <string name="pdf_recognizing">Распознаю текст…</string>
     <string name="page">Страница %1$s</string>
     <string name="the_page_did_not_open">Страница не открылась</string>
     <string name="nothing_found_for_these_words">По этим словам ничего не найдено</string>

@@ -110,6 +110,24 @@ class LibraryRepository(
         updated to progress
     }
 
+    /**
+     * Заменяет текст и оглавление книги распознанным текстом (OCR PDF по требованию): обложка,
+     * картинки, PDF-копия и прогресс остаются. Возвращает обновлённую книгу.
+     */
+    suspend fun replacePdfText(id: String, blocks: List<Block>, chapters: List<Chapter>): Book? = withContext(Dispatchers.Default) {
+        val book = load(id) ?: return@withContext null
+        val updated = book.copy(blocks = blocks, chapters = chapters)
+        files.writeAppFile(fileName(id), json.encodeToString(Book.serializer(), updated).encodeToByteArray())
+        val entry = _entries.value.firstOrNull { it.id == id }
+        if (entry != null) {
+            update(_entries.value.map {
+                if (it.id == id) entry.copy(totalBlocks = blocks.size, progressBlock = entry.progressBlock.coerceIn(0, (blocks.size - 1).coerceAtLeast(0))) else it
+            })
+        }
+        onContentReplaced(id)
+        updated
+    }
+
     fun entry(id: String): BookEntry? = _entries.value.firstOrNull { it.id == id }
 
     /** Отметка «открыта сейчас»: поднимает книгу наверх списка. */

@@ -23,7 +23,7 @@ import platform.Vision.VNRequestTextRecognitionLevelAccurate
 /** iOS: PDFKit для текстового слоя + Apple Vision OCR (Neural Engine) для сканов. */
 actual class PdfExtractor actual constructor() {
 
-    actual suspend fun extract(pathOrUri: String): ParsedDoc = withContext(Dispatchers.IO) {
+    actual suspend fun extract(pathOrUri: String, withOcr: Boolean): ParsedDoc = withContext(Dispatchers.IO) {
         val url = NSURL.fileURLWithPath(pathOrUri)
         val pdfDoc = PDFDocument(uRL = url)
             ?: return@withContext ParsedDoc(
@@ -40,7 +40,7 @@ actual class PdfExtractor actual constructor() {
             val page = pdfDoc.pageAtIndex(i.toULong()) ?: continue
             val text = page.string?.trim() ?: ""
 
-            if (text.length > 40) {
+            if (text.length > 40 || !withOcr) {
                 builder.append("\n--- [Страница ${i + 1}] ---\n").append(text)
             } else {
                 // Фоллбэк: рендерим страницу в изображение и распознаём через Vision OCR

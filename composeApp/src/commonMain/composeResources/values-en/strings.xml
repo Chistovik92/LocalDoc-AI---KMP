@@ -243,6 +243,8 @@
     <string name="unpacking">Unpacking…</string>
     <string name="of_mb_2">%1$s of %2$s MB</string>
     <string name="text_mode">“Text” mode</string>
+    <string name="pdf_recognize_text">Recognize text (OCR)</string>
+    <string name="pdf_recognizing">Recognizing text…</string>
     <string name="page">Page %1$s</string>
     <string name="the_page_did_not_open">The page did not open</string>
     <string name="nothing_found_for_these_words">Nothing found for these words</string>

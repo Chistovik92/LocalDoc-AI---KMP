@@ -243,6 +243,8 @@
     <string name="unpacking">Descomprimiendo…</string>
     <string name="of_mb_2">%1$s de %2$s MB</string>
     <string name="text_mode">Modo “texto”</string>
+    <string name="pdf_recognize_text">Reconocer texto (OCR)</string>
+    <string name="pdf_recognizing">Reconociendo texto…</string>
     <string name="page">Página %1$s</string>
     <string name="the_page_did_not_open">La página no se abrió</string>
     <string name="nothing_found_for_these_words">No se encontró nada para esas palabras</string>

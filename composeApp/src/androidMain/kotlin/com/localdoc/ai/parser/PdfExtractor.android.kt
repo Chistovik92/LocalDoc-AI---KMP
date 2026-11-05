@@ -27,7 +27,7 @@ actual class PdfExtractor actual constructor() {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
-    actual suspend fun extract(pathOrUri: String): ParsedDoc = withContext(Dispatchers.IO) {
+    actual suspend fun extract(pathOrUri: String, withOcr: Boolean): ParsedDoc = withContext(Dispatchers.IO) {
         PDFBoxResourceLoader.init(context)
         val uri = if (pathOrUri.startsWith("/")) Uri.fromFile(java.io.File(pathOrUri)) else Uri.parse(pathOrUri)
         val fullText = StringBuilder()
@@ -44,8 +44,8 @@ actual class PdfExtractor actual constructor() {
                     stripper.endPage = pageIndex
                     val pageText = stripper.getText(pdDoc).trim()
 
-                    if (pageText.length > 40) {
-                        // Нормальный текстовый слой
+                    if (pageText.length > 40 || !withOcr) {
+                        // Нормальный текстовый слой (или OCR отложен — только текстовый слой)
                         fullText.append("\n--- [Страница $pageIndex] ---\n").append(pageText)
                     } else {
                         // Скановая страница — локальный OCR через ML Kit

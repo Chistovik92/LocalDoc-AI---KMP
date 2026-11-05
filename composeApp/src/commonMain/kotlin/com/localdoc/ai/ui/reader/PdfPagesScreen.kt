@@ -2,6 +2,8 @@ package com.localdoc.ai.ui.reader
 
 import com.localdoc.ai.resources.back
 import com.localdoc.ai.resources.page
+import com.localdoc.ai.resources.pdf_recognize_text
+import com.localdoc.ai.resources.pdf_recognizing
 import com.localdoc.ai.resources.text_mode
 import com.localdoc.ai.resources.the_page_did_not_open
 import com.localdoc.ai.resources.Res
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -95,7 +98,9 @@ fun PdfPagesScreen(
     startBlock: Int,
     onProgress: (Int) -> Unit,
     onBack: () -> Unit,
-    onShowText: () -> Unit
+    onShowText: () -> Unit,
+    onRunOcr: () -> Unit,
+    ocrRunning: Boolean
 ) {
     val fileName = book.pdfFile
     // Документ открывается вне главного потока: открытие большого PDF иначе подвесило бы интерфейс
@@ -175,6 +180,11 @@ fun PdfPagesScreen(
                 Row(Modifier.statusBarsPadding().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back)) }
                     Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (ocrRunning) {
+                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                    } else {
+                        TextButton(onClick = onRunOcr) { Text(stringResource(Res.string.pdf_recognize_text)) }
+                    }
                     IconButton(onClick = onShowText) { Icon(Icons.Default.TextFields, contentDescription = stringResource(Res.string.text_mode)) }
                 }
             }
@@ -194,6 +204,24 @@ fun PdfPagesScreen(
                             dragging = -1f
                         },
                         valueRange = 0f..(pageCount - 1).coerceAtLeast(1).toFloat()
+                    )
+                }
+            }
+        }
+
+        // Распознавание текста (OCR) идёт в фоне; поверх страниц — индикатор, чтобы не листали во время него
+        if (ocrRunning) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White)
+                    Text(
+                        stringResource(Res.string.pdf_recognizing),
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 12.dp)
                     )
                 }
             }
