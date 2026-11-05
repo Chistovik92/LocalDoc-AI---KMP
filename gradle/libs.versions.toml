@@ -7,8 +7,11 @@ kotlinxSerialization = "1.7.3"
 ksoup = "0.2.6"
 androidxActivity = "1.9.3"
 androidxCore = "1.13.1"
-# Material3 Expressive (MaterialExpressiveTheme + MotionScheme.expressive()) стал public в androidx material3 1.5.0-beta02;
-# CMP 1.13.0-beta02 на Android всё ещё тянет androidx material3 1.4.0 (там эти API internal), поэтому пиннуем вручную.
+# Material3 Expressive: алиас compose.material3 в CMP 1.13.0-beta02 всё ещё указывает на
+# org.jetbrains.compose.material3:material3:1.9.0 (там MaterialExpressiveTheme/MotionScheme.expressive internal),
+# поэтому пиннуем обёртку 1.13.0-beta02 явно в commonMain. На Android та же обёртка тянет androidx
+# material3 1.5.0-beta02 — отдельный пин оставлен для ясности (API публичны начиная с 1.5.0-beta02).
+composeMaterial3 = "1.13.0-beta02"
 androidxMaterial3 = "1.5.0-beta02"
 mlkitTextRecognition = "16.0.1"
 pdfboxAndroid = "2.0.27.0"
@@ -32,6 +35,7 @@ ksoup-network = { module = "com.fleeksoft.ksoup:ksoup-network", version.ref = "k
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
 androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 androidx-material3 = { module = "androidx.compose.material3:material3", version.ref = "androidxMaterial3" }
+jetbrains-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMaterial3" }
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "androidxWork" }

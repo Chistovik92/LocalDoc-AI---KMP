@@ -74,7 +74,9 @@ kotlin {
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
-            implementation(compose.material3)
+            // Material3 Expressive: алиас compose.material3 в CMP 1.13.0-beta02 ведёт на 1.9.0 (API internal),
+            // поэтому обёртка пиннуется явно (MaterialExpressiveTheme/MotionScheme.expressive() публичны в 1.13.0-beta02).
+            implementation(libs.jetbrains.material3)
             implementation(compose.materialIconsExtended)
             implementation(compose.components.resources)
             implementation(libs.kotlinx.coroutines.core)
@@ -95,8 +97,8 @@ kotlin {
             implementation(project(":engineAndroid"))
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core)
-            // Material3 Expressive: CMP 1.13.0-beta02 на Android тянет androidx material3 1.4.0
-            // (MaterialExpressiveTheme/MotionScheme.expressive internal); пиннуем 1.5.0-beta02.
+            // Material3 Expressive на Android: обёртка 1.13.0-beta02 уже тянет androidx material3 1.5.0-beta02,
+            // где API публичны; пин оставлен, чтобы прямые ссылки на androidx.compose.material3 резолвились явно.
             implementation(libs.androidx.material3)
             // Фоновая проверка новых глав по расписанию
             implementation(libs.androidx.work)

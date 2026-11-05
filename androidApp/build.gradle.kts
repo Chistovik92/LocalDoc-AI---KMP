@@ -118,7 +118,7 @@ dependencies {
     // Compose-рантайм нужен приложению напрямую (setContent { App() }); версии совпадают с shared
     implementation(compose.runtime)
     implementation(compose.foundation)
-    implementation(compose.material3)
+    implementation(libs.jetbrains.material3)
     // ManifestSecurityTest
     testImplementation(libs.kotlin.test.junit)
 }
