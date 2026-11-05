@@ -111,6 +111,14 @@
                 android:resource="@xml/update_file_paths" />
         </provider>
 
+        <!-- Отдаёт GGUF-модели NeuroCode (com.secrethero.neurocode) без повторной загрузки.
+             Read-only: список и байты только для *.gguf внутри каталога моделей -->
+        <provider
+            android:name=".share.ModelProvider"
+            android:authorities="com.localdoc.ai.models"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
         <!-- Плеер озвучки в шторке (MediaSession + уведомление MediaStyle) -->
         <service
             android:name=".player.ReadAloudService"
