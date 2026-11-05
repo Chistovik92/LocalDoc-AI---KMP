@@ -19,7 +19,7 @@ captures/
 # Kotlin/Native / iOS
 klsinden/
 .kotlin/
-composeApp/build/
+androidApp/build/
 cpp_core/build/
 cpp_core/build-ios/
 cpp_core/build-android/

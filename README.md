@@ -89,7 +89,10 @@ LocalDoc-AI---KMP/
 │   │   ├── build_ios_xcframework.sh   # llama.cpp + Metal → .xcframework
 │   │   └── build_android.sh           # standalone-сборка через NDK
 │   └── CMakeLists.txt
-├── composeApp/
+├── engineAndroid/                  # com.android.library — NDK/JNI-обёртка над cpp_core (автономный модуль)
+│   ├── src/main/kotlin/com/localdoc/ai/engine/NativeLlamaEngine.kt
+│   └── src/main/cpp/ (CMakeLists.txt, android_jni.cpp)
+├── shared/                         # KMP-библиотека (бывш. composeApp): общий код + UI + expect/actual
 │   ├── src/commonMain/kotlin/com/localdoc/ai/
 │   │   ├── engine/LlamaEngine.kt      # expect class (контракт движка)
 │   │   ├── model/ModelCatalog.kt      # Каталог GGUF-моделей
@@ -105,11 +108,11 @@ LocalDoc-AI---KMP/
 │   │   ├── tts/                       # Speaker (expect, любые TTS-движки), встроенный Piper, ReadAloudController (плеер)
 │   │   ├── update/                    # Проверка и загрузка обновлений (GitHub Releases)
 │   │   └── ui/                        # Единый UI на Compose Multiplatform
-│   ├── src/androidMain/               # JNI, PDFBox+ML Kit, Share Intent, TTS, плеер в шторке, виджет
-│   │   └── cpp/ (CMakeLists.txt, android_jni.cpp)
+│   ├── src/androidMain/               # PDFBox+ML Kit, WorkManager, ONNX Runtime, мост AndroidHost
 │   ├── src/iosMain/                   # cinterop, PDFKit+Vision, AVSpeech
 │   └── src/nativeInterop/cinterop/llama.def
-├── iosApp/                            # Xcode-проект (XcodeGen: project.yml) + iosWidget (WidgetKit)
+├── androidApp/                     # com.android.application — точка входа, ContentProvider, плеер в шторке, виджет
+├── iosApp/                         # Xcode-проект (XcodeGen: project.yml) + iosWidget (WidgetKit)
 ├── ROADMAP.md · CHANGELOG.md          # планы версий · история версий
 └── .github/workflows/                 # CI: Android APK + iOS framework
 ```
@@ -132,8 +135,8 @@ LocalDoc-AI---KMP/
 ```bash
 # Android Studio: открыть корень репозитория → Run.
 # Или из консоли:
-./gradlew :composeApp:assembleDebug     # debug-APK
-./gradlew :composeApp:assembleRelease   # подписан постоянным ключом (см. «Подпись release-сборок»)
+./gradlew :androidApp:assembleDebug     # debug-APK
+./gradlew :androidApp:assembleRelease   # подписан постоянным ключом (см. «Подпись release-сборок»)
 ```
 
 По умолчанию llama.cpp собирается с CPU-бэкендом (dotprod/fp16 на Snapdragon).
@@ -141,10 +144,10 @@ Vulkan-ускорение (Adreno GPU) включается локально, е
 Vulkan SDK (glslc + SPIRV-Headers):
 
 ```bash
-./gradlew :composeApp:assembleDebug -Plocaldoc.vulkan=true
+./gradlew :androidApp:assembleDebug -Plocaldoc.vulkan=true
 ```
 
-APK появится в `composeApp/build/outputs/apk/<variant>/`.
+APK появится в `androidApp/build/outputs/apk/<variant>/`.
 
 Первый запуск: «Книги» → «Добавить» → файл книги (или вкладка «Веб» → адрес страницы) → «Слушать».
 Для ИИ: «Модели» → установите, например, Qwen 3 1.7B → «Использовать».
@@ -158,8 +161,8 @@ APK появится в `composeApp/build/outputs/apk/<variant>/`.
 ./cpp_core/scripts/build_ios_xcframework.sh
 
 # 2. Kotlin/Native-фреймворк + генерация Xcode-проекта
-./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64   # симулятор
-./gradlew :composeApp:linkReleaseFrameworkIosArm64          # устройство
+./gradlew :shared:linkDebugFrameworkIosSimulatorArm64   # симулятор
+./gradlew :shared:linkReleaseFrameworkIosArm64          # устройство
 brew install xcodegen
 cd iosApp && xcodegen generate
 open LocalDocAI.xcodeproj
@@ -178,7 +181,7 @@ open LocalDocAI.xcodeproj
 
 ### Выпуск версии
 
-1. Поднять номера: `versionName` и `versionCode` в `composeApp/build.gradle.kts`,
+1. Поднять номера: `versionName` и `versionCode` в `androidApp/build.gradle.kts`,
    `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` в `iosApp/project.yml`.
 2. Добавить раздел версии **сверху** в [CHANGELOG.md](CHANGELOG.md) (и строку в «Сводку версий»),
    скопировать его в `.github/release-notes.md` — текст попадает в GitHub Release и окно обновления.

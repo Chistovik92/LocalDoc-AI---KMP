@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Проверки локализации интерфейса. Лежат в androidUnitTest, а не в commonTest: читают исходники
- * и словари с диска (рабочий каталог тестов — каталог модуля composeApp).
+ * Проверки локализации интерфейса. Лежат в androidHostTest, а не в commonTest: читают исходники
+ * и словари с диска (рабочий каталог тестов — каталог модуля shared).
  */
 class LocalizationTest {
     private val cyrillic = Regex("[А-Яа-яЁё]")
