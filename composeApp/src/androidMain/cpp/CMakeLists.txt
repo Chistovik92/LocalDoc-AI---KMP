@@ -15,6 +15,18 @@ set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+# Санитайзеры (ASan + UBSan) для проверки C-моста на устройстве/эмуляторе.
+# Включается: ./gradlew assembleDebug -Plocaldoc.sanitize=true — требует wrap.sh с asan-рантаймом.
+option(LOCALDOC_SANITIZE "Build the bridge and llama.cpp with ASan + UBSan" OFF)
+if(LOCALDOC_SANITIZE)
+    set(LLAMA_SANITIZE_ADDRESS ON CACHE BOOL "" FORCE)
+    set(LLAMA_SANITIZE_UNDEFINED ON CACHE BOOL "" FORCE)
+    set(GGML_SANITIZE_ADDRESS ON CACHE BOOL "" FORCE)
+    set(GGML_SANITIZE_UNDEFINED ON CACHE BOOL "" FORCE)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
 # 32-битный ARM (armeabi-v7a, Android 8–9 на старых телефонах): llamafile-sgemm использует FP16-векторы NEON (vld1q_f16),
 # которых нет в ARMv7, — он отключается; остальные ядра llama.cpp работают через обычный NEON/скалярный код
 if(ANDROID_ABI STREQUAL "armeabi-v7a")

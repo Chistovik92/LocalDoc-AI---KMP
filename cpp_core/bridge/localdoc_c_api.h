@@ -21,6 +21,9 @@ typedef void (*token_callback_t)(const char* token_utf8, void* user_data);
 #define LOCALDOC_ERR_TOKENIZE         -3
 #define LOCALDOC_ERR_PROMPT_TOO_LONG  -4
 #define LOCALDOC_ERR_DECODE           -5
+// Внутренняя ошибка (обычно std::bad_alloc из std::string/std::vector): исключение C++
+// поймано на границе C ABI, чтобы не размотать JNI/Kotlin-Native, и превращено в код
+#define LOCALDOC_ERR_INTERNAL         -6
 
 // Инициализация модели из GGUF-файла.
 // n_gpu_layers: количество слоёв, выгружаемых на GPU (Vulkan на Android, Metal на iOS).

@@ -18,6 +18,8 @@ internal object GenerationStatus {
     const val ERR_TOKENIZE = -3
     const val ERR_PROMPT_TOO_LONG = -4
     const val ERR_DECODE = -5
+    // Внутренняя ошибка (исключение C++ на границе C ABI, обычно нехватка памяти)
+    const val ERR_INTERNAL = -6
 
     fun resource(code: Int): StringResource = when (code) {
         ERR_INVALID_ARGS -> Res.string.gen_err_invalid_args

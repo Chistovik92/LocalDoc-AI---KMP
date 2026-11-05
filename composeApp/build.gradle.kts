@@ -156,11 +156,13 @@ android {
                 // Vulkan включается локально: ./gradlew assembleDebug -Plocaldoc.vulkan=true
                 // (требуется Vulkan SDK на хосте: glslc + SPIRV-Headers)
                 val vulkan = providers.gradleProperty("localdoc.vulkan").orNull == "true"
+                val sanitize = providers.gradleProperty("localdoc.sanitize").orNull == "true"
                 arguments += buildList {
                     add("-DANDROID_STL=c++_shared")
                     // Библиотеки выравниваются на 16 КБ: без этого приложение не запускается на устройствах Android 15+ с 16-КБ страницами
                     add("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
                     if (vulkan) add("-DGGML_VULKAN=ON")
+                    if (sanitize) add("-DLOCALDOC_SANITIZE=ON")
                 }
             }
         }
