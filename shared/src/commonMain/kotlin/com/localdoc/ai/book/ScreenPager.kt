@@ -51,14 +51,17 @@ data class PageSpec(val width: Float, val height: Float)
 
 /**
  * Раскладка одного блока при заданной ширине: высоты строк и смещения символов, с которых строки начинаются.
- * [top]/[bottom] — отступы вокруг блока (заголовок, цитата, код). [atomic] — блок не делится (картинка).
+ * [top]/[bottom] — отступы вокруг блока (заголовок, цитата, код). [fontPadding] — padding шрифта сверху и снизу
+ * (не входит в высоты строк): он есть у каждого отдельно отрисованного куска блока, поэтому резервируется на
+ * каждой странице, куда попадает хотя бы одна строка. [atomic] — блок не делится (картинка).
  */
 class BlockMeasure(
     val top: Float,
     val bottom: Float,
     val lineHeights: FloatArray,
     val lineStarts: IntArray,
-    val atomic: Boolean = false
+    val atomic: Boolean = false,
+    val fontPadding: Float = 0f
 ) {
     init {
         require(lineHeights.isNotEmpty() && lineHeights.size == lineStarts.size) { "У блока должна быть хотя бы одна строка" }
@@ -129,7 +132,8 @@ object ScreenPager {
             val m = cached ?: break
             val n = m.lineHeights.size
             val top = if (line == 0) m.top else 0f
-            val avail = height - y - top
+            // Font padding есть у каждого куска блока, поэтому он бронируется на любой странице с этим блоком.
+            val avail = height - y - top - m.fontPadding
             var fit = 0
             var used = 0f
             while (line + fit < n && used + m.lineHeights[line + fit] <= avail + EPS) {
@@ -138,7 +142,7 @@ object ScreenPager {
             }
             val remaining = n - line
             if (fit == remaining) {
-                y += top + used + m.bottom
+                y += top + used + m.bottom + m.fontPadding
                 slices++
                 if (blocks[block].type == BlockType.HEADING) {
                     if (headingRun < 0) { headingRun = block; slicesBeforeRun = slices - 1 }
@@ -165,7 +169,7 @@ object ScreenPager {
                 }
                 // Пустая страница, а блок не влезает: ставим насильно, иначе вёрстка не сдвинется
                 if (!splittable) {
-                    y += top + m.lineHeights.sum(line, n) + m.bottom
+                    y += top + m.lineHeights.sum(line, n) + m.bottom + m.fontPadding
                     slices++
                     headingRun = -1
                     block++
@@ -175,7 +179,7 @@ object ScreenPager {
                 take = max(1, fit)
                 if (remaining - take == 1 && take > 1) take--
             }
-            y += top + m.lineHeights.sum(line, line + take)
+            y += top + m.lineHeights.sum(line, line + take) + m.fontPadding
             slices++
             headingRun = -1
             line += take

@@ -67,6 +67,26 @@ class ScreenPagerTest {
     }
 
     @Test
+    fun `font padding is reserved on every page of a split paragraph`() = runTest {
+        // Каждый кусок блока рисуется как отдельный Text со своим padding шрифта (6px) поверх строк по 20px.
+        val measurer = object : PageMeasurer {
+            override fun measure(block: Block, spec: PageSpec): BlockMeasure {
+                val perLine = 10
+                val lines = ((block.text.length + perLine - 1) / perLine).coerceAtLeast(1)
+                return BlockMeasure(0f, 0f, FloatArray(lines) { 20f }, IntArray(lines) { it * perLine }, fontPadding = 6f)
+            }
+        }
+        val pages = ArrayList<ScreenPage>()
+        ScreenPager.layoutSegment(listOf(para(20)), 0 until 1, spec, measurer) { pages.add(it) }
+        // 6px padding не даёт уместить 10 строк: страница берёт 9 строк + 6 = 186 ≤ 200, а не 10 строк впритык.
+        assertEquals(3, pages.size)
+        assertEquals(PagePos(0, 0), pages[0].start)
+        assertEquals(PagePos(0, 90), pages[0].end)
+        assertEquals(PagePos(0, 180), pages[1].end)
+        assertEquals(PagePos(1, 0), pages[2].end)
+    }
+
+    @Test
     fun `pages are contiguous and cover the book`() = runTest {
         val blocks = List(40) { para(1 + it % 7) }
         val pages = layout(blocks)

@@ -145,10 +145,10 @@ internal class ComposePageMeasurer(
         val count = layout.lineCount.coerceAtLeast(1)
         val heights = FloatArray(count) { layout.getLineBottom(it) - layout.getLineTop(it) }
         val starts = IntArray(count) { if (it == 0) 0 else (layout.getLineStart(it) - bullet).coerceAtLeast(0) }
-        // Абзац рисуется выше суммы строк: padding шрифта не входит в высоты строк. Если его не зарезервировать
-        // в bottom, страница переполняется и нижняя строка срезается по глифу (bottom расходуется, когда абзац
-        // завершается на странице, — как раз там, где заканчивается запас до обреза).
-        val extra = (layout.size.height - heights.sum()).coerceAtLeast(0f)
-        return BlockMeasure(top, bottom + extra, heights, starts)
+        // Абзац рисуется выше суммы строк: padding шрифта не входит в высоты строк. Каждый отдельно отрисованный
+        // кусок блока (в том числе середина разрезанного абзаца) несёт этот padding целиком, поэтому он должен
+        // резервироваться на каждой странице, а не только при завершении блока — иначе нижняя строка срезается.
+        val fontPadding = (layout.size.height - heights.sum()).coerceAtLeast(0f)
+        return BlockMeasure(top, bottom, heights, starts, fontPadding = fontPadding)
     }
 }
