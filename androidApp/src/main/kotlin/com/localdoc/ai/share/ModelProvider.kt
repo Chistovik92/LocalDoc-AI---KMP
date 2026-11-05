@@ -45,7 +45,7 @@ class ModelProvider : ContentProvider() {
             val id = file.name.removeSuffix(ModelShare.EXTENSION)
             val spec = ModelCatalog.byId(id)
             cursor.addRow(
-                arrayOf(
+                arrayOf<Any>(
                     id,
                     spec?.name ?: id,
                     file.length(),
