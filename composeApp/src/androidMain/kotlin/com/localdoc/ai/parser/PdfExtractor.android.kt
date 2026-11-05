@@ -13,6 +13,7 @@ import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
@@ -38,6 +39,7 @@ actual class PdfExtractor actual constructor() {
                 val stripper = PDFTextStripper()
 
                 for (pageIndex in 1..totalPages) {
+                    ensureActive() // отмена импорта между страницами (OCR скана — самый долгий этап)
                     stripper.startPage = pageIndex
                     stripper.endPage = pageIndex
                     val pageText = stripper.getText(pdDoc).trim()

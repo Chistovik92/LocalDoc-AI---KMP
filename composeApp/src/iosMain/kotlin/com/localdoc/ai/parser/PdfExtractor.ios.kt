@@ -4,6 +4,7 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import platform.CoreGraphics.CGSizeMake
@@ -35,6 +36,7 @@ actual class PdfExtractor actual constructor() {
         val builder = StringBuilder()
 
         for (i in 0 until pageCount) {
+            ensureActive() // отмена импорта между страницами (Vision OCR скана — самый долгий этап)
             val page = pdfDoc.pageAtIndex(i.toULong()) ?: continue
             val text = page.string?.trim() ?: ""
 
