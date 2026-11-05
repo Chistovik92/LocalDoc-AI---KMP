@@ -5,7 +5,7 @@
 
 ## Локализация
 
-- Строки — в `composeApp/src/commonMain/composeResources/values*/strings.xml`: `values` (русский, язык по умолчанию),
+- Строки — в `shared/src/commonMain/composeResources/values*/strings.xml`: `values` (русский, язык по умолчанию),
   `values-en`, `values-uk`, `values-de`, `values-es`. Обращение из кода: `stringResource(Res.string.ключ, аргументы)`
   в `@Composable`, `getString(...)` в корутинах. Множественные числа — `<plurals>` и `pluralStringResource`.
 - Ключ формируется из английского текста (`cancel`, `book_not_found_add_it_again`). Плейсхолдеры — `%1$s`, `%2$s`
@@ -27,14 +27,14 @@
 
 ## Автоматические проверки
 
-`composeApp/src/androidUnitTest/.../i18n/LocalizationTest.kt` (`./gradlew :composeApp:testDebugUnitTest`):
+`shared/src/androidHostTest/.../i18n/LocalizationTest.kt` (`./gradlew :shared:testAndroidHostTest`):
 
 - в исходниках `ui/**` нет кириллических литералов вне ресурсов (кроме явного списка исключений);
 - все ключи есть во всех языках, плейсхолдеры совпадают, у plurals нужные формы языка;
 - в латинских языках нет кириллицы, нет пустых строк и неэкранированных апострофов;
 - каждый ключ используется в коде.
 
-Тест лежит в `androidUnitTest`, а не в `commonTest`: ему нужен доступ к файлам исходников и ресурсов.
+Тест лежит в `androidHostTest`, а не в `commonTest`: ему нужен доступ к файлам исходников и ресурсов.
 `ReaderHotkeysTest` (commonTest) проверяет раскладку горячих клавиш читалки.
 
 ## Чек-лист экрана
