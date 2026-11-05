@@ -1,12 +1,15 @@
 [versions]
-agp = "8.13.2"
-kotlin = "2.3.10"
-composeMultiplatform = "1.11.0"
+agp = "9.1.0"
+kotlin = "2.4.20"
+composeMultiplatform = "1.13.0-beta02"
 coroutines = "1.9.0"
 kotlinxSerialization = "1.7.3"
 ksoup = "0.2.6"
 androidxActivity = "1.9.3"
 androidxCore = "1.13.1"
+# Material3 Expressive (MaterialExpressiveTheme + MotionScheme.expressive()) стал public в androidx material3 1.5.0-beta02;
+# CMP 1.13.0-beta02 на Android всё ещё тянет androidx material3 1.4.0 (там эти API internal), поэтому пиннуем вручную.
+androidxMaterial3 = "1.5.0-beta02"
 mlkitTextRecognition = "16.0.1"
 pdfboxAndroid = "2.0.27.0"
 # Офлайн-синтез речи Piper; та же версия — для iOS (cpp_core/scripts/fetch_sherpa_onnx_ios.sh)
@@ -28,6 +31,7 @@ ksoup = { module = "com.fleeksoft.ksoup:ksoup", version.ref = "ksoup" }
 ksoup-network = { module = "com.fleeksoft.ksoup:ksoup-network", version.ref = "ksoup" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
 androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-material3 = { module = "androidx.compose.material3:material3", version.ref = "androidxMaterial3" }
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 androidx-work = { module = "androidx.work:work-runtime-ktx", version.ref = "androidxWork" }
@@ -36,10 +40,13 @@ commons-compress = { module = "org.apache.commons:commons-compress", version.ref
 
 cryptography-core = { module = "dev.whyoleg.cryptography:cryptography-core", version.ref = "cryptography" }
 cryptography-provider-optimal = { module = "dev.whyoleg.cryptography:cryptography-provider-optimal", version.ref = "cryptography" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
+androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 jetbrainsCompose = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

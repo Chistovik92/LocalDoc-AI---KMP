@@ -25,7 +25,7 @@ targets:
     sources:
       - path: iosApp
     dependencies:
-      - framework: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework
+      - framework: ../shared/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework
         embed: false
       - framework: ../cpp_core/build-ios/localdoc_core.xcframework
         embed: false
@@ -53,7 +53,7 @@ targets:
     sources:
       - path: iosApp
     dependencies:
-      - framework: ../composeApp/build/bin/iosArm64/releaseFramework/ComposeApp.framework
+      - framework: ../shared/build/bin/iosArm64/releaseFramework/ComposeApp.framework
         embed: false
       - framework: ../cpp_core/build-ios/localdoc_core.xcframework
         embed: false

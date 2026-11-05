@@ -29,4 +29,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "LocalDoc-AI"
 
-include(":composeApp")
+include(":engineAndroid")
+include(":shared")
+include(":androidApp")
