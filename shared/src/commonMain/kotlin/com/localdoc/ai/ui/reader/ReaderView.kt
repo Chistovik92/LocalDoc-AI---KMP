@@ -108,6 +108,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -179,6 +180,17 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material.icons.filled.TravelExplore
+import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Healing
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.ScreenLockPortrait
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -271,6 +283,24 @@ fun paperColors(theme: ReaderTheme): PaperColors {
         ReaderTheme.DARK -> PaperColors(Color(0xFF1F1F1F), Color(0xFFE3E3E3), Color(0xFF9AA0A6), Color(0xFF0842A0))
         ReaderTheme.BLACK -> PaperColors(Color(0xFF000000), Color(0xFFC4C7C5), Color(0xFF80868B), Color(0xFF283593))
     }
+}
+
+/** Пункт меню читалки: иконка слева, галочка состояния справа (для переключателей). */
+@Composable
+private fun ReaderMenuItem(
+    label: String,
+    onClick: () -> Unit,
+    icon: ImageVector? = null,
+    checked: Boolean = false,
+) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        onClick = onClick,
+        leadingIcon = icon?.let { vector -> { Icon(vector, contentDescription = null) } },
+        trailingIcon = if (checked) {
+            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+        } else null,
+    )
 }
 
 /** Действия ИИ-суфлёра над открытым текстом. */
@@ -1046,58 +1076,60 @@ fun ReaderView(
                         Box {
                             IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.more)) }
                             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                // Навигация
                                 if (book.chapters.isNotEmpty()) {
-                                    DropdownMenuItem(text = { Text(stringResource(Res.string.contents)) }, onClick = { showMenu = false; showToc = true })
+                                    ReaderMenuItem(stringResource(Res.string.contents), icon = Icons.AutoMirrored.Filled.List) { showMenu = false; showToc = true }
                                 }
-                                DropdownMenuItem(text = { Text(stringResource(Res.string.find_in_book_short)) }, onClick = { showMenu = false; showFind = true })
-                                if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
-                                    DropdownMenuItem(text = { Text(stringResource(Res.string.chapters_and_contents)) }, onClick = { showMenu = false; showChapters = true })
-                                }
-                                if (entry != null && onTextRepaired != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
-                                    DropdownMenuItem(text = { Text(stringResource(Res.string.fix_breaks_menu)) }, onClick = { showMenu = false; showRepair = true })
-                                }
-                                DropdownMenuItem(text = { Text(stringResource(Res.string.bookmarks)) }, onClick = { showMenu = false; showBookmarks = true })
+                                ReaderMenuItem(stringResource(Res.string.find_in_book_short), icon = Icons.Default.Search) { showMenu = false; showFind = true }
+                                ReaderMenuItem(stringResource(Res.string.bookmarks), icon = Icons.Default.Bookmarks) { showMenu = false; showBookmarks = true }
                                 if (entry != null) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(Res.string.quotes_and_notes) + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "") },
-                                        onClick = { showMenu = false; showAnnotations = true }
-                                    )
+                                    ReaderMenuItem(
+                                        stringResource(Res.string.quotes_and_notes) + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "",
+                                        icon = Icons.Default.FormatQuote
+                                    ) { showMenu = false; showAnnotations = true }
                                 }
-                                DropdownMenuItem(
-                                    text = { Text(if (translating) stringResource(Res.string.translation_on) else stringResource(Res.string.translation_3)) },
-                                    onClick = { showMenu = false; showTranslate = true }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(if (settings.paged) stringResource(Res.string.read_by_scrolling) else stringResource(Res.string.read_page_by_page)) },
-                                    onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
-                                )
+                                HorizontalDivider()
+                                // Режим чтения
+                                ReaderMenuItem(
+                                    if (settings.paged) stringResource(Res.string.read_by_scrolling) else stringResource(Res.string.read_page_by_page),
+                                    icon = Icons.Default.ViewAgenda
+                                ) { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
                                 if (!screenMode) {
-                                    DropdownMenuItem(
-                                        text = { Text(if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll)) },
-                                        onClick = { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
-                                    )
-                                }
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(Res.string.keep_the_screen_on_while_reading)) },
-                                    leadingIcon = {
-                                        if (settings.keepScreenOn) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(keepScreenOn = !it.keepScreenOn) } }
-                                )
-                                DropdownMenuItem(text = { Text(stringResource(Res.string.font_and_background)) }, onClick = { showMenu = false; showSettings = true })
-                                if (entry != null) {
-                                    DropdownMenuItem(
-                                        text = { Text(if (book.format == com.localdoc.ai.book.BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as)) },
-                                        onClick = { showMenu = false; showSaveAs = true }
-                                    )
+                                    ReaderMenuItem(
+                                        if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll),
+                                        icon = Icons.Default.PlayArrow
+                                    ) { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
                                 }
                                 if (chapterNavigation != null) {
-                                    DropdownMenuItem(
-                                        text = { Text(if (settings.autoNext) stringResource(Res.string.auto_advance_on) else stringResource(Res.string.auto_advance_to_the_next_chapter_2)) },
-                                        onClick = { showMenu = false; AppGraph.readerSettings.update { it.copy(autoNext = !it.autoNext) } }
-                                    )
+                                    ReaderMenuItem(
+                                        if (settings.autoNext) stringResource(Res.string.auto_advance_on) else stringResource(Res.string.auto_advance_to_the_next_chapter_2),
+                                        icon = Icons.Default.SkipNext,
+                                        checked = settings.autoNext
+                                    ) { showMenu = false; AppGraph.readerSettings.update { it.copy(autoNext = !it.autoNext) } }
+                                }
+                                ReaderMenuItem(
+                                    stringResource(Res.string.keep_the_screen_on_while_reading),
+                                    icon = Icons.Default.ScreenLockPortrait,
+                                    checked = settings.keepScreenOn
+                                ) { showMenu = false; AppGraph.readerSettings.update { it.copy(keepScreenOn = !it.keepScreenOn) } }
+                                HorizontalDivider()
+                                // Инструменты и настройки
+                                ReaderMenuItem(stringResource(Res.string.font_and_background), icon = Icons.Default.FormatSize) { showMenu = false; showSettings = true }
+                                ReaderMenuItem(
+                                    if (translating) stringResource(Res.string.translation_on) else stringResource(Res.string.translation_3),
+                                    icon = Icons.Default.Translate
+                                ) { showMenu = false; showTranslate = true }
+                                if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
+                                    ReaderMenuItem(stringResource(Res.string.chapters_and_contents), icon = Icons.Default.Edit) { showMenu = false; showChapters = true }
+                                }
+                                if (entry != null && onTextRepaired != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
+                                    ReaderMenuItem(stringResource(Res.string.fix_breaks_menu), icon = Icons.Default.Healing) { showMenu = false; showRepair = true }
+                                }
+                                if (entry != null) {
+                                    ReaderMenuItem(
+                                        if (book.format == com.localdoc.ai.book.BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as),
+                                        icon = Icons.Default.Download
+                                    ) { showMenu = false; showSaveAs = true }
                                 }
                             }
                         }
