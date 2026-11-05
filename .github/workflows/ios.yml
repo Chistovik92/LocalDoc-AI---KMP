@@ -40,7 +40,7 @@ jobs:
 
       - name: Android NDK с повторами (Gradle конфигурирует Android-часть даже для iOS-задач)
         run: |
-          NDK_VERSION=$(grep -o 'ndk;[0-9.]*' composeApp/build.gradle.kts | head -1)
+          NDK_VERSION=$(grep -o 'ndk;[0-9.]*' engineAndroid/build.gradle.kts | head -1)
           [ -n "$NDK_VERSION" ] || NDK_VERSION="ndk;27.0.12077973"
           SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
           for i in 1 2 3 4; do
@@ -49,7 +49,7 @@ jobs:
           done
 
       - name: Компиляция common + iOS Kotlin (cinterop + компиляция)
-        run: ./gradlew :composeApp:compileKotlinIosSimulatorArm64 --stacktrace
+        run: ./gradlew :shared:compileKotlinIosSimulatorArm64 --stacktrace
 
   build:
     name: Сборка iOS (xcframework + приложение)
@@ -77,7 +77,7 @@ jobs:
 
       - name: Android NDK с повторами (Gradle конфигурирует Android-часть даже для iOS-задач)
         run: |
-          NDK_VERSION=$(grep -o 'ndk;[0-9.]*' composeApp/build.gradle.kts | head -1)
+          NDK_VERSION=$(grep -o 'ndk;[0-9.]*' engineAndroid/build.gradle.kts | head -1)
           [ -n "$NDK_VERSION" ] || NDK_VERSION="ndk;27.0.12077973"
           SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
           for i in 1 2 3 4; do
@@ -102,7 +102,7 @@ jobs:
           path: cpp_core/build-ios/localdoc_core.xcframework
 
       - name: Компиляция Kotlin/Native фреймворка (симулятор)
-        run: ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64 --stacktrace
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64 --stacktrace
 
       - name: XcodeGen и сборка приложения (симулятор, без подписи)
         run: |
@@ -120,7 +120,7 @@ jobs:
       - name: Сборка приложения для устройства (arm64, без подписи)
         run: |
           # Без параллельных задач: пик памяти компилятора Kotlin/Native (оптимизация release) на 7-ГБ раннере иначе даёт OutOfMemoryError
-          ./gradlew :composeApp:linkReleaseFrameworkIosArm64 --no-parallel --stacktrace
+          ./gradlew :shared:linkReleaseFrameworkIosArm64 --no-parallel --stacktrace
           cd iosApp
           xcodegen generate
           xcodebuild -project LocalDocAI.xcodeproj \
@@ -167,4 +167,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: composeapp-ios-sim-framework
-          path: composeApp/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework
+          path: shared/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework
