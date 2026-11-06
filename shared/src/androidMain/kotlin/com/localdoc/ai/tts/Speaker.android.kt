@@ -46,7 +46,10 @@ actual class Speaker actual constructor() : SpeechEngine {
     private fun ensureInit() {
         if (tts != null) return
         ready = false
+        lateinit var created: TextToSpeech
         val onInit = TextToSpeech.OnInitListener { status ->
+            // Колбэк старого экземпляра не должен инициализировать уже сменившийся движок
+            if (tts !== created) return@OnInitListener
             if (status == TextToSpeech.SUCCESS) {
                 tts?.setOnUtteranceProgressListener(listener)
                 applyLanguageAndVoice()
@@ -59,11 +62,12 @@ actual class Speaker actual constructor() : SpeechEngine {
                 callbacks.keys.toList().forEach { finish(it, false) }
             }
         }
-        tts = if (engineId != null) {
+        created = if (engineId != null) {
             TextToSpeech(AppContextHolder.appContext, onInit, engineId)
         } else {
             TextToSpeech(AppContextHolder.appContext, onInit)
         }
+        tts = created
     }
 
     private fun applyLanguageAndVoice() {

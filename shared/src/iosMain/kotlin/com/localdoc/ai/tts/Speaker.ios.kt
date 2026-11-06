@@ -27,18 +27,18 @@ actual class Speaker actual constructor() : SpeechEngine {
     private var volume = 1f
 
     // Делегат держим сильной ссылкой: свойство delegate у синтезатора — weak
-    private val delegate = SynthDelegate { utterance -> onUtteranceFinished(utterance) }
+    private val delegate = SynthDelegate { utterance, success -> onUtteranceFinished(utterance, success) }
 
     init {
         synthesizer.delegate = delegate
     }
 
-    private fun onUtteranceFinished(utterance: AVSpeechUtterance) {
+    private fun onUtteranceFinished(utterance: AVSpeechUtterance, success: Boolean) {
         if (utterance !== current) return
         val callback = currentCallback
         current = null
         currentCallback = null
-        callback?.invoke(true)
+        callback?.invoke(success)
     }
 
     override fun speak(text: String, onFinished: (Boolean) -> Unit) {
@@ -105,17 +105,17 @@ actual class Speaker actual constructor() : SpeechEngine {
     }
 
     private class SynthDelegate(
-        private val onFinish: (AVSpeechUtterance) -> Unit
+        private val onFinish: (AVSpeechUtterance, Boolean) -> Unit
     ) : NSObject(), AVSpeechSynthesizerDelegateProtocol {
         @ObjCSignatureOverride
         override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, didFinishSpeechUtterance: AVSpeechUtterance) {
-            onFinish(didFinishSpeechUtterance)
+            onFinish(didFinishSpeechUtterance, true)
         }
 
         // Прерывание системой (звонок, Siri) — иначе плеер «играет» в тишине
         @ObjCSignatureOverride
         override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, didCancelSpeechUtterance: AVSpeechUtterance) {
-            onFinish(didCancelSpeechUtterance)
+            onFinish(didCancelSpeechUtterance, false)
         }
     }
 }

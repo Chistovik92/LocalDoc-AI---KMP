@@ -185,6 +185,8 @@ class ReadAloudController(
         if (segments.isEmpty()) return
         if (index !in segments.indices) index = 0
         session++
+        audioStart()
+        waitingForPage = false
         interruptedByCall = false
         // Прежняя реплика (другой документ, объявление «Конец главы») не должна звучать поверх
         engine.stop()
@@ -211,6 +213,7 @@ class ReadAloudController(
         engine.stop()
         engine.setVolume(1f)
         audioStop()
+        waitingForPage = false
         interruptedByCall = false
         interruptedByUnplug = false
         publish(playing = false, sleepStopped = true)
@@ -219,12 +222,14 @@ class ReadAloudController(
     /** Пауза, вызванная событием звука: не сбрасывает флаги прерываний. */
     private fun pauseInternal() {
         session++
+        waitingForPage = false
         engine.stop()
         publish(playing = false)
     }
 
     fun pause() {
         session++
+        waitingForPage = false
         engine.stop()
         // Пользователь нажал паузу сам: ни звонок, ни наушники не должны её снять
         interruptedByCall = false
@@ -241,6 +246,7 @@ class ReadAloudController(
         audioStop()
         interruptedByCall = false
         interruptedByUnplug = false
+        waitingForPage = false
         segments = emptyList()
         source = null
         pageCache.clear()
@@ -284,6 +290,7 @@ class ReadAloudController(
     private fun reopen(block: Int, resume: Boolean) {
         val src = source ?: return
         session++
+        waitingForPage = false
         engine.stop()
         loadJob?.cancel()
         slideJob?.cancel()
@@ -297,6 +304,7 @@ class ReadAloudController(
 
     private fun seek(target: Int) {
         if (segments.isEmpty()) return
+        waitingForPage = false
         if (target < 0) {
             seekPreviousPage()
             return
@@ -318,6 +326,7 @@ class ReadAloudController(
         val previous = (src.pager.pageOfBlock(first.block) - 1 downTo 0)
         val wasPlaying = _state.value.playing
         session++
+        waitingForPage = false
         engine.stop()
         loadJob?.cancel()
         slideJob?.cancel()
@@ -398,12 +407,17 @@ class ReadAloudController(
         slideJob?.cancel()
         slideJob = scope.launch {
             val next = nextNonEmptyPage(firstPage)
-            if (mySession != session) return@launch
+            if (mySession != session) {
+                waitingForPage = false
+                return@launch
+            }
+            val resumeWaiting = waitingForPage
+            waitingForPage = false
             if (next != null) {
                 segments = segments + next.second
                 secondPage = next.first
             }
-            if (waitingForPage) {
+            if (resumeWaiting) {
                 waitingForPage = false
                 if (index + 1 <= segments.lastIndex) advance() else finishWith(ReadAloudStop.BOOK_END, "Текст закончился.")
             }

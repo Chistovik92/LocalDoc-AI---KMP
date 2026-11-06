@@ -152,7 +152,9 @@ private class AvAudioOutput : PcmOutput {
         try {
             // Движок может остановиться без колбэка (звонок, смена наушников) — не ждём вечно
             val timeoutMs = frames * 1000L / pcm.sampleRate + EXTRA_WAIT_MS
-            withTimeoutOrNull(timeoutMs) { done.await() } != null
+            val completed = withTimeoutOrNull(timeoutMs) { done.await() } != null
+            if (!completed) player.stop()
+            completed
         } catch (e: CancellationException) {
             // stop() или следующая фраза: снимаем буфер с очереди, звук обрывается сразу
             player.stop()

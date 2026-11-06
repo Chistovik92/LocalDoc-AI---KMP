@@ -8,13 +8,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 private class PagedFakeEngine(var autoFinish: Boolean = true) : SpeechEngine {
     val spoken = ArrayList<String>()
+    private val callbacks = ArrayList<(Boolean) -> Unit>()
     override fun speak(text: String, onFinished: (Boolean) -> Unit) {
         spoken.add(text)
-        if (autoFinish) onFinished(true)
+        if (autoFinish) onFinished(true) else callbacks.add(onFinished)
+    }
+    fun finishNext(success: Boolean = true) {
+        check(callbacks.isNotEmpty())
+        callbacks.removeAt(0)(success)
     }
     override fun stop() = Unit
     override fun setRate(rate: Float) = Unit
@@ -117,6 +123,71 @@ class PagedReadAloudTest {
         assertEquals(90, controller.state.value.segment?.block)
         assertEquals(pager.pageOfBlock(90), controller.state.value.page)
         assertTrue(controller.state.value.playing)
+    }
+
+    private inner class WaitingPageHarness {
+        val blocks = paragraphs(6).map { Block(it.type, it.text.repeat(4)) }
+        val pager = BookPager.build(blocks, targetChars = 200)
+        val engine = PagedFakeEngine(autoFinish = false)
+        var releasePage: (() -> Unit)? = null
+        val source = object : SpeechPageSource {
+            override val pager = this@WaitingPageHarness.pager
+            override suspend fun blocks(page: Int): List<Block> {
+                if (page == 2) kotlinx.coroutines.suspendCancellableCoroutine<Unit> { continuation ->
+                    releasePage = { continuation.resumeWith(Result.success(Unit)) }
+                }
+                val p = pager.page(page)
+                return blocks.subList(p.startBlock, p.endBlock)
+            }
+        }
+        val controller = ReadAloudController(engine, scope)
+
+        init {
+            controller.start("book", source, emptyList(), 0)
+            engine.finishNext()
+            engine.finishNext()
+            assertNotNull(releasePage, "третья страница должна ожидать подготовки")
+        }
+    }
+
+    @Test
+    fun `pause cancels pending page advance`() {
+        val h = WaitingPageHarness()
+
+        h.controller.pause()
+        h.releasePage?.invoke()
+
+        assertFalse(h.controller.state.value.playing)
+        assertEquals(2, h.engine.spoken.size, "после паузы следующая страница не запускается сама")
+
+        h.controller.play()
+        assertTrue(h.controller.state.value.playing)
+        assertEquals(3, h.engine.spoken.size)
+    }
+
+    @Test
+    fun `seek cancels pending page advance`() {
+        val h = WaitingPageHarness()
+
+        h.controller.pause()
+        h.controller.nextSentence()
+        h.releasePage?.invoke()
+
+        assertEquals(2, h.engine.spoken.size)
+        assertEquals(1, h.controller.state.value.segment?.block)
+        h.controller.play()
+        assertEquals(3, h.engine.spoken.size)
+    }
+
+    @Test
+    fun `page load completion resumes pending playback`() {
+        val h = WaitingPageHarness()
+
+        h.releasePage?.invoke()
+
+        assertTrue(h.controller.state.value.playing)
+        assertEquals(3, h.engine.spoken.size)
+        assertEquals(2, h.controller.state.value.segment?.block)
     }
 
     @Test
