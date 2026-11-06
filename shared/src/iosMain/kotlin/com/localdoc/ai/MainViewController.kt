@@ -5,7 +5,8 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.IncomingDoc
 import com.localdoc.ai.platform.BackgroundUpdates
 import com.localdoc.ai.ui.App
-import kotlinx.cinterop.ExperimentalForeignApi
+import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.runtime.setUnhandledExceptionHook
 import platform.Foundation.NSLog
 import platform.UIKit.UIViewController
 
@@ -14,18 +15,22 @@ fun registerBackgroundTasks() {
     BackgroundUpdates.register()
 }
 
-@OptIn(ExperimentalForeignApi::class)
-fun MainViewController(): UIViewController = ComposeUIViewController {
-    // ВРЕМЕННАЯ диагностика сбоя первой композиции на iOS: исключение печатается в системный
-    // лог (видно через `log show --predicate 'process == "LocalDocAI"'`), иначе остаётся только
-    // стек в .ips без самого сообщения. Убрать после локализации и фикса причины.
-    try {
-        App()
-    } catch (t: Throwable) {
-        NSLog("LocalDoc UNCAUGHT App() composition: %@", t.toString())
-        NSLog("LocalDoc UNCAUGHT stacktrace:\n%@", t.stackTraceToString())
-        throw t
+/**
+ * ВРЕМЕННАЯ диагностика сбоя первой композиции на iOS: необработанное Kotlin-исключение
+ * печатается в системный лог (видно через `log show --predicate 'process == "LocalDocAI"'`),
+ * иначе в .ips остаётся только стек без самого сообщения. Убрать после локализации причины.
+ */
+@OptIn(ExperimentalNativeApi::class)
+private fun installCrashDiagnostics() {
+    setUnhandledExceptionHook { throwable ->
+        NSLog("LocalDoc UNCAUGHT Kotlin exception: %@", throwable.toString())
+        NSLog("LocalDoc UNCAUGHT stacktrace:\n%@", throwable.stackTraceToString())
     }
+}
+
+fun MainViewController(): UIViewController {
+    installCrashDiagnostics()
+    return ComposeUIViewController { App() }
 }
 
 /**
