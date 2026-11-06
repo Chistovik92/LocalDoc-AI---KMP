@@ -148,8 +148,11 @@ class SmartPipeline(
             emitAll(engine.generateStream(buildPrompt(systemPrompt(), userMessage), maxTokens))
         } else {
             // Режим 3: локальный RAG. Индекс строится один раз на документ:
-            // ключ включает хэш содержимого, чтобы разные документы с одним заголовком не смешивались
-            val docId = "${doc.title}#${doc.content.hashCode()}"
+            // SHA-256 не допускает практических коллизий, в отличие от 32-битного String.hashCode().
+            val digest = com.localdoc.ai.rag.Sha256().apply {
+                update(doc.content.encodeToByteArray())
+            }.hexDigest()
+            val docId = "${doc.title}#$digest"
             rag.ensureIndexed(docId = docId, rawText = doc.content)
             val chunks = rag.retrieveTopK(docId = docId, question = question, topK = 4, rawText = doc.content)
             val contextBlock = if (chunks.isEmpty()) {
@@ -169,7 +172,7 @@ class SmartPipeline(
             }
             emitAll(engine.generateStream(buildPrompt(systemPrompt(), userMessage), maxTokens))
         }
-    }.flowOn(Dispatchers.Default) // индексация и поиск по чанкам — не на главном потоке
+    }.flowOn(com.localdoc.ai.platform.IoDispatcher) // файлы и инференс — на IO-пуле, не на главном потоке
 
     /** Режим 2: Map-Reduce — суммаризация длинных документов по блокам. */
     fun summarizeLongDoc(doc: ParsedDoc): Flow<String> = flow {

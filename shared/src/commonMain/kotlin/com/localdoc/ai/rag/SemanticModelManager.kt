@@ -1,6 +1,7 @@
 package com.localdoc.ai.rag
 
 import com.localdoc.ai.download.DownloadState
+import com.localdoc.ai.platform.SyncLock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlin.time.TimeSource
 
 /** Состояние семантической модели для экрана настроек. */
@@ -49,8 +52,10 @@ class SemanticModelManager(
 ) {
     private val _state = MutableStateFlow<SemanticModelState>(SemanticModelState.NotInstalled)
     val state: StateFlow<SemanticModelState> = _state.asStateFlow()
-    private val active = MutableStateFlow(fallback)
+    private val active = MutableStateFlow<EmbeddingProvider>(fallback)
     private var job: Job? = null
+    private val lifecycleLock = SyncLock()
+    private var activationGeneration = 0L
 
     init {
         if (!runtimeAvailable) {
@@ -72,6 +77,8 @@ class SemanticModelManager(
     fun download() {
         if (_state.value is SemanticModelState.Unsupported || job?.isActive == true) return
         if (isInstalled()) {
+            // Ручной запуск — новый замер: старый отказ мог быть вызван троттлингом или старой policy.
+            storage.remove(REJECTED_KEY)
             job = scope.launch { activate() }
             return
         }
@@ -93,6 +100,7 @@ class SemanticModelManager(
 
     fun cancel() {
         SemanticModelCatalog.all.forEach { files.cancel(it) }
+        invalidateActivation()
         job?.cancel()
         job = null
         _state.value = if (isInstalled()) SemanticModelState.Ready else SemanticModelState.NotInstalled
@@ -100,13 +108,20 @@ class SemanticModelManager(
 
     fun setEnabled(enabled: Boolean) {
         if (enabled == isEnabled()) return
-        if (enabled) storage.remove(ENABLED_KEY) else storage.put(ENABLED_KEY, "0")
+        if (enabled) {
+            storage.remove(ENABLED_KEY)
+            storage.remove(REJECTED_KEY)
+        } else {
+            storage.put(ENABLED_KEY, "0")
+        }
         if (!isInstalled()) return
+        if (!enabled) invalidateActivation()
         job = scope.launch { if (enabled) activate() else deactivate(SemanticModelState.Disabled) }
     }
 
     suspend fun delete() {
         SemanticModelCatalog.all.forEach { files.cancel(it) }
+        invalidateActivation()
         job?.cancel()
         job = null
         deactivate(SemanticModelState.NotInstalled)
@@ -114,14 +129,13 @@ class SemanticModelManager(
         listOf(VERIFIED_KEY, REJECTED_KEY, ENABLED_KEY).forEach(storage::remove)
     }
 
-    /** Модель упала при работе: возвращаемся на хеширование, файлы остаются. */
+    /** Модель упала при работе: возвращаемся на хешированию, файлы остаются. */
     fun onEmbedderFailure(error: Throwable) {
-        val broken = active.value
-        if (broken === fallback) return
-        active.value = fallback
-        runtime.unload(broken)
-        _state.value = SemanticModelState.Failed("модель дала сбой: ${error.message ?: "неизвестная ошибка"}")
+        invalidateActivation()
+        deactivate(SemanticModelState.Failed("модель дала сбой: ${error.message ?: "неизвестная ошибка"}"))
     }
+
+    private fun invalidateActivation() = lifecycleLock.withLock { activationGeneration++ }
 
     private suspend fun fetchMissing(): Boolean {
         val total = SemanticModelCatalog.totalBytes
@@ -164,43 +178,52 @@ class SemanticModelManager(
 
     private suspend fun activate() {
         if (!isEnabled()) return deactivate(SemanticModelState.Disabled)
+        val generation = lifecycleLock.withLock { ++activationGeneration }
         val declined = storage.get(REJECTED_KEY) ?: SemanticModelPolicy.memoryVerdict(totalMemoryMb())
         if (declined != null) {
             storage.put(REJECTED_KEY, declined)
             return deactivate(SemanticModelState.Rejected(declined))
         }
         _state.value = SemanticModelState.Loading
-        val outcome = withContext(io) {
-            runCatching {
-                val provider = runtime.load(files.pathFor(SemanticModelCatalog.model), files.pathFor(SemanticModelCatalog.tokenizer))
-                // Пока провайдер не передан в active, закрывать его некому — освобождаем на любом провале
-                val slow = try {
-                    SemanticModelPolicy.speedVerdict(benchmark(provider))
-                } catch (e: Throwable) {
-                    runtime.unload(provider)
-                    throw e
-                }
-                if (slow != null) runtime.unload(provider)
-                provider to slow
+        // Не используем withContext для синхронного load: отмена на выходе иначе теряет ссылку
+        // на уже созданный native-провайдер. Ниже finally закрывает его до передачи в active.
+        val provider = try {
+            runtime.load(files.pathFor(SemanticModelCatalog.model), files.pathFor(SemanticModelCatalog.tokenizer))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return deactivate(SemanticModelState.Failed("не удалось запустить модель: ${e.message ?: "неизвестная ошибка"}"))
+        }
+        var handedOff = false
+        try {
+            val slow = SemanticModelPolicy.speedVerdict(benchmark(provider))
+            currentCoroutineContext().ensureActive()
+            val stale = lifecycleLock.withLock { generation != activationGeneration || !isEnabled() }
+            if (stale || slow != null) {
+                if (slow != null && !stale) storage.put(REJECTED_KEY, slow)
+                return deactivate(if (stale && !isEnabled()) SemanticModelState.Disabled else SemanticModelState.Rejected(slow ?: "модель отключена"))
             }
+            lifecycleLock.withLock {
+                if (generation != activationGeneration || !isEnabled()) return@withLock false
+                val previous = active.value
+                active.value = provider
+                handedOff = true
+                _state.value = SemanticModelState.Ready
+                previous
+            }.let { previous -> if (handedOff && previous !== fallback) runtime.unload(previous as EmbeddingProvider) }
+        } finally {
+            if (!handedOff) runtime.unload(provider)
         }
-        val (provider, slow) = outcome.getOrElse {
-            if (it is CancellationException) throw it
-            return deactivate(SemanticModelState.Failed("не удалось запустить модель: ${it.message ?: "неизвестная ошибка"}"))
-        }
-        if (slow != null) {
-            storage.put(REJECTED_KEY, slow)
-            return deactivate(SemanticModelState.Rejected(slow))
-        }
-        active.value = provider
-        _state.value = SemanticModelState.Ready
     }
 
     private fun deactivate(next: SemanticModelState) {
-        val previous = active.value
-        active.value = fallback
+        val previous = lifecycleLock.withLock {
+            val old = active.value
+            active.value = fallback
+            _state.value = next
+            old
+        }
         if (previous !== fallback) runtime.unload(previous)
-        _state.value = next
     }
 
     private companion object {

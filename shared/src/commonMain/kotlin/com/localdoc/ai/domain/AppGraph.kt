@@ -344,7 +344,7 @@ object AppGraph {
             totalMemoryMb = { com.localdoc.ai.rag.totalDeviceMemoryMb() },
             runtimeAvailable = com.localdoc.ai.rag.onnxRuntimeAvailable,
             scope = appScope,
-            io = Dispatchers.Default
+            io = com.localdoc.ai.platform.IoDispatcher
         )
     }
 

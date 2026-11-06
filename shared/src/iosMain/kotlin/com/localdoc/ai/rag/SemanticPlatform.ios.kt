@@ -52,6 +52,7 @@ actual val onnxRuntimeAvailable: Boolean = true
 actual fun createOnnxTextEncoder(modelPath: String): OnnxTextEncoder = IosOrtTextEncoder(modelPath)
 
 actual fun readFileChunks(path: String, chunkSize: Int, onChunk: (buffer: ByteArray, length: Int) -> Unit): Boolean {
+    require(chunkSize > 0) { "Размер буфера чтения должен быть положительным" }
     val file = fopen(path, "rb") ?: return false
     try {
         val buffer = ByteArray(chunkSize)
@@ -92,11 +93,31 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
         val envOut = alloc<CPointerVar<OrtEnv>>()
         checkStatus(api.pointed.CreateEnv!!(ORT_LOGGING_LEVEL_WARNING, "localdoc-e5".cstr.ptr, envOut.ptr))
         val env = envOut.value ?: throw IllegalStateException("не создан OrtEnv")
+        try {
+            return@memScoped createRemainingHandles(env, modelPath)
+        } catch (t: Throwable) {
+            api.pointed.ReleaseEnv!!(env)
+            throw t
+        }
+    }
 
+    private fun createRemainingHandles(env: CPointer<OrtEnv>, modelPath: String): OrtHandles = memScoped {
         val memoryOut = alloc<CPointerVar<OrtMemoryInfo>>()
         checkStatus(api.pointed.CreateCpuMemoryInfo!!(OrtArenaAllocator, OrtMemTypeDefault, memoryOut.ptr))
         val memory = memoryOut.value ?: throw IllegalStateException("не создан OrtMemoryInfo")
+        try {
+            return@memScoped createSessionHandles(env, memory, modelPath)
+        } catch (t: Throwable) {
+            api.pointed.ReleaseMemoryInfo!!(memory)
+            throw t
+        }
+    }
 
+    private fun createSessionHandles(
+        env: CPointer<OrtEnv>,
+        memory: CPointer<OrtMemoryInfo>,
+        modelPath: String
+    ): OrtHandles = memScoped {
         val optionsOut = alloc<CPointerVar<OrtSessionOptions>>()
         checkStatus(api.pointed.CreateSessionOptions!!(optionsOut.ptr))
         val options = optionsOut.value ?: throw IllegalStateException("не создан OrtSessionOptions")
@@ -111,26 +132,34 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
             api.pointed.ReleaseSessionOptions!!(options)
         }
 
-        val allocatorOut = alloc<CPointerVar<OrtAllocator>>()
-        checkStatus(api.pointed.GetAllocatorWithDefaultOptions!!(allocatorOut.ptr))
-        val allocator = allocatorOut.value ?: throw IllegalStateException("не создан OrtAllocator")
+        try {
+            val allocatorOut = alloc<CPointerVar<OrtAllocator>>()
+            checkStatus(api.pointed.GetAllocatorWithDefaultOptions!!(allocatorOut.ptr))
+            val allocator = allocatorOut.value ?: throw IllegalStateException("не создан OrtAllocator")
 
-        val count = alloc<ULongVar>()
-        checkStatus(api.pointed.SessionGetInputCount!!(session, count.ptr))
-        var wantsTokenTypes = false
-        var i = 0uL
-        while (i < count.value) {
-            val name = alloc<CPointerVar<ByteVar>>()
-            checkStatus(api.pointed.SessionGetInputName!!(session, i, allocator, name.ptr))
-            wantsTokenTypes = wantsTokenTypes || name.value?.toKString() == "token_type_ids"
-            checkStatus(api.pointed.AllocatorFree!!(allocator, name.value))
-            i++
+            val count = alloc<ULongVar>()
+            checkStatus(api.pointed.SessionGetInputCount!!(session, count.ptr))
+            var wantsTokenTypes = false
+            var i = 0uL
+            while (i < count.value) {
+                val name = alloc<CPointerVar<ByteVar>>()
+                checkStatus(api.pointed.SessionGetInputName!!(session, i, allocator, name.ptr))
+                try {
+                    wantsTokenTypes = wantsTokenTypes || name.value?.toKString() == "token_type_ids"
+                } finally {
+                    checkStatus(api.pointed.AllocatorFree!!(allocator, name.value))
+                }
+                i++
+            }
+
+            OrtHandles(env, memory, session, allocator, wantsTokenTypes)
+        } catch (t: Throwable) {
+            api.pointed.ReleaseSession!!(session)
+            throw t
         }
-
-        OrtHandles(env, memory, session, allocator, wantsTokenTypes)
     }
 
-    override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray {
+    @Synchronized override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray {
         val tokenTypes = if (wantsTokenTypes) LongArray(inputIds.size) else LongArray(0)
         // Пиннуем входные массивы на весь Run — CreateTensorWithDataAsOrtValue не копирует данные.
         return inputIds.usePinned { ids ->
@@ -220,7 +249,7 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
         }
     }
 
-    override fun close() {
+    @Synchronized override fun close() {
         api.pointed.ReleaseSession!!(session)
         api.pointed.ReleaseMemoryInfo!!(memory)
         api.pointed.ReleaseEnv!!(env)
