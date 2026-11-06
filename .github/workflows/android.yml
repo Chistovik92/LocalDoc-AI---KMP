@@ -124,7 +124,9 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew :androidApp:connectedDebugAndroidTest --stacktrace
+          # Эмулятор x86_64: нативный модуль собирается под ARM по умолчанию, поэтому добавляем x86_64,
+          # иначе MainActivity падает на System.loadLibrary("localdoc_jni")
+          script: ./gradlew :androidApp:connectedDebugAndroidTest -Plocaldoc.abis=x86_64 --stacktrace
       - name: Результаты device-тестов
         if: always()
         uses: actions/upload-artifact@v4
