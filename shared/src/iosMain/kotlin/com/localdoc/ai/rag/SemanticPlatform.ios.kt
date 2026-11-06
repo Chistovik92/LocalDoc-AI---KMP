@@ -36,6 +36,7 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.set
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
@@ -165,15 +166,15 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
         }
 
         val shape = allocArray<LongVar>(2)
-        shape[0].value = 1L
-        shape[1].value = seqLen.toLong()
+        shape[0] = 1L
+        shape[1] = seqLen.toLong()
 
         val inputs = allocArray<CPointerVar<OrtValue>>(inputCount)
         val names = allocArray<CPointerVar<ByteVar>>(inputCount)
         val created = ArrayList<CPointer<OrtValue>>(inputCount + 1)
         try {
             for (i in 0 until inputCount) {
-                names[i].value = nameStrings[i].cstr.ptr
+                names[i] = nameStrings[i].cstr.ptr
                 val out = alloc<CPointerVar<OrtValue>>()
                 checkStatus(api.pointed.CreateTensorWithDataAsOrtValue!!(
                     memory,
@@ -185,12 +186,12 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
                     out.ptr
                 ))
                 val tensor = out.value ?: throw IllegalStateException("не создан входной тензор")
-                inputs[i].value = tensor
+                inputs[i] = tensor
                 created += tensor
             }
 
             val outputNames = allocArray<CPointerVar<ByteVar>>(1)
-            outputNames[0].value = "last_hidden_state".cstr.ptr
+            outputNames[0] = "last_hidden_state".cstr.ptr
             val outputOut = alloc<CPointerVar<OrtValue>>()
             checkStatus(api.pointed.Run!!(
                 session, null, names, inputs, inputCount.toULong(), outputNames, 1uL, outputOut.ptr
@@ -211,7 +212,7 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
             checkStatus(api.pointed.GetTensorMutableData!!(output, data.ptr))
             val floats = data.value?.reinterpret<FloatVar>()
                 ?: throw IllegalStateException("нет данных выходного тензора")
-            return FloatArray(count.value.toInt()) { floats[it].value }
+            return FloatArray(count.value.toInt()) { floats[it] }
         } finally {
             for (tensor in created) {
                 api.pointed.ReleaseValue!!(tensor)
