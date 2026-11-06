@@ -5,6 +5,8 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.IncomingDoc
 import com.localdoc.ai.platform.BackgroundUpdates
 import com.localdoc.ai.ui.App
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.Foundation.NSLog
 import platform.UIKit.UIViewController
 
 /** Вызов из Swift при запуске приложения: регистрирует фоновую задачу проверки новых глав (позже регистрировать нельзя). */
@@ -12,8 +14,18 @@ fun registerBackgroundTasks() {
     BackgroundUpdates.register()
 }
 
+@OptIn(ExperimentalForeignApi::class)
 fun MainViewController(): UIViewController = ComposeUIViewController {
-    App()
+    // ВРЕМЕННАЯ диагностика сбоя первой композиции на iOS: исключение печатается в системный
+    // лог (видно через `log show --predicate 'process == "LocalDocAI"'`), иначе остаётся только
+    // стек в .ips без самого сообщения. Убрать после локализации и фикса причины.
+    try {
+        App()
+    } catch (t: Throwable) {
+        NSLog("LocalDoc UNCAUGHT App() composition: %@", t.toString())
+        NSLog("LocalDoc UNCAUGHT stacktrace:\n%@", t.stackTraceToString())
+        throw t
+    }
 }
 
 /**
