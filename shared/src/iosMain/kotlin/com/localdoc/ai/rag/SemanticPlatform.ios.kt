@@ -249,7 +249,11 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
         }
     }
 
+    private var closed = false
+
     @Synchronized override fun close() {
+        if (closed) return
+        closed = true
         api.pointed.ReleaseSession!!(session)
         api.pointed.ReleaseMemoryInfo!!(memory)
         api.pointed.ReleaseEnv!!(env)

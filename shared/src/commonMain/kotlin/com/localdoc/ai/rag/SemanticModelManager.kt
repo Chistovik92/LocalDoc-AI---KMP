@@ -103,7 +103,7 @@ class SemanticModelManager(
         invalidateActivation()
         job?.cancel()
         job = null
-        _state.value = if (isInstalled()) SemanticModelState.Ready else SemanticModelState.NotInstalled
+        deactivate(if (isInstalled()) SemanticModelState.Ready else SemanticModelState.NotInstalled)
     }
 
     fun setEnabled(enabled: Boolean) {

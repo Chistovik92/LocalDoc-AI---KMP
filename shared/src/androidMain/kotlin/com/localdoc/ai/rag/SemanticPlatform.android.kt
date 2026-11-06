@@ -11,20 +11,17 @@ import java.nio.LongBuffer
 private class SharedOrtEnvironment {
     val value: OrtEnvironment = OrtEnvironment.getEnvironment()
     private var references = 0
-    private var closed = false
 
     @Synchronized fun acquire(): OrtEnvironment {
-        check(!closed) { "Общий OrtEnvironment уже закрыт" }
         references++
         return value
     }
 
     @Synchronized fun release() {
-        check(references > 0 && !closed) { "OrtEnvironment закрыт повторно" }
-        if (--references == 0) {
-            closed = true
-            value.close()
-        }
+        check(references > 0) { "OrtEnvironment закрыт повторно" }
+        references--
+        // OrtEnvironment — process-wide singleton: здесь только снимается ссылка.
+        // Его не закрываем: новый encoder после удаления модели использует тот же объект.
     }
 }
 
@@ -87,7 +84,11 @@ private class OrtTextEncoder(modelPath: String) : OnnxTextEncoder {
         }
     }
 
+    private var closed = false
+
     @Synchronized override fun close() {
+        if (closed) return
+        closed = true
         session.close()
         sharedOrtEnvironment.release()
     }
