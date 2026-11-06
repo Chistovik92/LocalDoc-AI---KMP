@@ -32,6 +32,8 @@ targets:
       # Офлайн-синтез Piper (sherpa-onnx): динамический, встраивается в приложение
       - framework: ../cpp_core/build-ios/SherpaOnnxC.xcframework
         embed: true
+      - framework: ../cpp_core/build-ios/onnxruntime.xcframework
+        embed: false
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework
@@ -60,6 +62,8 @@ targets:
       # Офлайн-синтез Piper (sherpa-onnx): динамический, встраивается в приложение
       - framework: ../cpp_core/build-ios/SherpaOnnxC.xcframework
         embed: true
+      - framework: ../cpp_core/build-ios/onnxruntime.xcframework
+        embed: false
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: Accelerate.framework

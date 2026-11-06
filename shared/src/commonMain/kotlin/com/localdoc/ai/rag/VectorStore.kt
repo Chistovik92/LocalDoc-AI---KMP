@@ -121,11 +121,23 @@ class VectorStore(private val storage: RagStorage) {
     /** Топ-K наиболее релевантных чанков по запросу. */
     fun topK(docId: String, queryVector: FloatArray, k: Int): List<StoredChunk> {
         val chunks = get(docId)
-        return chunks
-            .map { it to dot(queryVector, it.vector) }
-            .sortedByDescending { it.second }
-            .take(k)
-            .map { it.first }
+        // Отбираем K без сортировки всего индекса и без пары/боксинга Float на каждый чанк.
+        // На слабых телефонах это заметно уменьшает и CPU, и временные аллокации.
+        val bestIndexes = IntArray(k) { -1 }
+        val bestScores = FloatArray(k) { Float.NEGATIVE_INFINITY }
+        chunks.forEachIndexed { index, chunk ->
+            val score = dot(queryVector, chunk.vector)
+            if (score <= bestScores[k - 1]) return@forEachIndexed
+            var at = k - 1
+            while (at > 0 && bestScores[at - 1] < score) {
+                bestScores[at] = bestScores[at - 1]
+                bestIndexes[at] = bestIndexes[at - 1]
+                at--
+            }
+            bestScores[at] = score
+            bestIndexes[at] = index
+        }
+        return bestIndexes.filter { it >= 0 }.map(chunks::get)
     }
 
     private fun dot(a: FloatArray, b: List<Float>): Float {

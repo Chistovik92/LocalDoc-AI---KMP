@@ -1,0 +1,7 @@
+headers = onnxruntime_c_api.h
+headerFilter = onnxruntime_c_api.h
+package = com.localdoc.ai.onnxruntime
+linkerOpts = -framework onnxruntime
+
+# Официальный статический onnxruntime-c 1.24.1. Заголовки пиннуты в
+# cpp_core/third_party/onnxruntime, XCFramework скачивается fetch_onnxruntime_ios.sh.
