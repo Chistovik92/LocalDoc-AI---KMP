@@ -14,6 +14,7 @@ import com.localdoc.ai.onnxruntime.ORT_ENABLE_ALL
 import com.localdoc.ai.onnxruntime.ORT_LOGGING_LEVEL_WARNING
 import com.localdoc.ai.onnxruntime.OrtArenaAllocator
 import com.localdoc.ai.onnxruntime.OrtAllocator
+import com.localdoc.ai.platform.SyncLock
 import com.localdoc.ai.onnxruntime.OrtApi
 import com.localdoc.ai.onnxruntime.OrtGetApiBase
 import com.localdoc.ai.onnxruntime.OrtMemTypeDefault
@@ -75,6 +76,7 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
     private val session: CPointer<OrtSession>
     private val allocator: CPointer<OrtAllocator>
     private val wantsTokenTypes: Boolean
+    private val lock = SyncLock()
 
     init {
         val base = OrtGetApiBase() ?: throw IllegalStateException("ONNX Runtime недоступен")
@@ -159,10 +161,10 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
         }
     }
 
-    @Synchronized override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray {
+    override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray = lock.withLock {
         val tokenTypes = if (wantsTokenTypes) LongArray(inputIds.size) else LongArray(0)
         // Пиннуем входные массивы на весь Run — CreateTensorWithDataAsOrtValue не копирует данные.
-        return inputIds.usePinned { ids ->
+        inputIds.usePinned { ids ->
             attentionMask.usePinned { mask ->
                 tokenTypes.usePinned { tokens ->
                     encode(
@@ -251,8 +253,8 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
 
     private var closed = false
 
-    @Synchronized override fun close() {
-        if (closed) return
+    override fun close() = lock.withLock {
+        if (closed) return@withLock
         closed = true
         api.pointed.ReleaseSession!!(session)
         api.pointed.ReleaseMemoryInfo!!(memory)
