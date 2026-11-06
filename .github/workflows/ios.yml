@@ -2,7 +2,7 @@ name: iOS Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, release-* ]
     tags: [ "v*" ]
   pull_request:
     branches: [ main, master ]
@@ -121,6 +121,26 @@ jobs:
             -configuration Debug \
             -derivedDataPath build/sim \
             CODE_SIGNING_ALLOWED=NO build
+
+      - name: UI device-тест в симуляторе
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(d["udid"] for runtime in data["devices"].values() for d in runtime if d["isAvailable"]))')
+          DESTINATION="platform=iOS Simulator,id=$UDID"
+          xcodebuild -project iosApp/LocalDocAI.xcodeproj \
+            -scheme LocalDocAI \
+            -destination "$DESTINATION" \
+            -configuration Debug \
+            -derivedDataPath iosApp/build/sim \
+            -resultBundlePath iosApp/build/uitests.xcresult \
+            CODE_SIGNING_ALLOWED=NO test
+
+      - name: Результаты UI-теста
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ui-test-results
+          path: iosApp/build/uitests.xcresult
+          if-no-files-found: ignore
 
       - name: Сборка приложения для устройства (arm64, без подписи)
         run: |
