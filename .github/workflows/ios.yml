@@ -124,11 +124,39 @@ jobs:
 
       - name: UI device-тест в симуляторе
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; data=json.load(sys.stdin); print(next(d["udid"] for runtime in data["devices"].values() for d in runtime if d["isAvailable"]))')
-          DESTINATION="platform=iOS Simulator,id=$UDID"
+          # Выбираем iPhone на новейшем iOS-runtime. Простой `next(isAvailable)` брал первым
+          # симулятор Apple Vision Pro (visionOS), который xcodebuild не принимает для iOS-схемы.
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          def ver(runtime):
+              parts = runtime.replace("-", ".").split(".")
+              nums = [int(p) for p in parts if p.isdigit()]
+              return tuple(nums) if nums else (0,)
+          picks = []
+          for runtime, devs in data["devices"].items():
+              if "iOS" not in runtime:
+                  continue
+              for d in devs:
+                  if d.get("isAvailable") and "iPhone" in d.get("name", ""):
+                      picks.append((ver(runtime), d["udid"], d["name"]))
+          if not picks:  # запасной вариант: любой iOS-девайс (iPad)
+              for runtime, devs in data["devices"].items():
+                  if "iOS" not in runtime:
+                      continue
+                  for d in devs:
+                      if d.get("isAvailable"):
+                          picks.append((ver(runtime), d["udid"], d["name"]))
+          picks.sort(reverse=True)
+          print(picks[0][1] if picks else "")
+          ')
+          [ -n "$UDID" ] || { echo "Нет доступного iOS-симулятора"; exit 1; }
+          echo "Выбран симулятор: $UDID"
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b
           xcodebuild -project iosApp/LocalDocAI.xcodeproj \
             -scheme LocalDocAI \
-            -destination "$DESTINATION" \
+            -destination "platform=iOS Simulator,id=$UDID" \
             -configuration Debug \
             -derivedDataPath iosApp/build/sim \
             -resultBundlePath iosApp/build/uitests.xcresult \
