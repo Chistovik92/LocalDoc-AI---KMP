@@ -1,0 +1,11 @@
+headers = onnxruntime_c_api.h
+headerFilter = onnxruntime_c_api.h
+package = com.localdoc.ai.onnxruntime
+linkerOpts = -framework onnxruntime
+
+# Enum-константы отдаём как целочисленные значения (top-level константы), чтобы не
+# зависеть от эвристики отображения C-enum в Kotlin enum class.
+nonStrictEnums = OrtLoggingLevel ONNXTensorElementDataType OrtAllocatorType OrtMemType GraphOptimizationLevel
+
+# Официальный статический onnxruntime-c 1.24.1. Заголовки пиннуты в
+# cpp_core/third_party/onnxruntime, XCFramework скачивается fetch_onnxruntime_ios.sh.

@@ -55,8 +55,8 @@ fun AppGraph.pagerFor(book: Book): BookPager =
  * Запускает озвучку документа постранично. Язык речи — язык перевода (если он включён) или язык текста
  * с места старта; голос подбирается под него. Если язык не определён — остаётся выбранный в настройках голос.
  *
- * С включённой настройкой [TranslationSettings.speakAsTranslated] озвучка не ждёт перевода всей страницы:
- * переведённые абзацы звучат по мере готовности, поэтому голос начинает читать почти сразу.
+ * С включённым переводом озвучка ждёт перевод всей страницы: частичная страница не должна
+ * переключать речь обратно на язык оригинала после первых готовых абзацев.
  */
 fun AppGraph.startReading(docKey: String, book: Book, fromBlock: Int) {
     DebugLog.d("startReading doc=$docKey fromBlock=$fromBlock translated=${translationTarget(docKey)?.code}")
@@ -74,7 +74,7 @@ fun AppGraph.startReading(docKey: String, book: Book, fromBlock: Int) {
     }
 }
 
-/** Источник страниц для озвучки: с переводом — потоковый (по абзацам), без него — обычный. */
+/** Источник страниц для озвучки: с переводом — постраничный, без него — обычный. */
 private fun AppGraph.speechSourceFor(
     docKey: String,
     book: Book,

@@ -38,6 +38,11 @@ kotlin {
                     defFile(project.file("src/nativeInterop/cinterop/sherpa_onnx.def"))
                     compilerOpts("-I${project.rootProject.projectDir}/cpp_core/third_party/sherpa-onnx")
                 }
+                // Семантический поиск multilingual-e5-small: официальный ONNX Runtime C API
+                val onnxruntime by creating {
+                    defFile(project.file("src/nativeInterop/cinterop/onnxruntime.def"))
+                    compilerOpts("-I${project.rootProject.projectDir}/cpp_core/third_party/onnxruntime")
+                }
                 // Системная libbz2 — распаковка голосовых пакетов
                 val bzip2 by creating {
                     defFile(project.file("src/nativeInterop/cinterop/bzip2.def"))

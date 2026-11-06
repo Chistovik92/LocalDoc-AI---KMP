@@ -8,10 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Озвучка перевода по мере готовности: первый готовый блок звучит переводом, остальные —
- * оригиналом; текст страницы не теряется, число блоков не меняется.
- */
+/** Озвучка перевода: страница отдаётся плееру только после полного перевода, без вставок оригинала. */
 class StreamingPageTranslationTest {
 
     private val settings = TranslationSettings(speakAsTranslated = true)
@@ -22,21 +19,17 @@ class StreamingPageTranslationTest {
     )
 
     @Test
-    fun `first ready blocks sound translated, the rest keep the original`() = runTest {
-        // Переводчик уже выдал первый блок; второй и третий ещё в работе
+    fun `partial progress never mixes original blocks into speech`() = runTest {
         val result = StreamingPageTranslation.translate(
             original, key(), settings,
-            translate = { _, _ -> error("не должен ждать перевода всей страницы") },
+            translate = { _, blocks -> blocks.map { it.copy(text = "перевод:${it.text}") } },
             progress = { listOf(Block(BlockType.PARAGRAPH, "первый"), null, null) }
         )
-        assertEquals(3, result.size, "число блоков страницы не меняется")
-        assertEquals("первый", result[0].text)
-        assertEquals("second", result[1].text, "неготовые блоки звучат оригиналом")
-        assertEquals("third", result[2].text)
+        assertEquals(listOf("перевод:first", "перевод:second", "перевод:third"), result.map { it.text })
     }
 
     @Test
-    fun `no ready blocks within the timeout falls back to the whole-page translation`() = runTest {
+    fun `no ready blocks waits for the whole-page translation`() = runTest {
         var wholePageCalled = false
         val result = StreamingPageTranslation.translate(
             original, key(), settings,
@@ -46,28 +39,24 @@ class StreamingPageTranslationTest {
             },
             progress = { listOf(null, null, null) }
         )
-        assertTrue(wholePageCalled, "без готовых блоков ждётся перевод всей страницы")
+        assertTrue(wholePageCalled)
         assertEquals("перевод:first", result[0].text)
         assertEquals("перевод:third", result[2].text)
     }
 
     @Test
     fun `finished page sounds as one whole translation`() = runTest {
-        val done = listOf(
-            Block(BlockType.PARAGRAPH, "первый"),
-            Block(BlockType.PARAGRAPH, "второй"),
-            Block(BlockType.PARAGRAPH, "третий")
-        )
+        val done = original.map { it.copy(text = "перевод:${it.text}") }
         val result = StreamingPageTranslation.translate(
             original, key(), settings,
-            translate = { _, _ -> error("страница уже переведена") },
+            translate = { _, _ -> done },
             progress = { done }
         )
-        assertEquals("третий", result[2].text)
+        assertEquals("перевод:third", result[2].text)
     }
 
     @Test
-    fun `disabled streaming waits for the whole page`() = runTest {
+    fun `disabled streaming also waits for the whole page`() = runTest {
         val off = TranslationSettings(speakAsTranslated = false)
         val result = StreamingPageTranslation.translate(
             original, key(), off,
@@ -78,15 +67,14 @@ class StreamingPageTranslationTest {
     }
 
     @Test
-    fun `shorter progress than the page is not an error`() = runTest {
-        // Переводчик мог потерять страницу (retainOnly) — прогресс короче оригинала
+    fun `progress is never consulted before speaking`() = runTest {
         val result = StreamingPageTranslation.translate(
             original, key(), settings,
-            translate = { _, _ -> error("не должен вызываться: есть готовый блок") },
-            progress = { listOf(Block(BlockType.PARAGRAPH, "первый")) }
+            translate = { _, blocks -> blocks.map { it.copy(text = "перевод:${it.text}") } },
+            progress = { error("частичный снимок не должен попадать в озвучку") }
         )
         assertEquals(3, result.size)
-        assertEquals("second", result[1].text)
+        assertEquals("перевод:second", result[1].text)
     }
 
     private fun key() = PageKey("doc", 0, "ru", null, 1000)

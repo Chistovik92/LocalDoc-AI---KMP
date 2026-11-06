@@ -160,7 +160,11 @@ APK появится в `androidApp/build/outputs/apk/<variant>/`.
 # 1. C-ядро (llama.cpp + Metal) → XCFramework
 ./cpp_core/scripts/build_ios_xcframework.sh
 
-# 2. Kotlin/Native-фреймворк + генерация Xcode-проекта
+# 2. Piper + ONNX Runtime (семантический поиск)
+./cpp_core/scripts/fetch_sherpa_onnx_ios.sh
+./cpp_core/scripts/fetch_onnxruntime_ios.sh
+
+# 3. Kotlin/Native-фреймворк + генерация Xcode-проекта
 ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64   # симулятор
 ./gradlew :shared:linkReleaseFrameworkIosArm64          # устройство
 brew install xcodegen
@@ -212,7 +216,6 @@ Release-APK подписывается постоянным ключом (PKCS12
 
 Планы по версиям и бэклог — в [ROADMAP.md](ROADMAP.md). Известные ограничения сейчас:
 
-- Семантический поиск на ONNX (e5) работает на Android; на iOS пока используется лексический (feature hashing).
 - DJVU не поддерживается: единственный зрелый декодер распространяется под GPL, что несовместимо с лицензией MIT; Mobi с DRM и сжатием HUFF/CDIC не читается.
 - OPDS-каталоги с паролем и автоматическая докачка новых глав новелл в фоне пока не реализованы (приложение сообщает о новых главах).
 - Синхронизация — только WebDAV; iCloud и Google Drive — заготовки. Каталоги и WebDAV по `http://` системы блокируют (нужен `https://`).

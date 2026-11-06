@@ -95,6 +95,11 @@ jobs:
           chmod +x cpp_core/scripts/fetch_sherpa_onnx_ios.sh
           ./cpp_core/scripts/fetch_sherpa_onnx_ios.sh
 
+      - name: ONNX Runtime для iOS (семантический поиск)
+        run: |
+          chmod +x cpp_core/scripts/fetch_onnxruntime_ios.sh
+          ./cpp_core/scripts/fetch_onnxruntime_ios.sh
+
       - name: Загрузка xcframework (артефакт)
         uses: actions/upload-artifact@v4
         with:
