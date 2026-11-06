@@ -30,6 +30,8 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.cstr
+import kotlinx.cinterop.get
+import kotlinx.cinterop.invoke
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
@@ -74,7 +76,7 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
 
     init {
         val base = OrtGetApiBase() ?: throw IllegalStateException("ONNX Runtime недоступен")
-        api = base.pointed.GetApi?.invoke(24u)
+        api = base.pointed.GetApi!!(24u)
             ?: throw IllegalStateException("ONNX Runtime API не поддерживается")
 
         val handles = createHandles(modelPath)
@@ -87,121 +89,146 @@ private class IosOrtTextEncoder(modelPath: String) : OnnxTextEncoder {
 
     private fun createHandles(modelPath: String): OrtHandles = memScoped {
         val envOut = alloc<CPointerVar<OrtEnv>>()
-        checkStatus(api.pointed.CreateEnv?.invoke(ORT_LOGGING_LEVEL_WARNING, "localdoc-e5", envOut.ptr))
+        checkStatus(api.pointed.CreateEnv!!(ORT_LOGGING_LEVEL_WARNING, "localdoc-e5".cstr.ptr, envOut.ptr))
         val env = envOut.value ?: throw IllegalStateException("не создан OrtEnv")
 
         val memoryOut = alloc<CPointerVar<OrtMemoryInfo>>()
-        checkStatus(api.pointed.CreateCpuMemoryInfo?.invoke(OrtArenaAllocator, OrtMemTypeDefault, memoryOut.ptr))
+        checkStatus(api.pointed.CreateCpuMemoryInfo!!(OrtArenaAllocator, OrtMemTypeDefault, memoryOut.ptr))
         val memory = memoryOut.value ?: throw IllegalStateException("не создан OrtMemoryInfo")
 
         val optionsOut = alloc<CPointerVar<OrtSessionOptions>>()
-        checkStatus(api.pointed.CreateSessionOptions?.invoke(optionsOut.ptr))
+        checkStatus(api.pointed.CreateSessionOptions!!(optionsOut.ptr))
         val options = optionsOut.value ?: throw IllegalStateException("не создан OrtSessionOptions")
         val session: CPointer<OrtSession>
         try {
-            checkStatus(api.pointed.SetIntraOpNumThreads?.invoke(options, 2))
-            checkStatus(api.pointed.SetSessionGraphOptimizationLevel?.invoke(options, ORT_ENABLE_ALL))
+            checkStatus(api.pointed.SetIntraOpNumThreads!!(options, 2))
+            checkStatus(api.pointed.SetSessionGraphOptimizationLevel!!(options, ORT_ENABLE_ALL))
             val sessionOut = alloc<CPointerVar<OrtSession>>()
-            checkStatus(api.pointed.CreateSession?.invoke(env, modelPath, options, sessionOut.ptr))
+            checkStatus(api.pointed.CreateSession!!(env, modelPath.cstr.ptr, options, sessionOut.ptr))
             session = sessionOut.value ?: throw IllegalStateException("не создан OrtSession")
         } finally {
-            api.pointed.ReleaseSessionOptions?.invoke(options)
+            api.pointed.ReleaseSessionOptions!!(options)
         }
 
         val allocatorOut = alloc<CPointerVar<OrtAllocator>>()
-        checkStatus(api.pointed.GetAllocatorWithDefaultOptions?.invoke(allocatorOut.ptr))
+        checkStatus(api.pointed.GetAllocatorWithDefaultOptions!!(allocatorOut.ptr))
         val allocator = allocatorOut.value ?: throw IllegalStateException("не создан OrtAllocator")
 
         val count = alloc<ULongVar>()
-        checkStatus(api.pointed.SessionGetInputCount?.invoke(session, count.ptr))
+        checkStatus(api.pointed.SessionGetInputCount!!(session, count.ptr))
         var wantsTokenTypes = false
         var i = 0uL
         while (i < count.value) {
             val name = alloc<CPointerVar<ByteVar>>()
-            checkStatus(api.pointed.SessionGetInputName?.invoke(session, i, allocator, name.ptr))
+            checkStatus(api.pointed.SessionGetInputName!!(session, i, allocator, name.ptr))
             wantsTokenTypes = wantsTokenTypes || name.value?.toKString() == "token_type_ids"
-            api.pointed.AllocatorFree?.invoke(allocator, name.value)
+            checkStatus(api.pointed.AllocatorFree!!(allocator, name.value))
             i++
         }
 
         OrtHandles(env, memory, session, allocator, wantsTokenTypes)
     }
 
-    override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray = memScoped {
-        val inputCount = if (wantsTokenTypes) 3 else 2
-        val idArrays = if (wantsTokenTypes) arrayOf(inputIds, attentionMask, LongArray(inputIds.size))
-        else arrayOf(inputIds, attentionMask)
-        val nameStrings = if (wantsTokenTypes) arrayOf("input_ids", "attention_mask", "token_type_ids")
-        else arrayOf("input_ids", "attention_mask")
+    override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray {
+        val tokenTypes = if (wantsTokenTypes) LongArray(inputIds.size) else LongArray(0)
+        // Пиннуем входные массивы на весь Run — CreateTensorWithDataAsOrtValue не копирует данные.
+        return inputIds.usePinned { ids ->
+            attentionMask.usePinned { mask ->
+                tokenTypes.usePinned { tokens ->
+                    encode(
+                        ids.addressOf(0),
+                        mask.addressOf(0),
+                        if (wantsTokenTypes) tokens.addressOf(0) else null,
+                        inputIds.size
+                    )
+                }
+            }
+        }
+    }
+
+    private fun encode(
+        ids: CPointer<LongVar>,
+        mask: CPointer<LongVar>,
+        tokenTypes: CPointer<LongVar>?,
+        seqLen: Int
+    ): FloatArray = memScoped {
+        val inputCount = if (tokenTypes != null) 3 else 2
+        val nameStrings = if (tokenTypes != null) {
+            arrayOf("input_ids", "attention_mask", "token_type_ids")
+        } else {
+            arrayOf("input_ids", "attention_mask")
+        }
+        val dataPtrs: List<CPointer<LongVar>?> = if (tokenTypes != null) {
+            listOf(ids, mask, tokenTypes)
+        } else {
+            listOf(ids, mask)
+        }
 
         val shape = allocArray<LongVar>(2)
-        shape[0] = 1
-        shape[1] = inputIds.size.toLong()
+        shape[0].value = 1L
+        shape[1].value = seqLen.toLong()
 
         val inputs = allocArray<CPointerVar<OrtValue>>(inputCount)
         val names = allocArray<CPointerVar<ByteVar>>(inputCount)
         val created = ArrayList<CPointer<OrtValue>>(inputCount + 1)
         try {
             for (i in 0 until inputCount) {
-                names[i] = nameStrings[i].cstr.ptr
-                val values = idArrays[i]
+                names[i].value = nameStrings[i].cstr.ptr
                 val out = alloc<CPointerVar<OrtValue>>()
-                values.usePinned { pinned ->
-                    checkStatus(api.pointed.CreateTensorWithDataAsOrtValue?.invoke(
-                        memory,
-                        pinned.addressOf(0),
-                        (values.size * Long.SIZE_BYTES).toULong(),
-                        shape,
-                        2uL,
-                        ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,
-                        out.ptr
-                    ))
-                }
+                checkStatus(api.pointed.CreateTensorWithDataAsOrtValue!!(
+                    memory,
+                    dataPtrs[i],
+                    (seqLen * Long.SIZE_BYTES).toULong(),
+                    shape,
+                    2uL,
+                    ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,
+                    out.ptr
+                ))
                 val tensor = out.value ?: throw IllegalStateException("не создан входной тензор")
-                inputs[i] = tensor
+                inputs[i].value = tensor
                 created += tensor
             }
 
             val outputNames = allocArray<CPointerVar<ByteVar>>(1)
-            outputNames[0] = "last_hidden_state".cstr.ptr
+            outputNames[0].value = "last_hidden_state".cstr.ptr
             val outputOut = alloc<CPointerVar<OrtValue>>()
-            checkStatus(api.pointed.Run?.invoke(
+            checkStatus(api.pointed.Run!!(
                 session, null, names, inputs, inputCount.toULong(), outputNames, 1uL, outputOut.ptr
             ))
             val output = outputOut.value ?: throw IllegalStateException("нет выхода модели")
             created += output
 
             val info = alloc<CPointerVar<OrtTensorTypeAndShapeInfo>>()
-            checkStatus(api.pointed.GetTensorTypeAndShape?.invoke(output, info.ptr))
+            checkStatus(api.pointed.GetTensorTypeAndShape!!(output, info.ptr))
             val count = alloc<ULongVar>()
             try {
-                checkStatus(api.pointed.GetTensorShapeElementCount?.invoke(info.value, count.ptr))
+                checkStatus(api.pointed.GetTensorShapeElementCount!!(info.value, count.ptr))
             } finally {
-                api.pointed.ReleaseTensorTypeAndShapeInfo?.invoke(info.value)
+                api.pointed.ReleaseTensorTypeAndShapeInfo!!(info.value)
             }
 
             val data = alloc<COpaquePointerVar>()
-            checkStatus(api.pointed.GetTensorMutableData?.invoke(output, data.ptr))
+            checkStatus(api.pointed.GetTensorMutableData!!(output, data.ptr))
             val floats = data.value?.reinterpret<FloatVar>()
                 ?: throw IllegalStateException("нет данных выходного тензора")
-            return FloatArray(count.value.toInt()) { floats[it] }
+            return FloatArray(count.value.toInt()) { floats[it].value }
         } finally {
             for (tensor in created) {
-                api.pointed.ReleaseValue?.invoke(tensor)
+                api.pointed.ReleaseValue!!(tensor)
             }
         }
     }
 
     override fun close() {
-        api.pointed.ReleaseSession?.invoke(session)
-        api.pointed.ReleaseMemoryInfo?.invoke(memory)
-        api.pointed.ReleaseEnv?.invoke(env)
+        api.pointed.ReleaseSession!!(session)
+        api.pointed.ReleaseMemoryInfo!!(memory)
+        api.pointed.ReleaseEnv!!(env)
     }
 
     private fun checkStatus(status: CPointer<OrtStatus>?) {
         if (status == null) return
-        val message = api.pointed.GetErrorMessage?.invoke(status)?.toKString() ?: "ошибка ONNX Runtime"
-        api.pointed.ReleaseStatus?.invoke(status)
+        val message = api.pointed.GetErrorMessage!!(status)?.toKString() ?: "ошибка ONNX Runtime"
+        api.pointed.ReleaseStatus!!(status)
         throw IllegalStateException(message)
     }
 
