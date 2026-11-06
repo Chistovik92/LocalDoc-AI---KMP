@@ -6,7 +6,7 @@ import com.localdoc.ai.domain.IncomingDoc
 import com.localdoc.ai.platform.BackgroundUpdates
 import com.localdoc.ai.ui.App
 import kotlin.experimental.ExperimentalNativeApi
-import kotlin.native.runtime.setUnhandledExceptionHook
+import kotlin.native.setUnhandledExceptionHook
 import platform.Foundation.NSLog
 import platform.UIKit.UIViewController
 
