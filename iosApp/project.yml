@@ -16,6 +16,9 @@ settings:
     OTHER_LDFLAGS: "$(inherited) -lc++ -lbz2"
     # Kotlin-фреймворк и C-ядро собираются только под arm64 (симулятор Apple Silicon)
     EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+    # Синхронизация Compose-ресурсов в run-script-фазе пишет в бандл приложения:
+    # песочница скриптов Xcode 15+ это запрещает (и сам плагин Compose требует её отключить)
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
 
 targets:
   # Запуск на симуляторе (Apple Silicon) и локальная разработка
@@ -47,6 +50,16 @@ targets:
         INFOPLIST_FILE: iosApp/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.localdoc.ai
         CODE_SIGN_STYLE: Automatic
+    postBuildScripts:
+      - name: Синхронизация Compose-ресурсов
+        script: |
+          cd "$SRCROOT/.."
+          # ComposeApp.framework собирается как статический и не переносит compose-ресурсы
+          # в бандл приложения. Кладём их напрямую в LocalDocAI.app/compose-resources —
+          # именно там их ищет рантайм org.jetbrains.compose.resources на iOS.
+          export UNLOCALIZED_RESOURCES_FOLDER_PATH="$WRAPPER_NAME"
+          export ARCHS=arm64
+          ./gradlew :shared:syncComposeResourcesForIos --stacktrace
 
   # Сборка .ipa для физических устройств
   LocalDocAIDevice:
@@ -77,6 +90,16 @@ targets:
         INFOPLIST_FILE: iosApp/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.localdoc.ai
         CODE_SIGN_STYLE: Automatic
+    postBuildScripts:
+      - name: Синхронизация Compose-ресурсов
+        script: |
+          cd "$SRCROOT/.."
+          # ComposeApp.framework собирается как статический и не переносит compose-ресурсы
+          # в бандл приложения. Кладём их напрямую в LocalDocAIDevice.app/compose-resources —
+          # именно там их ищет рантайм org.jetbrains.compose.resources на iOS.
+          export UNLOCALIZED_RESOURCES_FOLDER_PATH="$WRAPPER_NAME"
+          export ARCHS=arm64
+          ./gradlew :shared:syncComposeResourcesForIos --stacktrace
 
   # UI-смоук в симуляторе: приложение запускается и показывает Compose-контент
   LocalDocAIUITests:

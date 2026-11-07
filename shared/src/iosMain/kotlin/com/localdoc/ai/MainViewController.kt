@@ -5,9 +5,6 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.domain.IncomingDoc
 import com.localdoc.ai.platform.BackgroundUpdates
 import com.localdoc.ai.ui.App
-import kotlin.experimental.ExperimentalNativeApi
-import kotlin.native.setUnhandledExceptionHook
-import platform.Foundation.NSLog
 import platform.UIKit.UIViewController
 
 /** Вызов из Swift при запуске приложения: регистрирует фоновую задачу проверки новых глав (позже регистрировать нельзя). */
@@ -15,24 +12,8 @@ fun registerBackgroundTasks() {
     BackgroundUpdates.register()
 }
 
-/**
- * ВРЕМЕННАЯ диагностика сбоя первой композиции на iOS: необработанное Kotlin-исключение
- * печатается в системный лог (видно через `log show --predicate 'process == "LocalDocAI"'`),
- * иначе в .ips остаётся только стек без самого сообщения. Убрать после локализации причины.
- */
-@OptIn(ExperimentalNativeApi::class)
-private fun installCrashDiagnostics() {
-    setUnhandledExceptionHook { throwable ->
-        // NSLog("%@", kotlinString) падает: Kotlin-строка не мостится в NSString внутри vararg.
-        // Встраиваем текст прямо в строку формата, экранируя '%', чтобы его не съел NSLog.
-        NSLog("LocalDoc UNCAUGHT Kotlin exception: " + throwable.toString().replace("%", "%%"))
-        NSLog("LocalDoc UNCAUGHT stacktrace:\n" + throwable.stackTraceToString().replace("%", "%%"))
-    }
-}
-
-fun MainViewController(): UIViewController {
-    installCrashDiagnostics()
-    return ComposeUIViewController { App() }
+fun MainViewController(): UIViewController = ComposeUIViewController {
+    App()
 }
 
 /**
