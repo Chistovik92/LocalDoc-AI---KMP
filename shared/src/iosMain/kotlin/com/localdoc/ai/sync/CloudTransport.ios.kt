@@ -4,12 +4,14 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.net.asStorage
 import com.localdoc.ai.net.asTransport
 import com.localdoc.ai.platform.RawHttp
+import com.localdoc.ai.platform.toByteArray
+import com.localdoc.ai.platform.toNSData
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
-import platform.Foundation.create
 import platform.Foundation.dataWithContentsOfURL
 import platform.Foundation.writeToURL
 import kotlin.coroutines.resume
@@ -28,6 +30,7 @@ actual fun platformCloudTransport(provider: CloudProvider): SyncTransport? = whe
     }
 }
 
+@OptIn(ExperimentalForeignApi::class)
 private class ICloudTransport : SyncTransport {
     private val manager = NSFileManager.defaultManager
     private val url = manager.URLForUbiquityContainerIdentifier(null)?.URLByAppendingPathComponent(SyncFormat.FILE_NAME)
@@ -46,7 +49,7 @@ private class ICloudTransport : SyncTransport {
         val file = url ?: throw SyncTransportException("Включите iCloud и войдите в Apple ID")
         return suspendCancellableCoroutine { cont ->
             try {
-                val data = NSData.create(bytes = bytes, length = bytes.size.toULong())
+                val data = bytes.toNSData()
                 if (!data.writeToURL(file, atomically = true)) throw SyncTransportException("iCloud не сохранил файл")
                 cont.resume("")
             } catch (e: CancellationException) { throw e } catch (e: Exception) { cont.resumeWithException(e) }
