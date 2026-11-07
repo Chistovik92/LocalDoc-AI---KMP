@@ -13,17 +13,18 @@ import java.io.FileNotFoundException
 
 /** Публикует скачанные GGUF-модели для NeuroCode; запись и произвольные пути запрещены. */
 class ModelProvider : ContentProvider() {
-    private lateinit var export: ModelExport
-
-    override fun onCreate(): Boolean {
-        val context = context ?: return false
-        val base = context.getExternalFilesDir(null) ?: context.filesDir
-        export = ModelExport(
-            File(base, "models"),
-            ModelCatalog.models.map { ExportedModel(it.id, it.name, it.url, File(File(base, "models"), "${it.id}.gguf")) }
+    // ContentProvider создаётся до Application: каталог Compose Multiplatform читаем только при первом запросе.
+    private val export by lazy {
+        val base = context?.getExternalFilesDir(null) ?: context?.filesDir
+            ?: throw IllegalStateException("Контекст приложения недоступен")
+        val modelsDir = File(base, "models")
+        ModelExport(
+            modelsDir,
+            ModelCatalog.models.map { ExportedModel(it.id, it.name, it.url, File(modelsDir, "${it.id}.gguf")) }
         )
-        return true
     }
+
+    override fun onCreate(): Boolean = true
 
     override fun query(
         uri: Uri,
@@ -54,7 +55,8 @@ class ModelProvider : ContentProvider() {
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         if (mode != "r") throw FileNotFoundException("Модели доступны только для чтения")
-        val file = export.resolve(uri.lastPathSegment.orEmpty())?.file
+        val modelId = uri.lastPathSegment.orEmpty().removeSuffix(".gguf")
+        val file = export.resolve("$modelId.gguf")?.file
             ?: throw FileNotFoundException("Неизвестная или не скачанная модель")
         return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     }
