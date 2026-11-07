@@ -23,8 +23,10 @@ fun registerBackgroundTasks() {
 @OptIn(ExperimentalNativeApi::class)
 private fun installCrashDiagnostics() {
     setUnhandledExceptionHook { throwable ->
-        NSLog("LocalDoc UNCAUGHT Kotlin exception: %@", throwable.toString())
-        NSLog("LocalDoc UNCAUGHT stacktrace:\n%@", throwable.stackTraceToString())
+        // NSLog("%@", kotlinString) падает: Kotlin-строка не мостится в NSString внутри vararg.
+        // Встраиваем текст прямо в строку формата, экранируя '%', чтобы его не съел NSLog.
+        NSLog("LocalDoc UNCAUGHT Kotlin exception: " + throwable.toString().replace("%", "%%"))
+        NSLog("LocalDoc UNCAUGHT stacktrace:\n" + throwable.stackTraceToString().replace("%", "%%"))
     }
 }
 
