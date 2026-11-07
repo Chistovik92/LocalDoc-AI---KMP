@@ -1,6 +1,13 @@
 package com.localdoc.ai.ui
 
 import com.localdoc.ai.resources.a_backup_is_saved_on_the
+import com.localdoc.ai.resources.confirm_google_sign_in
+import com.localdoc.ai.resources.google_auth_code
+import com.localdoc.ai.resources.google_drive_connected
+import com.localdoc.ai.resources.google_oauth_client_id
+import com.localdoc.ai.resources.other_clouds
+import com.localdoc.ai.resources.sign_in_google_drive
+import com.localdoc.ai.resources.sync_with_cloud
 import com.localdoc.ai.resources.books_pending
 import com.localdoc.ai.resources.done_received_sent_conflicts
 import com.localdoc.ai.resources.encryption_password
@@ -49,7 +56,12 @@ import com.localdoc.ai.domain.AppGraph
 import com.localdoc.ai.net.asTransport
 import com.localdoc.ai.platform.IoDispatcher
 import com.localdoc.ai.platform.RawHttp
+import com.localdoc.ai.sync.CloudProvider
 import com.localdoc.ai.sync.DivergenceChoice
+import com.localdoc.ai.sync.GoogleDriveAuth
+import com.localdoc.ai.sync.platformCloudTransport
+import com.localdoc.ai.net.asStorage
+import com.localdoc.ai.platform.PlatformActions
 import com.localdoc.ai.sync.PasswordCipher
 import com.localdoc.ai.sync.SyncOutcome
 import com.localdoc.ai.sync.WebDavTransport
@@ -76,7 +88,10 @@ fun SyncSection() {
     var message by remember { mutableStateOf<String?>(null) }
     var diverged by remember { mutableStateOf<String?>(null) }
 
-    fun run(choice: DivergenceChoice?) {
+    var cloud by remember { mutableStateOf<CloudProvider?>(null) }
+    var clientId by remember { mutableStateOf(AppGraph.kv.get("sync_google_client_id").orEmpty()) }
+    var googleCode by remember { mutableStateOf("") }
+    fun run(choice: DivergenceChoice?, selectedCloud: CloudProvider? = null) {
         AppGraph.kv.put(KEY_SYNC_URL, url.trim())
         AppGraph.kv.put(KEY_SYNC_USER, user.trim())
         AppGraph.secure.put(SECRET_WEBDAV, password)
@@ -85,7 +100,8 @@ fun SyncSection() {
         message = null
         diverged = null
         scope.launch {
-            val transport = WebDavTransport(RawHttp().asTransport(), url.trim(), user.trim(), password)
+            val transport = selectedCloud?.let { platformCloudTransport(it) }
+                ?: WebDavTransport(RawHttp().asTransport(), url.trim(), user.trim(), password)
             val outcome = try {
                 withContext(IoDispatcher) { AppGraph.syncEngine.sync(transport, PasswordCipher(encryption), choice) }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -134,6 +150,32 @@ fun SyncSection() {
         OutlinedButton(onClick = { run(DivergenceChoice.MERGE) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.merge_anyway)) }
         OutlinedButton(onClick = { run(DivergenceChoice.KEEP_LOCAL) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.keep_this_device_s_data)) }
         OutlinedButton(onClick = { run(DivergenceChoice.USE_REMOTE) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.take_the_data_from_the_cloud)) }
+    }
+    Text(stringResource(Res.string.other_clouds), style = MaterialTheme.typography.titleMedium)
+    OutlinedTextField(clientId, {
+        clientId = it
+        AppGraph.kv.put("sync_google_client_id", it.trim())
+    }, label = { Text(stringResource(Res.string.google_oauth_client_id)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedButton(
+        enabled = !busy && clientId.isNotBlank(),
+        onClick = { PlatformActions.openUrl(GoogleDriveAuth(RawHttp().asTransport(), AppGraph.secure.asStorage(), clientId.trim()).authorizationUrl()) },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(stringResource(Res.string.sign_in_google_drive)) }
+    OutlinedTextField(googleCode, { googleCode = it }, label = { Text(stringResource(Res.string.google_auth_code)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    Button(enabled = !busy && googleCode.isNotBlank() && encryption.isNotEmpty(), onClick = {
+        scope.launch {
+            busy = true
+            message = try {
+                val auth = GoogleDriveAuth(RawHttp().asTransport(), AppGraph.secure.asStorage(), clientId.trim())
+                auth.signIn(googleCode)
+                googleCode = ""
+                cloud = CloudProvider.GOOGLE_DRIVE
+                getString(Res.string.google_drive_connected)
+            } catch (e: Exception) { e.message } finally { busy = false }
+        }
+    }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.confirm_google_sign_in)) }
+    Button(enabled = !busy && encryption.isNotEmpty(), onClick = { run(null, cloud ?: CloudProvider.GOOGLE_DRIVE) }, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(Res.string.sync_with_cloud))
     }
     Text(stringResource(Res.string.icloud_and_google_drive_not_available), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 

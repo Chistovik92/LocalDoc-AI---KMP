@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- ModelDownloader() кладёт GGUF в getExternalFilesDir()/models -->
+    <external-files-path name="models" path="models/" />
+    <!-- Тот же каталог при недоступном внешнем хранилище -->
+    <files-path name="models_internal" path="models/" />
+</paths>

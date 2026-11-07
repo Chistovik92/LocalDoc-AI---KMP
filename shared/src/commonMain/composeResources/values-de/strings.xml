@@ -531,7 +531,14 @@
     <string name="merge_anyway">Trotzdem zusammenführen</string>
     <string name="keep_this_device_s_data">Daten dieses Geräts behalten</string>
     <string name="take_the_data_from_the_cloud">Daten aus der Cloud übernehmen</string>
-    <string name="icloud_and_google_drive_not_available">iCloud und Google Drive: noch nicht verfügbar.</string>
+    <string name="icloud_and_google_drive_not_available">iCloud ist auf iOS nach Aktivierung von iCloud-Dokumenten und Apple-ID verfügbar.</string>
+    <string name="other_clouds">Weitere Clouds</string>
+    <string name="google_oauth_client_id">Google OAuth Client ID</string>
+    <string name="sign_in_google_drive">Bei Google Drive anmelden</string>
+    <string name="google_auth_code">Google-Autorisierungscode</string>
+    <string name="confirm_google_sign_in">Google-Anmeldung bestätigen</string>
+    <string name="sync_with_cloud">Mit Cloud synchronisieren</string>
+    <string name="google_drive_connected">Google Drive verbunden. Tippen Sie auf „Mit Cloud synchronisieren“.</string>
     <string name="scheduled_backup">Geplante Sicherung</string>
     <string name="make_a_backup_automatically">Automatisch sichern</string>
     <string name="every_days">Alle %1$s Tage</string>

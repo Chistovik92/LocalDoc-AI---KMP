@@ -25,10 +25,12 @@ class ManifestSecurityTest {
     }
 
     @Test
-    fun `only the launcher activity is exported and backups are off`() {
+    fun `only launcher and read-only model provider are exported and backups are off`() {
         assertTrue("""android:allowBackup="false"""" in manifest)
         val exported = Regex("""android:exported="true"""").findAll(manifest).count()
-        assertTrue(exported == 1, "экспортированных компонентов: $exported")
+        assertTrue(exported == 2, "экспортированных компонентов: $exported")
+        assertTrue("""android:authorities="${'$'}{applicationId}.models"""" in manifest)
+        assertTrue("""android:name=".model.ModelProvider"""" in manifest)
     }
 
     @Test

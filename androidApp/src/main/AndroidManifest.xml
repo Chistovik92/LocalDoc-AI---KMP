@@ -111,6 +111,24 @@
                 android:resource="@xml/update_file_paths" />
         </provider>
 
+        <!-- NeuroCode: список и чтение скачанных моделей; authority учитывает .debug applicationId -->
+        <provider
+            android:name=".model.ModelProvider"
+            android:authorities="${applicationId}.models"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
+        <!-- Запасной ACTION_SEND: FileProvider выдаёт URI с временным read grant -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.models.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/model_file_paths" />
+        </provider>
+
         <!-- Плеер озвучки в шторке (MediaSession + уведомление MediaStyle) -->
         <service
             android:name=".player.ReadAloudService"
