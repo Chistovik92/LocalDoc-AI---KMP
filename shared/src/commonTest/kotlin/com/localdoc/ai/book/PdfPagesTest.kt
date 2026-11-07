@@ -109,7 +109,7 @@ class PdfPagesTest {
         // Сброс рендера: причина, а не молчаливый null — у экрана появляется экран «Повторить»
         val fromRender = source.page(0, 500)
         assertIs<PdfPageResult.Failed>(fromRender)
-        assertTrue(fromRender.reason.isNotBlank())
+        assertEquals("не рисуется", fromRender.reason)
         // За границами документа: причина тоже внятная
         val outOfRange = source.page(3, 500)
         assertIs<PdfPageResult.Failed>(outOfRange)

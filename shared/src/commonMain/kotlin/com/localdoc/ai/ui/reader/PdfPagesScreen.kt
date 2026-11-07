@@ -124,7 +124,9 @@ fun PdfPagesScreen(
         }
         opened = true
     }
-    DisposableEffect(openedSource) { onDispose { openedSource?.close() } }
+    // Эффект должен жить столько же, сколько экран. Если подписаться на openedSource,
+    // первое присваивание null → source закрывает новый документ ещё до первой страницы.
+    DisposableEffect(fileName) { onDispose { openedSource?.close() } }
     val source = openedSource
     if (!opened) {
         androidx.compose.foundation.layout.Box(

@@ -197,11 +197,17 @@ class BookImporter(private val files: FileAccess, private val pdfExtractor: PdfE
                 return book
             }
             val withFile = book.copy(pdfFile = name)
-            val renderer = PdfPageRenderer(files.appFilePath(name))
+            // Обложка — необязательный ресурс. Сбой системного рендера не должен удалять сам PDF:
+            // именно по этой копии читалка открывает исходные страницы вместо текста/OCR.
             return try {
-                withContext(Dispatchers.Default) { PdfPages.withCover(withFile, renderer) }
-            } finally {
-                renderer.close()
+                val renderer = PdfPageRenderer(files.appFilePath(name))
+                try {
+                    withContext(Dispatchers.Default) { PdfPages.withCover(withFile, renderer) }
+                } finally {
+                    renderer.close()
+                }
+            } catch (t: Throwable) {
+                withFile
             }
         } catch (e: CancellationException) {
             throw e

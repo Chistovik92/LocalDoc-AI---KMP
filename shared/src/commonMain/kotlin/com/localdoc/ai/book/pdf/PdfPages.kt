@@ -103,11 +103,12 @@ class PdfPageSource(
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
-                println("PdfPageSource: страница $index не нарисована — ${t.message ?: t::class.simpleName}")
-                null
+                com.localdoc.ai.platform.DebugLog.e("PDF page $index render failed", t)
+                return PdfPageResult.Failed(t.message?.takeIf { it.isNotBlank() }
+                    ?: "Страницу не удалось нарисовать (${t::class.simpleName})")
             }
             bytes?.also { cache.put(key, it) }?.let { PdfPageResult.Ready(it) }
-                ?: PdfPageResult.Failed("Рендер не дал картинку: память, шифрование или повреждённый файл")
+                ?: PdfPageResult.Failed("Рендер вернул пустую страницу. Попробуйте другой PDF-файл или режим «текст».")
         }
     }
 
