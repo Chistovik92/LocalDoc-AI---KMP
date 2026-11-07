@@ -166,4 +166,37 @@ class SemanticModelManagerTest {
         assertIs<SemanticModelState.Failed>(env.manager.state.value)
         assertEquals(listOf<EmbeddingProvider>(env.runtime.provider), env.runtime.unloaded)
     }
+
+    @Test
+    fun cancellationAfterLoadStillUnloadsProvider() = runTest {
+        val scope = TestScope(testScheduler)
+        val env = Env(scope, ::correctSha, 8000) {
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+            100L
+        }
+        env.manager.download()
+        advanceUntilIdle()
+        scope.advanceUntilIdle()
+
+        assertEquals(listOf<EmbeddingProvider>(env.runtime.provider), env.runtime.unloaded)
+        assertEquals("hash-384", env.manager.embedder().signature)
+    }
+
+    @Test
+    fun enablingAfterRejectionRunsBenchmarkAgain() = runTest {
+        var duration = SemanticModelPolicy.MAX_PASSAGE_MILLIS + 1
+        val env = env(benchmark = { duration })
+        env.manager.download()
+        advanceUntilIdle()
+        assertIs<SemanticModelState.Rejected>(env.manager.state.value)
+
+        env.manager.setEnabled(false)
+        advanceUntilIdle()
+        duration = 100L
+        env.manager.setEnabled(true)
+        advanceUntilIdle()
+
+        assertEquals(SemanticModelState.Ready, env.manager.state.value)
+        assertSame(env.runtime.provider, env.manager.embedder())
+    }
 }

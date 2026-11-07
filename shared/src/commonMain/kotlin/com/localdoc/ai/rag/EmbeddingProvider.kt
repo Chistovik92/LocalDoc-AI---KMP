@@ -28,6 +28,8 @@ interface EmbeddingProvider {
 
 class HashingEmbedder(override val dimensions: Int = 384) : EmbeddingProvider {
 
+    init { require(dimensions > 0) { "Размерность эмбеддинга должна быть положительной" } }
+
     override val id: String get() = "hash"
 
     private fun hash32(s: String, seed: Int): Int {

@@ -21,11 +21,30 @@ class VectorStoreTopKTest {
         assertEquals(listOf(1, 2), store.topK("doc", floatArrayOf(1f), 5).map { it.section })
     }
 
+    @Test
+    fun `non positive k returns empty result`() {
+        val store = VectorStore(MemoryStorage())
+        store.put("doc", listOf(StoredChunk("one", 1, listOf(1f))))
+        assertEquals(emptyList(), store.topK("doc", floatArrayOf(1f), 0))
+        assertEquals(emptyList(), store.topK("doc", floatArrayOf(1f), -1))
+    }
+
+    @Test
+    fun `mismatched dimensions cannot produce false matches`() {
+        val store = VectorStore(MemoryStorage())
+        store.put("doc", listOf(
+            StoredChunk("short", 1, listOf(1f)),
+            StoredChunk("matching", 2, listOf(0f, 1f)),
+            StoredChunk("long", 3, listOf(1f, 0f, 1f))
+        ))
+        assertEquals(listOf(2), store.topK("doc", floatArrayOf(0f, 1f), 3).map { it.section })
+        assertEquals(emptyList(), store.topK("doc", floatArrayOf(1f, 0f, 0f, 0f), 3))
+    }
+
     private class MemoryStorage : RagStorage {
         private val values = mutableMapOf<String, String>()
         override fun get(key: String) = values[key]
         override fun put(key: String, value: String) { values[key] = value }
         override fun remove(key: String) { values.remove(key) }
-        override fun clearAll() = values.clear()
     }
 }

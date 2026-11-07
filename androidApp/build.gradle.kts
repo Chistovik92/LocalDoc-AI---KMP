@@ -62,8 +62,9 @@ android {
         // Android 8.0 (API 26) … Android 17 (API 37)
         minSdk = 26
         targetSdk = 37
-        versionCode = 29
-        versionName = "2.7.0"
+        versionCode = 30
+        versionName = "2.8.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     packaging {
@@ -121,4 +122,7 @@ dependencies {
     implementation(libs.jetbrains.material3)
     // ManifestSecurityTest
     testImplementation(libs.kotlin.test.junit)
+    // Запуск приложения, системный TTS и замеры RAG на Android-устройстве
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

@@ -9,7 +9,6 @@ class MemoryRagStorage : RagStorage {
     override fun remove(key: String) {
         data.remove(key)
     }
-    override fun clearAll() = data.clear()
 }
 
 /** Эмбеддер с известной размерностью; вектор детерминирован и нормализован. */

@@ -8,6 +8,25 @@ import com.localdoc.ai.platform.AppContextHolder
 import java.io.File
 import java.nio.LongBuffer
 
+private class SharedOrtEnvironment {
+    val value: OrtEnvironment = OrtEnvironment.getEnvironment()
+    private var references = 0
+
+    @Synchronized fun acquire(): OrtEnvironment {
+        references++
+        return value
+    }
+
+    @Synchronized fun release() {
+        check(references > 0) { "OrtEnvironment закрыт повторно" }
+        references--
+        // OrtEnvironment — process-wide singleton: здесь только снимается ссылка.
+        // Его не закрываем: новый encoder после удаления модели использует тот же объект.
+    }
+}
+
+private val sharedOrtEnvironment = SharedOrtEnvironment()
+
 actual fun totalDeviceMemoryMb(): Long {
     val manager = AppContextHolder.appContext.getSystemService(ActivityManager::class.java) ?: return 0L
     val info = ActivityManager.MemoryInfo().also { manager.getMemoryInfo(it) }
@@ -19,6 +38,7 @@ actual val onnxRuntimeAvailable: Boolean = true
 actual fun createOnnxTextEncoder(modelPath: String): OnnxTextEncoder = OrtTextEncoder(modelPath)
 
 actual fun readFileChunks(path: String, chunkSize: Int, onChunk: (buffer: ByteArray, length: Int) -> Unit): Boolean {
+    require(chunkSize > 0) { "Размер буфера чтения должен быть положительным" }
     val file = File(path)
     if (!file.isFile) return false
     file.inputStream().use { input ->
@@ -34,17 +54,20 @@ actual fun readFileChunks(path: String, chunkSize: Int, onChunk: (buffer: ByteAr
 
 /** ONNX Runtime для Android: одна сессия, батч из одного текста. */
 private class OrtTextEncoder(modelPath: String) : OnnxTextEncoder {
-    private val env = OrtEnvironment.getEnvironment()
-    private val session: OrtSession = env.createSession(
-        modelPath,
-        OrtSession.SessionOptions().apply {
-            setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
-            setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+    private val env = sharedOrtEnvironment.acquire()
+    private val session: OrtSession = try {
+        OrtSession.SessionOptions().use { options ->
+            options.setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
+            options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+            env.createSession(modelPath, options)
         }
-    )
+    } catch (t: Throwable) {
+        sharedOrtEnvironment.release()
+        throw t
+    }
     private val wantsTokenTypes = "token_type_ids" in session.inputNames
 
-    override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray {
+    @Synchronized override fun run(inputIds: LongArray, attentionMask: LongArray): FloatArray {
         val shape = longArrayOf(1, inputIds.size.toLong())
         val tensors = mutableListOf<OnnxTensor>()
         try {
@@ -61,7 +84,12 @@ private class OrtTextEncoder(modelPath: String) : OnnxTextEncoder {
         }
     }
 
-    override fun close() {
+    private var closed = false
+
+    @Synchronized override fun close() {
+        if (closed) return
+        closed = true
         session.close()
+        sharedOrtEnvironment.release()
     }
 }

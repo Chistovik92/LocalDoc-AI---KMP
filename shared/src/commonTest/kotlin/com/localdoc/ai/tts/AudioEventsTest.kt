@@ -128,4 +128,16 @@ class AudioEventsTest {
         h.controller.sleepStop()
         assertFalse(h.audio.started, "таймер сна закрывает сессию событий звука")
     }
+
+    @Test
+    fun `play after sleep timer reopens the audio session`() {
+        val h = Harness(); h.open()
+
+        h.controller.sleepStop()
+        assertFalse(h.audio.started)
+
+        h.controller.play()
+        assertTrue(h.audio.started, "продолжение после таймера сна снова включает события звука")
+        assertTrue(h.controller.state.value.playing)
+    }
 }

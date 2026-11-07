@@ -46,10 +46,29 @@ class VectorStoreVersionTest {
     }
 
     @Test
-    fun brokenMetaFallsBackToLegacy() {
+    fun brokenMetaIsNotLegacyOrCurrent() {
         store.put("doc", listOf(chunk), "e5-small-384")
         storage.put("rag-meta:doc", "{broken")
-        assertEquals(VectorStore.LEGACY_PROVIDER, store.providerOf("doc"))
+        assertNull(store.providerOf("doc"))
+        assertFalse(store.isCurrent("doc", VectorStore.LEGACY_PROVIDER))
+    }
+
+    @Test
+    fun futureFormatIsNotCurrent() {
+        store.put("doc", listOf(chunk), "hash-384")
+        storage.put("rag-meta:doc", """{"format":3,"provider":"hash-384"}""")
+        assertFalse(store.isCurrent("doc", "hash-384"))
+    }
+
+    @Test
+    fun clearAllRemovesOnlyRagKeys() {
+        store.put("doc", listOf(chunk))
+        storage.put("app-setting", "keep")
+        store.clearAll()
+        assertEquals("keep", storage.get("app-setting"))
+        assertNull(storage.get("rag:doc"))
+        assertNull(storage.get("rag-meta:doc"))
+        assertNull(storage.get("rag-index:doc-ids"))
     }
 
     @Test
@@ -58,6 +77,7 @@ class VectorStoreVersionTest {
         store.remove("doc")
         assertNull(storage.get("rag-meta:doc"))
         assertNull(store.providerOf("doc"))
+        assertEquals("[]", storage.get("rag-index:doc-ids"))
     }
 
     @Test

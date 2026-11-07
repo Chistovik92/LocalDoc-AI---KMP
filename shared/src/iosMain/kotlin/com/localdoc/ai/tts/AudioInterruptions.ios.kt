@@ -6,6 +6,8 @@ import platform.AVFAudio.AVAudioSessionInterruptionNotification
 import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
 import platform.AVFAudio.AVAudioSessionInterruptionTypeEnded
 import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
+import platform.AVFAudio.AVAudioSessionInterruptionOptionKey
+import platform.AVFAudio.AVAudioSessionInterruptionOptionShouldResume
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonKey
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonNewDeviceAvailable
@@ -72,7 +74,10 @@ private class IosAudioEvents : AudioInterruptions {
         val type = (info[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.longValue?.toULong() ?: return
         when (type) {
             AVAudioSessionInterruptionTypeBegan -> onInterrupted?.invoke()
-            AVAudioSessionInterruptionTypeEnded -> onRegained?.invoke()
+            AVAudioSessionInterruptionTypeEnded -> {
+                val options = (info[AVAudioSessionInterruptionOptionKey] as? NSNumber)?.longValue?.toULong() ?: 0u
+                if (options and AVAudioSessionInterruptionOptionShouldResume != 0uL) onRegained?.invoke()
+            }
         }
     }
 

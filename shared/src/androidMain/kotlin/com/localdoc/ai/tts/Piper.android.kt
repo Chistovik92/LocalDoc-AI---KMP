@@ -95,7 +95,7 @@ private class AudioTrackOutput : PcmOutput {
                 if (audio.playState != AudioTrack.PLAYSTATE_PLAYING) return false
                 // Позиция перестала расти (устройство вывода сменилось) — не висим вечно
                 stalledMs = if (played == last) stalledMs + POLL_MS else 0L
-                if (stalledMs >= STALL_TIMEOUT_MS) break
+                if (stalledMs >= STALL_TIMEOUT_MS) return false
                 last = played
                 delay(POLL_MS)
             }
