@@ -6,6 +6,7 @@ import com.localdoc.ai.resources.nothing_found
 import com.localdoc.ai.resources.nothing_yet_the_index_is_still
 import com.localdoc.ai.resources.search_book_text
 import com.localdoc.ai.resources.search_failed
+import com.localdoc.ai.resources.search_no_results
 import com.localdoc.ai.resources.searching
 import com.localdoc.ai.resources.type_at_least_two_characters_all
 import com.localdoc.ai.resources.word_or_phrase
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
@@ -99,7 +102,12 @@ fun ContentSearchSheet(
             error != null -> Hint(error.orEmpty())
             query.trim().length < MIN_QUERY_CHARS -> Hint(stringResource(Res.string.type_at_least_two_characters_all))
             found == null -> Hint(stringResource(Res.string.searching))
-            found.isEmpty -> Hint(if (building) stringResource(Res.string.nothing_yet_the_index_is_still) else stringResource(Res.string.nothing_found))
+            found.isEmpty -> EmptyState(
+                icon = Icons.Default.SearchOff,
+                title = stringResource(Res.string.nothing_found),
+                text = stringResource(Res.string.search_no_results),
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
             else -> LazyColumn(modifier = Modifier.heightIn(max = RESULTS_MAX_HEIGHT.dp).padding(top = 8.dp, bottom = 24.dp)) {
                 items(found.books, key = { "${it.entry.id}:${it.block}" }) { hit ->
                     ListItem(
