@@ -1,12 +1,12 @@
 package com.localdoc.ai.ui
 
 import androidx.compose.runtime.Composable
-import platform.UIKit.UIAccessibility
+import platform.UIKit.UIAccessibilityIsReduceMotionEnabled
 
 /**
  * iOS: проверка через UIAccessibility.isReduceMotionEnabled.
  */
 @Composable
 actual fun rememberReduceMotion(): Boolean {
-    return UIAccessibility.isReduceMotionEnabled()
+    return UIAccessibilityIsReduceMotionEnabled()
 }
