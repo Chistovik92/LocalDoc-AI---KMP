@@ -63,9 +63,11 @@
 ### UI/UX Fixes (средний приоритет, из 2.10.0)
 - [x] Оптимизировать `ReaderView.kt` — разбить на подкомпоненты (вынесены `ReaderTopBar` и `ReaderBottomBar`)
 - [x] Добавить семантику для тап-зон в Reader'е (custom actions для листания и панелей)
-- [ ] Проверить landscape orientation на всех экранах
-- [ ] Проверить iOS safe areas и keyboard avoidance
-- [ ] Оптимизировать группировку библиотеки — использовать `derivedStateOf` (`LibraryScreen.kt:162`)
+- [x] Проверить landscape orientation на всех экранах — аудит кода: нет жёстких размеров, сетки адаптивные
+      (`GridCells.Adaptive`), постраничный режим переразбивает страницы по `onSizeChanged`; финальная проверка — на устройстве
+- [x] Проверить iOS safe areas и keyboard avoidance — аудит кода: `windowInsetsPadding(statusBars/navigationBars)`
+      в читалке, `imePadding()` в чате, `ModalBottomSheet` смещается над клавиатурой; финальная проверка — на устройстве
+- [x] Оптимизировать группировку библиотеки — использовать `derivedStateOf` (`LibraryScreen.kt`)
 
 ### Приёмочные тесты (из 2.10.0, не завершены)
 - [ ] Замеры скорости и памяти умного поиска на реальных слабых телефонах (полный RAG с ONNX e5);
