@@ -38,7 +38,6 @@ import com.localdoc.ai.resources.your_library_is_empty
 import com.localdoc.ai.resources.Res
 import com.localdoc.ai.resources.cd_download_model
 import com.localdoc.ai.resources.cd_delete_model
-import com.localdoc.ai.resources.cd_search
 import com.localdoc.ai.resources.pdf
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource

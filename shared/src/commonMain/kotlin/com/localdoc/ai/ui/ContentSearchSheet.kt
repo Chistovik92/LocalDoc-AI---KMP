@@ -104,7 +104,7 @@ fun ContentSearchSheet(
             found == null -> Hint(stringResource(Res.string.searching))
             found.isEmpty -> EmptyState(
                 icon = Icons.Default.SearchOff,
-                title = stringResource(Res.string.nothing_found),
+                title = stringResource(if (building) Res.string.nothing_yet_the_index_is_still else Res.string.nothing_found),
                 text = stringResource(Res.string.search_no_results),
                 modifier = Modifier.padding(bottom = 24.dp)
             )

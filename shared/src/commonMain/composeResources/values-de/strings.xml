@@ -846,4 +846,9 @@
     <string name="sign_in_on_site">Auf der Seite anmelden</string>
     <string name="open_site_login">Anmeldeseite öffnen</string>
     <string name="site_auth_https_only">Anmeldung und Registrierung nur über https://</string>
+
+    <!-- Content descriptions for accessibility -->
+    <string name="cd_download_model">Modell herunterladen</string>
+    <string name="cd_delete_model">Modell löschen</string>
+    <string name="search_no_results">Nichts gefunden</string>
 </resources>
