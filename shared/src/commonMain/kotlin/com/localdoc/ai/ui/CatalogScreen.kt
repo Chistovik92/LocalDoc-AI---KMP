@@ -58,6 +58,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -243,7 +244,8 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                                 if (result.added == 1) AppGraph.catalog.items.value.firstOrNull { it.uri == item.uri }?.libraryId?.let(AppGraph.library::entry)?.let(onOpenEntry)
                                 else report = result.failed.firstOrNull() ?: getString(Res.string.could_not_open_the_file)
                             }
-                        }
+                        },
+                        modifier = Modifier.animateItemPlacement()
                     )
                 }
             }
@@ -350,7 +352,7 @@ private fun ScanCard(
 }
 
 @Composable
-private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
+private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Unit, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     ListItem(
         leadingContent = { Checkbox(checked = selected, onCheckedChange = { onToggle() }) },
         headlineContent = { Text(item.title.ifBlank { item.name }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
@@ -372,6 +374,6 @@ private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Uni
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.clickable(role = Role.Button, onClick = onOpen)
+        modifier = modifier.clickable(role = Role.Button, onClick = onOpen)
     )
 }
