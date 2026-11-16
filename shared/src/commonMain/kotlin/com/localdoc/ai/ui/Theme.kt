@@ -265,3 +265,17 @@ fun LocalDocTheme(content: @Composable () -> Unit) {
 
 /** Заголовок с градиентом Gemini («Привет! Чем помочь?»). */
 fun gradientTextStyle(base: TextStyle): TextStyle = base.copy(brush = GoogleColors.AiGradient)
+
+/**
+ * Проверяет, включён ли режим сниженной анимации.
+ * 
+ * Android: читает Settings.Global.ANIMATOR_DURATION_SCALE через Context.
+ * iOS: читает UIAccessibility.isReduceMotionEnabled.
+ * 
+ * Используется для адаптации анимаций под пользовательские настройки доступности.
+ * 
+ * @return true если анимация должна быть отключена или сокращена
+ */
+@Composable
+expect fun rememberReduceMotion(): Boolean
+
