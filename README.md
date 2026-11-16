@@ -8,6 +8,14 @@
 > Kotlin Multiplatform + Compose Multiplatform + единое C-ядро llama.cpp
 > (JNI + Vulkan на Android, cinterop + Metal на iOS), локальный RAG, OCR, TTS.
 
+| Библиотека | Экран чтения | Читалка с ИИ-панелью |
+|---|---|---|
+| ![Библиотека](docs/images/library.png) | ![Экран чтения](docs/images/reader.png) | ![Читалка с ИИ-панелью](docs/images/reader-ai.png) |
+
+| ИИ-ассистент | Настройки |
+|---|---|
+| ![ИИ-ассистент](docs/images/assistant.png) | ![Настройки](docs/images/settings.png) |
+
 ## Возможности
 
 - **Книги и документы всех популярных форматов**: EPUB, FB2 / FB2.ZIP, PDF (текстовый слой + офлайн-OCR для сканов:
