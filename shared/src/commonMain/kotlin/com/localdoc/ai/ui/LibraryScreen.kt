@@ -103,6 +103,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -160,12 +161,16 @@ fun LibraryScreen(
     var showContentSearch by remember { mutableStateOf(false) }
     val hapticFeedback = LocalHapticFeedback.current
 
-    val filtered = entries.filter { e ->
-        (filter.formats == null || e.format in filter.formats.orEmpty()) &&
-            (query.isBlank() || e.title.contains(query, ignoreCase = true) || e.author.contains(query, ignoreCase = true))
+    val filtered by remember(entries, query, filter) {
+        derivedStateOf {
+            entries.filter { e ->
+                (filter.formats == null || e.format in filter.formats.orEmpty()) &&
+                    (query.isBlank() || e.title.contains(query, ignoreCase = true) || e.author.contains(query, ignoreCase = true))
+            }
+        }
     }
     val continueEntry = entries.firstOrNull()
-    val shelf = remember(filtered) { groupLibrary(filtered) }
+    val shelf by remember(entries, query, filter) { derivedStateOf { groupLibrary(filtered) } }
     var openedNovel by remember { mutableStateOf<String?>(null) }
     // Группа читается из актуального списка: после удаления главы шторка обновляется или закрывается
     val novelOnSheet = shelf.filterIsInstance<LibraryItem.Novel>().firstOrNull { it.shelfKey == openedNovel }
