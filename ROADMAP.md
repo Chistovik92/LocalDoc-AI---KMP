@@ -46,12 +46,30 @@
 
 ## 2.10.0 — приёмка на устройствах и витрина · план
 
+### Приёмочные тесты
 - [ ] Замеры скорости и памяти умного поиска на реальных слабых телефонах (полный RAG с ONNX e5);
       по данным уточнить пороги `SemanticModelPolicy`. Инфраструктура (script, benchmark, CI) готова,
       но физические замеры ещё не проводились.
 - [ ] Реальная проверка OAuth Google Drive и iCloud: вход, синхронизация, обрыв связи и конфликт версий.
 - [ ] Проверка на устройстве с установленными LocalDoc AI и NeuroCode: список моделей и импорт копированием.
 - [ ] Обновлённые скриншоты в README (делаются вручную на устройствах).
+
+### UI/UX Fixes (см. docs/ui-ux-audit-2.10.0.md)
+
+**Высокий приоритет — ✅ завершено в 2.10.0:**
+- [x] Добавить `contentDescription` для смысловых иконок (5 шт. выполнено): `LibraryScreen` (4), `ModelsScreen` (1)
+      - Добавлены строковые ресурсы: `download_chapter`, `delete_chapter`, `download_model`
+- [x] Добавить `EmptyState` в поиске по тексту книги (`ContentSearchSheet.kt`) — «Ничего не найдено»
+- [x] Добавить `animateItem()` в списки: `LibraryScreen`, `CatalogScreen`
+- [x] Добавить haptic feedback на FAB (`LibraryScreen.kt`)
+- [x] Проверить reduced motion support: добавлен `rememberReduceMotion()` с expect/actual для Android и iOS
+
+**Средний приоритет (отложено на 2.11.0):**
+- [ ] Оптимизировать `ReaderView.kt` — разбить на подкомпоненты (910+ строк)
+- [ ] Добавить семантику для тап-зон в Reader'е (`ReaderView.kt:916`)
+- [ ] Проверить landscape orientation на всех экранах
+- [ ] Проверить iOS safe areas и keyboard avoidance
+- [ ] Оптимизировать группировку библиотеки — использовать `derivedStateOf` (`LibraryScreen.kt:162`)
 
 ## 3.0.0 — собственный декодер DJVU · большой проект
 
