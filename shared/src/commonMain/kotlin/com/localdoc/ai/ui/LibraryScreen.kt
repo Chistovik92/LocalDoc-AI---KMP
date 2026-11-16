@@ -67,6 +67,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.animateItemPlacement
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -238,13 +239,15 @@ fun LibraryScreen(
                             item.entry,
                             onClick = { onOpen(item.entry) },
                             onDelete = { removeBook(item.entry.id) },
-                            onSaveAs = { saveAsFor = item.entry }
+                            onSaveAs = { saveAsFor = item.entry },
+                            modifier = Modifier.animateItemPlacement()
                         )
                         is LibraryItem.Novel -> NovelTile(
                             novel = item,
                             onClick = { openedNovel = item.shelfKey },
                             onDelete = { item.chapters.forEach { removeBook(it.id) } },
-                            onDownload = { saveAsFor = item.mostRecent }
+                            onDownload = { saveAsFor = item.mostRecent },
+                            modifier = Modifier.animateItemPlacement()
                         )
                     }
                 }
@@ -345,9 +348,9 @@ private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: 
 /** Плитка группы глав одной веб-новеллы: обложка новеллы, число глав и прогресс последней открытой. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit) {
+private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
+    Column(modifier = modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
         Box {
             BookCover(novel.title, novel.host, BookFormat.WEB, Modifier.fillMaxWidth(), cover = novel.mostRecent.cover, entryId = novel.mostRecent.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -413,9 +416,9 @@ private fun chaptersCount(n: Int): String = pluralStringResource(Res.plurals.cha
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit, onSaveAs: () -> Unit) {
+private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit, onSaveAs: () -> Unit, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
+    Column(modifier = modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
         Box {
             BookCover(entry.title, entry.author, entry.format, Modifier.fillMaxWidth(), cover = entry.cover, entryId = entry.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
