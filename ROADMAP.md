@@ -61,8 +61,8 @@
 ## 2.11.0 — рефакторинг читалки и доступность · в разработке
 
 ### UI/UX Fixes (средний приоритет, из 2.10.0)
-- [ ] Оптимизировать `ReaderView.kt` — разбить на подкомпоненты (1542 строки)
-- [ ] Добавить семантику для тап-зон в Reader'е (`ReaderView.kt:916`)
+- [x] Оптимизировать `ReaderView.kt` — разбить на подкомпоненты (вынесены `ReaderTopBar` и `ReaderBottomBar`)
+- [x] Добавить семантику для тап-зон в Reader'е (custom actions для листания и панелей)
 - [ ] Проверить landscape orientation на всех экранах
 - [ ] Проверить iOS safe areas и keyboard avoidance
 - [ ] Оптимизировать группировку библиотеки — использовать `derivedStateOf` (`LibraryScreen.kt:162`)
