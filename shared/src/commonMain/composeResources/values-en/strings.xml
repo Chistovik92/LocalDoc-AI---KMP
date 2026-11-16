@@ -846,4 +846,18 @@
     <string name="sign_in_on_site">Sign in to the site</string>
     <string name="open_site_login">Open the sign-in page</string>
     <string name="site_auth_https_only">Sign-in and sign-up work over https:// only</string>
+    
+    <!-- Content descriptions for accessibility -->
+    <string name="cd_fab_send_message">Send message</string>
+    <string name="cd_download_model">Download model</string>
+    <string name="cd_delete_model">Delete model</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_open_menu">Open menu</string>
+    <string name="cd_refresh">Refresh</string>
+    <string name="cd_search">Search</string>
+    <string name="cd_increase_font">Increase font</string>
+    <string name="cd_decrease_font">Decrease font</string>
+    <string name="cd_toc">Table of contents</string>
+    <string name="search_no_results">No results found</string>
 </resources>

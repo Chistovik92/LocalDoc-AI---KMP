@@ -850,4 +850,18 @@
     <string name="sign_in_on_site">Вход на сайт</string>
     <string name="open_site_login">Открыть страницу входа</string>
     <string name="site_auth_https_only">Вход и регистрация — только по https://</string>
+    
+    <!-- Content descriptions for accessibility -->
+    <string name="cd_fab_send_message">Отправить сообщение</string>
+    <string name="cd_download_model">Скачать модель</string>
+    <string name="cd_delete_model">Удалить модель</string>
+    <string name="cd_back">Назад</string>
+    <string name="cd_close">Закрыть</string>
+    <string name="cd_open_menu">Открыть меню</string>
+    <string name="cd_refresh">Обновить</string>
+    <string name="cd_search">Поиск</string>
+    <string name="cd_increase_font">Увеличить шрифт</string>
+    <string name="cd_decrease_font">Уменьшить шрифт</string>
+    <string name="cd_toc">Оглавление</string>
+    <string name="search_no_results">Ничего не найдено</string>
 </resources>
