@@ -29,6 +29,8 @@ import com.localdoc.ai.resources.font_and_background
 import com.localdoc.ai.resources.keep_reading
 import com.localdoc.ai.resources.keep_the_screen_on_while_reading
 import com.localdoc.ai.resources.main_points
+import com.localdoc.ai.resources.next_page
+import com.localdoc.ai.resources.previous_page
 import com.localdoc.ai.resources.more
 import com.localdoc.ai.resources.next
 import com.localdoc.ai.resources.next_chapter
@@ -82,6 +84,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -131,6 +134,8 @@ import com.localdoc.ai.domain.PageTurn
 import com.localdoc.ai.domain.TapAction
 import com.localdoc.ai.domain.autoScrollDelta
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import com.localdoc.ai.domain.ChapterButtons
 import com.localdoc.ai.domain.chapterNavOnBottom
@@ -241,6 +246,7 @@ import androidx.compose.ui.unit.sp
 import com.localdoc.ai.book.Block
 import com.localdoc.ai.book.BlockType
 import com.localdoc.ai.book.Book
+import com.localdoc.ai.book.BookEntry
 import com.localdoc.ai.book.PagePos
 import androidx.compose.ui.unit.IntSize
 import com.localdoc.ai.book.SpanStyleType
@@ -258,6 +264,7 @@ import com.localdoc.ai.domain.applyOverride
 import com.localdoc.ai.domain.ReaderTheme
 import com.localdoc.ai.domain.TranslationMode
 import com.localdoc.ai.parser.ParsedDoc
+import com.localdoc.ai.tts.ReadAloudState
 import com.localdoc.ai.tts.ReadAloudStop
 import com.localdoc.ai.tts.SpeechSegment
 import com.localdoc.ai.ui.BookImage
@@ -781,6 +788,7 @@ fun ReaderView(
     // Жесты живут дольше одной перекомпозиции — им нужны всегда свежие функции
     val turnNow by rememberUpdatedState<(Boolean) -> Unit> { forward -> turn(forward) }
     val tapNow by rememberUpdatedState<(Float, Float) -> Unit> { x, width -> handleTap(x, width) }
+    val toggleChromeNow by rememberUpdatedState<(Unit) -> Unit> { uiVisible = chromeAfterToggle(uiVisible) }
     val brightnessNow by rememberUpdatedState(settings.brightness ?: DEFAULT_BRIGHTNESS)
     val lineHeightPx = with(LocalDensity.current) { (settings.fontSize * settings.lineHeight).sp.toPx() }
     val lineHeightNow by rememberUpdatedState(lineHeightPx)
@@ -863,6 +871,10 @@ fun ReaderView(
     }
 
     // Жесты и анимация листания общие для прокрутки и экранных страниц
+    // Подписи тап-зон для скринридера: листание назад/вперёд и показ/скрытие панелей
+    val prevPageLabel = stringResource(Res.string.previous_page)
+    val nextPageLabel = stringResource(Res.string.next_page)
+    val togglePanelsLabel = stringResource(Res.string.more)
     val readerGestures: Modifier = Modifier
         .graphicsLayer {
                     alpha = turnAnim.value
@@ -914,6 +926,16 @@ fun ReaderView(
                     }
                 }
                 .pointerInput(Unit) { detectTapGestures { offset -> tapNow(offset.x, size.width.toFloat()) } }
+                // Доступность: тап-зоны листания объявляются как отдельные действия для скринридера.
+                // Зоны зависят от настройки tapZones (EDGES/THIRDS/MENU_ONLY), но набор действий единый:
+                // листание назад/вперёд и показ/скрытие панелей.
+                .semantics {
+                    customActions = listOf(
+                        CustomAccessibilityAction(prevPageLabel) { turnNow(false); true },
+                        CustomAccessibilityAction(nextPageLabel) { turnNow(true); true },
+                        CustomAccessibilityAction(togglePanelsLabel) { toggleChromeNow(Unit); true }
+                    )
+                }
 
     val webChapterBlock = chapterListBlock(
         isWeb = book.format == com.localdoc.ai.book.BookFormat.WEB,
@@ -1035,193 +1057,84 @@ fun ReaderView(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 170.dp, start = 16.dp, end = 16.dp)
         )
 
-        AnimatedVisibility(
+        ReaderTopBar(
             visible = uiVisible,
-            enter = if (animate) slideInVertically { -it } + fadeIn() else EnterTransition.None,
-            exit = if (animate) slideOutVertically { -it } + fadeOut() else ExitTransition.None,
-            modifier = Modifier.align(Alignment.TopCenter)
-        ) {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp) {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 4.dp, vertical = 8.dp)
-                    ) {
-                        if (onBack != null) {
-                            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back)) }
-                        } else {
-                            Spacer(Modifier.width(12.dp))
-                        }
-                        Column(modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
-                            Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                listOfNotNull(chapterTitle, stringResource(Res.string.page_short, if (screenMode) screenLabel ?: "…" else "${page + 1}/${pager.size}"), "$percent%").joinToString(" · "),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        topBarActions()
-                        if (entry != null) {
-                            IconButton(onClick = { toggleBookmarkHere() }) {
-                                Icon(
-                                    if (pageBookmark != null) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                    contentDescription = if (pageBookmark != null) stringResource(Res.string.remove_bookmark) else stringResource(Res.string.add_bookmark),
-                                    tint = if (pageBookmark != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        IconButton(onClick = { showVoice = true }) { Icon(Icons.Default.RecordVoiceOver, contentDescription = stringResource(Res.string.voice_and_speech)) }
-                        Box {
-                            IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.more)) }
-                            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                                // Навигация
-                                if (book.chapters.isNotEmpty()) {
-                                    ReaderMenuItem(stringResource(Res.string.contents), icon = Icons.AutoMirrored.Filled.List) { showMenu = false; showToc = true }
-                                }
-                                ReaderMenuItem(stringResource(Res.string.find_in_book_short), icon = Icons.Default.Search) { showMenu = false; showFind = true }
-                                ReaderMenuItem(stringResource(Res.string.bookmarks), icon = Icons.Default.Bookmarks) { showMenu = false; showBookmarks = true }
-                                if (entry != null) {
-                                    ReaderMenuItem(
-                                        stringResource(Res.string.quotes_and_notes) + if (bookAnnotations.isNotEmpty()) " (${bookAnnotations.size})" else "",
-                                        icon = Icons.Default.FormatQuote
-                                    ) { showMenu = false; showAnnotations = true }
-                                }
-                                HorizontalDivider()
-                                // Режим чтения
-                                ReaderMenuItem(
-                                    if (settings.paged) stringResource(Res.string.read_by_scrolling) else stringResource(Res.string.read_page_by_page),
-                                    icon = Icons.Default.ViewAgenda
-                                ) { showMenu = false; AppGraph.readerSettings.update { it.copy(paged = !it.paged) } }
-                                if (!screenMode) {
-                                    ReaderMenuItem(
-                                        if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll),
-                                        icon = Icons.Default.PlayArrow
-                                    ) { showMenu = false; autoScroll = !autoScroll; if (autoScroll) uiVisible = false }
-                                }
-                                if (chapterNavigation != null) {
-                                    ReaderMenuItem(
-                                        if (settings.autoNext) stringResource(Res.string.auto_advance_on) else stringResource(Res.string.auto_advance_to_the_next_chapter_2),
-                                        icon = Icons.Default.SkipNext,
-                                        checked = settings.autoNext
-                                    ) { showMenu = false; AppGraph.readerSettings.update { it.copy(autoNext = !it.autoNext) } }
-                                }
-                                ReaderMenuItem(
-                                    stringResource(Res.string.keep_the_screen_on_while_reading),
-                                    icon = Icons.Default.ScreenLockPortrait,
-                                    checked = settings.keepScreenOn
-                                ) { showMenu = false; AppGraph.readerSettings.update { it.copy(keepScreenOn = !it.keepScreenOn) } }
-                                HorizontalDivider()
-                                // Инструменты и настройки
-                                ReaderMenuItem(stringResource(Res.string.font_and_background), icon = Icons.Default.FormatSize) { showMenu = false; showSettings = true }
-                                ReaderMenuItem(
-                                    if (translating) stringResource(Res.string.translation_on) else stringResource(Res.string.translation_3),
-                                    icon = Icons.Default.Translate
-                                ) { showMenu = false; showTranslate = true }
-                                if (entry != null && onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
-                                    ReaderMenuItem(stringResource(Res.string.chapters_and_contents), icon = Icons.Default.Edit) { showMenu = false; showChapters = true }
-                                }
-                                if (entry != null && onTextRepaired != null && book.format != com.localdoc.ai.book.BookFormat.WEB) {
-                                    ReaderMenuItem(stringResource(Res.string.fix_breaks_menu), icon = Icons.Default.Healing) { showMenu = false; showRepair = true }
-                                }
-                                if (entry != null) {
-                                    ReaderMenuItem(
-                                        if (book.format == com.localdoc.ai.book.BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as),
-                                        icon = Icons.Default.Download
-                                    ) { showMenu = false; showSaveAs = true }
-                                }
-                            }
-                        }
-                    }
-                    if (chapterNavTop && chapterNavigation != null) {
-                        if (pinnedBlock != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
-                        else if (chapterButtonsState != null && bottomPanelVisible(uiVisible)) ChapterButtonsRow(chapterNavigation, chapterButtonsState)
-                    }
-                    if (translating) {
-                        val done = translatedBlocks?.count { it != null } ?: 0
-                        val total = pageInfo.blockCount
-                        TranslationBanner(
-                            text = translationError ?: if (done >= total) stringResource(Res.string.translation_2, target?.name.orEmpty()) else stringResource(Res.string.translating_the_page_of, done, total),
-                            isError = translationError != null,
-                            onRetry = { retry++ },
-                            onOff = { startTranslation(false) }
-                        )
-                    }
-                }
-            }
-        }
+            animate = animate,
+            book = book,
+            chapterTitle = chapterTitle,
+            pageLabel = if (screenMode) screenLabel ?: "…" else "${page + 1}/${pager.size}",
+            percent = percent,
+            onBack = onBack,
+            topBarActions = topBarActions,
+            entry = entry,
+            pageBookmarked = pageBookmark != null,
+            onToggleBookmark = { toggleBookmarkHere() },
+            onOpenVoice = { showVoice = true },
+            showMenu = showMenu,
+            onShowMenu = { showMenu = it },
+            hasChapters = book.chapters.isNotEmpty(),
+            hasAnnotations = entry != null,
+            annotationsCount = bookAnnotations.size,
+            settings = settings,
+            screenMode = screenMode,
+            autoScroll = autoScroll,
+            chapterNavigation = chapterNavigation,
+            onOpenContents = { showToc = true },
+            onOpenFind = { showFind = true },
+            onOpenBookmarks = { showBookmarks = true },
+            onOpenAnnotations = { showAnnotations = true },
+            onTogglePaged = { AppGraph.readerSettings.update { it.copy(paged = !it.paged) } },
+            onToggleAutoScroll = { autoScroll = !autoScroll; if (autoScroll) uiVisible = false },
+            onToggleAutoNext = { AppGraph.readerSettings.update { it.copy(autoNext = !it.autoNext) } },
+            onToggleKeepScreenOn = { AppGraph.readerSettings.update { it.copy(keepScreenOn = !it.keepScreenOn) } },
+            onOpenSettings = { showSettings = true },
+            onOpenTranslate = { showTranslate = true },
+            onOpenChapters = { showChapters = true },
+            onOpenRepair = { showRepair = true },
+            onOpenSaveAs = { showSaveAs = true },
+            translating = translating,
+            canEditChapters = onChaptersChanged != null && book.format != com.localdoc.ai.book.BookFormat.WEB,
+            canRepair = onTextRepaired != null && book.format != com.localdoc.ai.book.BookFormat.WEB,
+            chapterNavTop = chapterNavTop,
+            pinnedBlock = pinnedBlock,
+            chapterButtonsState = chapterButtonsState,
+            paper = paper,
+            panelsVisible = bottomPanelVisible(uiVisible),
+            translatedDone = translatedBlocks?.count { it != null } ?: 0,
+            translatedTotal = pageInfo.blockCount,
+            translationError = translationError,
+            targetName = target?.name.orEmpty(),
+            onRetryTranslation = { retry++ },
+            onStopTranslation = { startTranslation(false) }
+        )
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .then(
-                    // Подложка, чтобы кнопки ИИ не лежали поверх текста
-                    if (bottomPanelVisible(uiVisible) || (isMine && player.stoppedAt != null)) {
-                        Modifier.background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                    } else Modifier
-                )
-                .then(if (applyNavigationBarInsets) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier)
-        ) {
-            val stoppedAt = player.stoppedAt
-            if (isMine && stoppedAt != null) {
-                ChapterEndCard(
-                    stop = stoppedAt,
-                    hasNextPage = chapterNavigation?.hasNext == true,
-                    onContinue = { AppGraph.readAloud.play() },
-                    onNextPage = { chapterNavigation?.onNext?.invoke() }
-                )
-            }
-            AnimatedVisibility(
-                visible = uiVisible,
-                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
-                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    ReaderAiAction.entries.forEach { action ->
-                        AiChip(stringResource(action.shortLabel), action.icon) {
-                            if (action == ReaderAiAction.EXPLAIN_TERM) askTerm = true else runAi(action)
-                        }
-                    }
-                }
-            }
-            if (chapterNavBottom && pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
-            AnimatedVisibility(
-                visible = chapterNavBottom && bottomPanelVisible(uiVisible) && chapterButtonsState != null,
-                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
-                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
-            ) {
-                if (chapterNavigation != null && chapterButtonsState != null) {
-                    ChapterButtonsRow(chapterNavigation, chapterButtonsState)
-                }
-            }
-            // Плеер прячется вместе с панелями; управление озвучкой возвращается касанием по центру
-            AnimatedVisibility(
-                visible = bottomPanelVisible(uiVisible),
-                enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
-                exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
-            ) {
-                if (isMine) {
-                    PlayerBar(state = player, title = chapterTitle ?: book.title, onVoiceSettings = { showVoice = true })
-                } else {
-                    PageBar(
-                        page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
-                        pageCount = if (screenMode) screenLayout.total else pager.size,
-                        showPageButtons = pagedDisplay || screenMode,
-                        // Все страницы ещё не разложены: ползунок ведёт на ближайшую готовую страницу и откатывает читателя
-                        seekEnabled = !screenMode || screenLayout.isComplete,
-                        onSeek = ::seekPage,
-                        onListen = ::listen,
-                        onAskAi = { showAi = true }
-                    )
-                }
-            }
-        }
+        ReaderBottomBar(
+            uiVisible = uiVisible,
+            animate = animate,
+            isMine = isMine,
+            player = player,
+            chapterNavigation = chapterNavigation,
+            chapterTitle = chapterTitle,
+            bookTitle = book.title,
+            stoppedAt = player.stoppedAt,
+            onContinuePlayback = { AppGraph.readAloud.play() },
+            onNextChapter = { chapterNavigation?.onNext?.invoke() },
+            askTerm = { askTerm = true },
+            runAi = { runAi(it) },
+            chapterNavBottom = chapterNavBottom,
+            pinnedBlock = pinnedBlock,
+            paper = paper,
+            chapterButtonsState = chapterButtonsState,
+            onOpenVoice = { showVoice = true },
+            page = if (screenMode) screenRef?.let { screenLayout.ordinal(it).first } ?: 0 else page,
+            pageCount = if (screenMode) screenLayout.total else pager.size,
+            showPageButtons = pagedDisplay || screenMode,
+            seekEnabled = !screenMode || screenLayout.isComplete,
+            onSeek = ::seekPage,
+            onListen = ::listen,
+            onAskAi = { showAi = true },
+            applyNavigationBarInsets = applyNavigationBarInsets
+        )
 
         // Полное обновление e-ink: короткая чёрная, затем белая вспышка
         if (refreshPhase != 0) {
@@ -1504,6 +1417,273 @@ private fun ChapterBlock(nav: ChapterNavigation, state: ChapterListBlock, paper:
             enabled = state.nextEnabled,
             modifier = Modifier.semantics { contentDescription = nextDescription }
         ) { Text(stringResource(Res.string.next_chapter), maxLines = 1, softWrap = false) }
+    }
+}
+
+/** Верхняя панель читалки: заголовок, закладка, озвучка, меню и (при включённой настройке) кнопки глав + баннер перевода. */
+@Composable
+private fun BoxScope.ReaderTopBar(
+    visible: Boolean,
+    animate: Boolean,
+    book: Book,
+    chapterTitle: String?,
+    pageLabel: String,
+    percent: Int,
+    onBack: (() -> Unit)?,
+    topBarActions: @Composable RowScope.() -> Unit,
+    entry: BookEntry?,
+    pageBookmarked: Boolean,
+    onToggleBookmark: () -> Unit,
+    onOpenVoice: () -> Unit,
+    showMenu: Boolean,
+    onShowMenu: (Boolean) -> Unit,
+    hasChapters: Boolean,
+    hasAnnotations: Boolean,
+    annotationsCount: Int,
+    settings: ReaderSettings,
+    screenMode: Boolean,
+    autoScroll: Boolean,
+    chapterNavigation: ChapterNavigation?,
+    onOpenContents: () -> Unit,
+    onOpenFind: () -> Unit,
+    onOpenBookmarks: () -> Unit,
+    onOpenAnnotations: () -> Unit,
+    onTogglePaged: () -> Unit,
+    onToggleAutoScroll: () -> Unit,
+    onToggleAutoNext: () -> Unit,
+    onToggleKeepScreenOn: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenTranslate: () -> Unit,
+    onOpenChapters: () -> Unit,
+    onOpenRepair: () -> Unit,
+    onOpenSaveAs: () -> Unit,
+    translating: Boolean,
+    canEditChapters: Boolean,
+    canRepair: Boolean,
+    chapterNavTop: Boolean,
+    pinnedBlock: ChapterListBlock?,
+    chapterButtonsState: ChapterButtons?,
+    paper: PaperColors,
+    panelsVisible: Boolean,
+    translatedDone: Int,
+    translatedTotal: Int,
+    translationError: String?,
+    targetName: String,
+    onRetryTranslation: () -> Unit,
+    onStopTranslation: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = if (animate) slideInVertically { -it } + fadeIn() else EnterTransition.None,
+        exit = if (animate) slideOutVertically { -it } + fadeOut() else ExitTransition.None,
+        modifier = Modifier.align(Alignment.TopCenter)
+    ) {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp) {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back)) }
+                    } else {
+                        Spacer(Modifier.width(12.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
+                        Text(book.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(chapterTitle, stringResource(Res.string.page_short, pageLabel), "$percent%").joinToString(" · "),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    topBarActions()
+                    if (entry != null) {
+                        IconButton(onClick = onToggleBookmark) {
+                            Icon(
+                                if (pageBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = if (pageBookmarked) stringResource(Res.string.remove_bookmark) else stringResource(Res.string.add_bookmark),
+                                tint = if (pageBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(onClick = onOpenVoice) { Icon(Icons.Default.RecordVoiceOver, contentDescription = stringResource(Res.string.voice_and_speech)) }
+                    Box {
+                        IconButton(onClick = { onShowMenu(true) }) { Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.more)) }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { onShowMenu(false) }) {
+                            // Навигация
+                            if (hasChapters) {
+                                ReaderMenuItem(stringResource(Res.string.contents), icon = Icons.AutoMirrored.Filled.List) { onShowMenu(false); onOpenContents() }
+                            }
+                            ReaderMenuItem(stringResource(Res.string.find_in_book_short), icon = Icons.Default.Search) { onShowMenu(false); onOpenFind() }
+                            ReaderMenuItem(stringResource(Res.string.bookmarks), icon = Icons.Default.Bookmarks) { onShowMenu(false); onOpenBookmarks() }
+                            if (hasAnnotations) {
+                                ReaderMenuItem(
+                                    stringResource(Res.string.quotes_and_notes) + if (annotationsCount > 0) " ($annotationsCount)" else "",
+                                    icon = Icons.Default.FormatQuote
+                                ) { onShowMenu(false); onOpenAnnotations() }
+                            }
+                            HorizontalDivider()
+                            // Режим чтения
+                            ReaderMenuItem(
+                                if (settings.paged) stringResource(Res.string.read_by_scrolling) else stringResource(Res.string.read_page_by_page),
+                                icon = Icons.Default.ViewAgenda
+                            ) { onShowMenu(false); onTogglePaged() }
+                            if (!screenMode) {
+                                ReaderMenuItem(
+                                    if (autoScroll) stringResource(Res.string.stop_auto_scroll) else stringResource(Res.string.auto_scroll),
+                                    icon = Icons.Default.PlayArrow
+                                ) { onShowMenu(false); onToggleAutoScroll() }
+                            }
+                            if (chapterNavigation != null) {
+                                ReaderMenuItem(
+                                    if (settings.autoNext) stringResource(Res.string.auto_advance_on) else stringResource(Res.string.auto_advance_to_the_next_chapter_2),
+                                    icon = Icons.Default.SkipNext,
+                                    checked = settings.autoNext
+                                ) { onShowMenu(false); onToggleAutoNext() }
+                            }
+                            ReaderMenuItem(
+                                stringResource(Res.string.keep_the_screen_on_while_reading),
+                                icon = Icons.Default.ScreenLockPortrait,
+                                checked = settings.keepScreenOn
+                            ) { onShowMenu(false); onToggleKeepScreenOn() }
+                            HorizontalDivider()
+                            // Инструменты и настройки
+                            ReaderMenuItem(stringResource(Res.string.font_and_background), icon = Icons.Default.FormatSize) { onShowMenu(false); onOpenSettings() }
+                            ReaderMenuItem(
+                                if (translating) stringResource(Res.string.translation_on) else stringResource(Res.string.translation_3),
+                                icon = Icons.Default.Translate
+                            ) { onShowMenu(false); onOpenTranslate() }
+                            if (canEditChapters) {
+                                ReaderMenuItem(stringResource(Res.string.chapters_and_contents), icon = Icons.Default.Edit) { onShowMenu(false); onOpenChapters() }
+                            }
+                            if (canRepair) {
+                                ReaderMenuItem(stringResource(Res.string.fix_breaks_menu), icon = Icons.Default.Healing) { onShowMenu(false); onOpenRepair() }
+                            }
+                            if (entry != null) {
+                                ReaderMenuItem(
+                                    if (book.format == com.localdoc.ai.book.BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as),
+                                    icon = Icons.Default.Download
+                                ) { onShowMenu(false); onOpenSaveAs() }
+                            }
+                        }
+                    }
+                }
+                if (chapterNavTop && chapterNavigation != null) {
+                    if (pinnedBlock != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
+                    else if (chapterButtonsState != null && panelsVisible) ChapterButtonsRow(chapterNavigation, chapterButtonsState)
+                }
+                if (translating) {
+                    TranslationBanner(
+                        text = translationError ?: if (translatedDone >= translatedTotal) stringResource(Res.string.translation_2, targetName) else stringResource(Res.string.translating_the_page_of, translatedDone, translatedTotal),
+                        isError = translationError != null,
+                        onRetry = onRetryTranslation,
+                        onOff = onStopTranslation
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Нижняя панель читалки: карточка конца главы, ИИ-чипы, кнопки глав и плеер/полоса страниц. */
+@Composable
+private fun BoxScope.ReaderBottomBar(
+    uiVisible: Boolean,
+    animate: Boolean,
+    isMine: Boolean,
+    player: ReadAloudState,
+    chapterNavigation: ChapterNavigation?,
+    chapterTitle: String?,
+    bookTitle: String,
+    stoppedAt: ReadAloudStop?,
+    onContinuePlayback: () -> Unit,
+    onNextChapter: () -> Unit,
+    askTerm: () -> Unit,
+    runAi: (ReaderAiAction) -> Unit,
+    chapterNavBottom: Boolean,
+    pinnedBlock: ChapterListBlock?,
+    paper: PaperColors,
+    chapterButtonsState: ChapterButtons?,
+    onOpenVoice: () -> Unit,
+    page: Int,
+    pageCount: Int,
+    showPageButtons: Boolean,
+    seekEnabled: Boolean,
+    onSeek: (Int) -> Unit,
+    onListen: () -> Unit,
+    onAskAi: () -> Unit,
+    applyNavigationBarInsets: Boolean
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .then(
+                // Подложка, чтобы кнопки ИИ не лежали поверх текста
+                if (bottomPanelVisible(uiVisible) || (isMine && stoppedAt != null)) {
+                    Modifier.background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                } else Modifier
+            )
+            .then(if (applyNavigationBarInsets) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier)
+    ) {
+        if (isMine && stoppedAt != null) {
+            ChapterEndCard(
+                stop = stoppedAt,
+                hasNextPage = chapterNavigation?.hasNext == true,
+                onContinue = onContinuePlayback,
+                onNextPage = onNextChapter
+            )
+        }
+        AnimatedVisibility(
+            visible = uiVisible,
+            enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+            exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                ReaderAiAction.entries.forEach { action ->
+                    AiChip(stringResource(action.shortLabel), action.icon) {
+                        if (action == ReaderAiAction.EXPLAIN_TERM) askTerm() else runAi(action)
+                    }
+                }
+            }
+        }
+        if (chapterNavBottom && pinnedBlock != null && chapterNavigation != null) ChapterBlock(chapterNavigation, pinnedBlock, paper, verticalPadding = 4.dp)
+        AnimatedVisibility(
+            visible = chapterNavBottom && bottomPanelVisible(uiVisible) && chapterButtonsState != null,
+            enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+            exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+        ) {
+            if (chapterNavigation != null && chapterButtonsState != null) {
+                ChapterButtonsRow(chapterNavigation, chapterButtonsState)
+            }
+        }
+        // Плеер прячется вместе с панелями; управление озвучкой возвращается касанием по центру
+        AnimatedVisibility(
+            visible = bottomPanelVisible(uiVisible),
+            enter = if (animate) fadeIn() + expandVertically() else EnterTransition.None,
+            exit = if (animate) fadeOut() + shrinkVertically() else ExitTransition.None
+        ) {
+            if (isMine) {
+                PlayerBar(state = player, title = chapterTitle ?: bookTitle, onVoiceSettings = onOpenVoice)
+            } else {
+                PageBar(
+                    page = page,
+                    pageCount = pageCount,
+                    showPageButtons = showPageButtons,
+                    seekEnabled = seekEnabled,
+                    onSeek = onSeek,
+                    onListen = onListen,
+                    onAskAi = onAskAi
+                )
+            }
+        }
     }
 }
 
