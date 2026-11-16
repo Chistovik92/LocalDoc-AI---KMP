@@ -34,6 +34,27 @@ namespace {
 constexpr int kDefaultMaxTokens = 1536;
 constexpr int kMaxThreads = 6;
 
+// Процессно-широкий счётчик для llama_backend_init/free. Инициализация и освобождение
+// backend'а — глобальная операция на весь процесс; несколько сессий могут жить и
+// освобождаться независимо, поэтому считаем ссылки и освобождаем backend только когда
+// последняя сессия закрылась. Mutex защищает счётчик от гонок между потоками.
+std::atomic<int> g_backend_ref_count{0};
+std::mutex g_backend_mutex;
+
+void backend_acquire() {
+    std::lock_guard<std::mutex> lock(g_backend_mutex);
+    if (g_backend_ref_count.fetch_add(1) == 0) {
+        llama_backend_init();
+    }
+}
+
+void backend_release() {
+    std::lock_guard<std::mutex> lock(g_backend_mutex);
+    if (g_backend_ref_count.fetch_sub(1) == 1) {
+        llama_backend_free();
+    }
+}
+
 // Длина префикса buf, заканчивающегося на границе завершённого UTF-8 символа.
 // Хвост (начатая, но не завершённая последовательность) остаётся в буфере
 // до прихода следующего токена — иначе кириллица рвётся посередине символа.
@@ -95,7 +116,7 @@ LocalDocSession* localdoc_init_with_threads(const char* model_path, int n_ctx, i
     try {
         if (!model_path || n_ctx <= 0) return nullptr;
 
-        llama_backend_init();
+        backend_acquire();
 
         llama_model_params mparams = llama_model_default_params();
         mparams.n_gpu_layers = n_gpu_layers; // Android -> Vulkan, iOS -> Metal
@@ -103,7 +124,7 @@ LocalDocSession* localdoc_init_with_threads(const char* model_path, int n_ctx, i
 
         llama_model* model = llama_model_load_from_file(model_path, mparams);
         if (!model) {
-            llama_backend_free();
+            backend_release();
             return nullptr;
         }
 
@@ -117,7 +138,7 @@ LocalDocSession* localdoc_init_with_threads(const char* model_path, int n_ctx, i
         llama_context* ctx = llama_init_from_model(model, cparams);
         if (!ctx) {
             llama_model_free(model);
-            llama_backend_free();
+            backend_release();
             return nullptr;
         }
 
@@ -126,7 +147,7 @@ LocalDocSession* localdoc_init_with_threads(const char* model_path, int n_ctx, i
         if (!sampler) {
             llama_free(ctx);
             llama_model_free(model);
-            llama_backend_free();
+            backend_release();
             return nullptr;
         }
 
@@ -144,7 +165,7 @@ LocalDocSession* localdoc_init_with_threads(const char* model_path, int n_ctx, i
             llama_sampler_free(sampler);
             llama_free(ctx);
             llama_model_free(model);
-            llama_backend_free();
+            backend_release();
             return nullptr;
         }
         llama_sampler_chain_add(sampler, s_top_k);
@@ -286,14 +307,14 @@ void localdoc_free(LocalDocSession* session) {
         if (session->ctx) llama_free(session->ctx);
         if (session->model) llama_model_free(session->model);
         delete session;
-        llama_backend_free();
+        backend_release();
     } catch (...) {
         // Исключение при освобождении не должно пересекать границу C ABI
     }
 }
 
 const char* localdoc_version(void) {
-    return "localdoc-c-api/1.2";
+    return "localdoc-c-api/1.3";
 }
 
 } // extern "C"
