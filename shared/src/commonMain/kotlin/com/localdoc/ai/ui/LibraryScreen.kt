@@ -67,7 +67,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.animateItemPlacement
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -244,14 +243,14 @@ fun LibraryScreen(
                             onClick = { onOpen(item.entry) },
                             onDelete = { removeBook(item.entry.id) },
                             onSaveAs = { saveAsFor = item.entry },
-                            modifier = Modifier.animateItemPlacement()
+                            modifier = Modifier.animateItem()
                         )
                         is LibraryItem.Novel -> NovelTile(
                             novel = item,
                             onClick = { openedNovel = item.shelfKey },
                             onDelete = { item.chapters.forEach { removeBook(it.id) } },
                             onDownload = { saveAsFor = item.mostRecent },
-                            modifier = Modifier.animateItemPlacement()
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }

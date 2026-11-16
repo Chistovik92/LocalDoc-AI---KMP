@@ -58,7 +58,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -245,7 +244,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                                 else report = result.failed.firstOrNull() ?: getString(Res.string.could_not_open_the_file)
                             }
                         },
-                        modifier = Modifier.animateItemPlacement()
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
