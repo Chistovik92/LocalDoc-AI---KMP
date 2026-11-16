@@ -110,7 +110,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -157,6 +160,7 @@ fun LibraryScreen(
     var showAdd by remember { mutableStateOf(false) }
     var saveAsFor by remember { mutableStateOf<BookEntry?>(null) }
     var showContentSearch by remember { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
 
     val filtered = entries.filter { e ->
         (filter.formats == null || e.format in filter.formats.orEmpty()) &&
@@ -260,7 +264,10 @@ fun LibraryScreen(
         }
 
         ExtendedFloatingActionButton(
-            onClick = { showAdd = true },
+            onClick = {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                showAdd = true
+            },
             icon = { Icon(Icons.Default.Add, contentDescription = null) },
             text = { Text(stringResource(Res.string.add)) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
