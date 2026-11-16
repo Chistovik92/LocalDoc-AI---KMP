@@ -1,5 +1,7 @@
 package com.localdoc.ai.ui
 
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
@@ -254,14 +256,45 @@ fun LocalDocTheme(content: @Composable () -> Unit) {
         theme == com.localdoc.ai.domain.AppTheme.SEPIA && !highContrastEnabled() -> SepiaColors
         else -> dynamicColorScheme(dark) ?: if (dark) DarkColors else LightColors
     }
+    // При включённой системной настройке «Отключить анимацию» (reduce motion) все переходы
+    // становятся мгновенными (snap) — интерфейс не двигается, но остаётся функциональным.
+    val motionScheme = if (rememberReduceMotion()) ReducedMotionScheme else MotionScheme.expressive()
     MaterialExpressiveTheme(
         colorScheme = colors,
-        motionScheme = MotionScheme.expressive(),
+        motionScheme = motionScheme,
         shapes = GoogleShapes,
         typography = googleTypography(),
         content = content
     )
 }
 
+/**
+ * Схема движения с отключённой анимацией (reduce motion): все спецификации — мгновенный
+ * переход [snap]. Используется, когда системная настройка просит убрать анимации.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private val ReducedMotionScheme: MotionScheme = object : MotionScheme {
+    override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> fastSpatialSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> slowSpatialSpec(): FiniteAnimationSpec<T> = snap()
+    override fun <T> slowEffectsSpec(): FiniteAnimationSpec<T> = snap()
+}
+
 /** Заголовок с градиентом Gemini («Привет! Чем помочь?»). */
 fun gradientTextStyle(base: TextStyle): TextStyle = base.copy(brush = GoogleColors.AiGradient)
+
+/**
+ * Проверяет, включён ли режим сниженной анимации.
+ * 
+ * Android: читает Settings.Global.ANIMATOR_DURATION_SCALE через Context.
+ * iOS: читает UIAccessibility.isReduceMotionEnabled.
+ * 
+ * Используется для адаптации анимаций под пользовательские настройки доступности.
+ * 
+ * @return true если анимация должна быть отключена или сокращена
+ */
+@Composable
+expect fun rememberReduceMotion(): Boolean
+

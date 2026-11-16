@@ -848,4 +848,9 @@
     <string name="sign_in_on_site">Iniciar sesión en el sitio</string>
     <string name="open_site_login">Abrir la página de inicio de sesión</string>
     <string name="site_auth_https_only">El inicio de sesión y el registro solo funcionan por https://</string>
+
+    <!-- Content descriptions for accessibility -->
+    <string name="cd_download_model">Descargar modelo</string>
+    <string name="cd_delete_model">Eliminar modelo</string>
+    <string name="search_no_results">No se encontró nada</string>
 </resources>

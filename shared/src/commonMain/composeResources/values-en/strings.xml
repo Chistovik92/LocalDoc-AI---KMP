@@ -846,4 +846,9 @@
     <string name="sign_in_on_site">Sign in to the site</string>
     <string name="open_site_login">Open the sign-in page</string>
     <string name="site_auth_https_only">Sign-in and sign-up work over https:// only</string>
+    
+    <!-- Content descriptions for accessibility -->
+    <string name="cd_download_model">Download model</string>
+    <string name="cd_delete_model">Delete model</string>
+    <string name="search_no_results">No results found</string>
 </resources>

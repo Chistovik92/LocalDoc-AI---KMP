@@ -850,4 +850,9 @@
     <string name="sign_in_on_site">Вхід на сайт</string>
     <string name="open_site_login">Відкрити сторінку входу</string>
     <string name="site_auth_https_only">Вхід і реєстрація — лише через https://</string>
+
+    <!-- Content descriptions for accessibility -->
+    <string name="cd_download_model">Завантажити модель</string>
+    <string name="cd_delete_model">Видалити модель</string>
+    <string name="search_no_results">Нічого не знайдено</string>
 </resources>

@@ -36,6 +36,8 @@ import com.localdoc.ai.resources.web_page
 import com.localdoc.ai.resources.web_page_by_link
 import com.localdoc.ai.resources.your_library_is_empty
 import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.cd_download_model
+import com.localdoc.ai.resources.cd_delete_model
 import com.localdoc.ai.resources.pdf
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -106,7 +108,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -153,6 +158,7 @@ fun LibraryScreen(
     var showAdd by remember { mutableStateOf(false) }
     var saveAsFor by remember { mutableStateOf<BookEntry?>(null) }
     var showContentSearch by remember { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
 
     val filtered = entries.filter { e ->
         (filter.formats == null || e.format in filter.formats.orEmpty()) &&
@@ -235,13 +241,15 @@ fun LibraryScreen(
                             item.entry,
                             onClick = { onOpen(item.entry) },
                             onDelete = { removeBook(item.entry.id) },
-                            onSaveAs = { saveAsFor = item.entry }
+                            onSaveAs = { saveAsFor = item.entry },
+                            modifier = Modifier.animateItem()
                         )
                         is LibraryItem.Novel -> NovelTile(
                             novel = item,
                             onClick = { openedNovel = item.shelfKey },
                             onDelete = { item.chapters.forEach { removeBook(it.id) } },
-                            onDownload = { saveAsFor = item.mostRecent }
+                            onDownload = { saveAsFor = item.mostRecent },
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }
@@ -254,7 +262,10 @@ fun LibraryScreen(
         }
 
         ExtendedFloatingActionButton(
-            onClick = { showAdd = true },
+            onClick = {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                showAdd = true
+            },
             icon = { Icon(Icons.Default.Add, contentDescription = null) },
             text = { Text(stringResource(Res.string.add)) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
@@ -342,20 +353,20 @@ private fun ContinueReadingCard(entry: BookEntry, onOpen: () -> Unit, onListen: 
 /** Плитка группы глав одной веб-новеллы: обложка новеллы, число глав и прогресс последней открытой. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit) {
+private fun NovelTile(novel: LibraryItem.Novel, onClick: () -> Unit, onDelete: () -> Unit, onDownload: () -> Unit, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
+    Column(modifier = modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
         Box {
             BookCover(novel.title, novel.host, BookFormat.WEB, Modifier.fillMaxWidth(), cover = novel.mostRecent.cover, entryId = novel.mostRecent.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.download_the_whole_book)) },
-                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = stringResource(Res.string.cd_download_model)) },
                     onClick = { menu = false; onDownload() }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.delete_all_chapters)) },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.cd_delete_model)) },
                     onClick = { menu = false; onDelete() }
                 )
             }
@@ -410,20 +421,20 @@ private fun chaptersCount(n: Int): String = pluralStringResource(Res.plurals.cha
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit, onSaveAs: () -> Unit) {
+private fun BookTile(entry: BookEntry, onClick: () -> Unit, onDelete: () -> Unit, onSaveAs: () -> Unit, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
+    Column(modifier = modifier.combinedClickable(onClick = onClick, onLongClick = { menu = true })) {
         Box {
             BookCover(entry.title, entry.author, entry.format, Modifier.fillMaxWidth(), cover = entry.cover, entryId = entry.id)
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(if (entry.format == BookFormat.WEB) stringResource(Res.string.download_the_whole_book) else stringResource(Res.string.save_as)) },
-                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = stringResource(Res.string.cd_download_model)) },
                     onClick = { menu = false; onSaveAs() }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.remove_from_the_library)) },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.cd_delete_model)) },
                     onClick = { menu = false; onDelete() }
                 )
             }

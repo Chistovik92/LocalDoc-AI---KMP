@@ -243,7 +243,8 @@ fun CatalogScreen(onBack: () -> Unit, onOpenEntry: (com.localdoc.ai.book.BookEnt
                                 if (result.added == 1) AppGraph.catalog.items.value.firstOrNull { it.uri == item.uri }?.libraryId?.let(AppGraph.library::entry)?.let(onOpenEntry)
                                 else report = result.failed.firstOrNull() ?: getString(Res.string.could_not_open_the_file)
                             }
-                        }
+                        },
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
@@ -350,7 +351,7 @@ private fun ScanCard(
 }
 
 @Composable
-private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
+private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Unit, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     ListItem(
         leadingContent = { Checkbox(checked = selected, onCheckedChange = { onToggle() }) },
         headlineContent = { Text(item.title.ifBlank { item.name }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
@@ -372,6 +373,6 @@ private fun CatalogRow(item: CatalogItem, selected: Boolean, onToggle: () -> Uni
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.clickable(role = Role.Button, onClick = onOpen)
+        modifier = modifier.clickable(role = Role.Button, onClick = onOpen)
     )
 }
