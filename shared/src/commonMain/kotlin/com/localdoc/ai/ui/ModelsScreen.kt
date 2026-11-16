@@ -39,6 +39,7 @@ import com.localdoc.ai.resources.up_to_8_gb_ram
 import com.localdoc.ai.resources.use
 import com.localdoc.ai.resources.version_is_available
 import com.localdoc.ai.resources.Res
+import com.localdoc.ai.resources.cd_download_model
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
@@ -356,7 +357,7 @@ private fun ModelCard(
                         TextButton(onClick = onDelete, enabled = busy == null) { Text(stringResource(Res.string.delete)) }
                     }
                     else -> FilledTonalButton(onClick = onDownload, enabled = busy == null) {
-                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.CloudDownload, contentDescription = stringResource(Res.string.cd_download_model), modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(Res.string.install, formatSize(spec.sizeMb)), maxLines = 1, softWrap = false)
                     }
