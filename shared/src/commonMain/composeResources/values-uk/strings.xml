@@ -247,6 +247,13 @@
     <string name="pdf_recognizing">Розпізнаю текст…</string>
     <string name="page">Сторінка %1$s</string>
     <string name="the_page_did_not_open">Сторінка не відкрилась</string>
+    <string name="pdf_open_failed">Не вдалося відкрити документ</string>
+    <string name="pdf_copy_missing">Файл документа не знайдено у сховищі. Імпортуйте книгу знову.</string>
+    <string name="pdf_no_pages">У документі немає сторінок</string>
+    <string name="pdf_pages_overview">Усі сторінки</string>
+    <string name="pdf_no_text_layer_title">Немає текстового шару</string>
+    <string name="pdf_no_text_layer_text">У цьому PDF текст ще не розпізнано. Гортайте сторінки як картинки або запустіть розпізнавання (OCR), щоб читати, шукати та озвучувати текст.</string>
+    <string name="pdf_read_pages">Читати сторінками</string>
     <string name="nothing_found_for_these_words">За цими словами нічого не знайдено</string>
     <string name="chapters_found">Знайдено розділів: %1$s</string>
     <string name="chapters_in_the_table_of_contents">Розділів у змісті: %1$s</string>
