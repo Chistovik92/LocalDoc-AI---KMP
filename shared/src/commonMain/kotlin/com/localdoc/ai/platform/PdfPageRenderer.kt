@@ -8,6 +8,6 @@ import com.localdoc.ai.book.pdf.PageRenderer
  */
 expect class PdfPageRenderer(path: String) : PageRenderer {
     override val pageCount: Int
-    override fun render(index: Int, widthPx: Int): ByteArray?
+    override fun render(index: Int, widthPx: Int, maxPixels: Long): ByteArray?
     override fun close()
 }

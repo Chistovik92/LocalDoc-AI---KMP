@@ -19,10 +19,10 @@ actual class PdfPageRenderer actual constructor(path: String) : PageRenderer {
 
     actual override val pageCount: Int = document?.pageCount?.toInt() ?: 0
 
-    actual override fun render(index: Int, widthPx: Int): ByteArray? {
+    actual override fun render(index: Int, widthPx: Int, maxPixels: Long): ByteArray? {
         val page = document?.pageAtIndex(index.toULong()) ?: return null
         val (pageWidth, pageHeight) = page.boundsForBox(kPDFDisplayBoxMediaBox).useContents { size.width to size.height }
-        val (width, height) = PdfRenderSize.fit(pageWidth, pageHeight, widthPx)
+        val (width, height) = PdfRenderSize.fit(pageWidth, pageHeight, widthPx, maxPixels)
         val image = page.thumbnailOfSize(CGSizeMake(width.toDouble(), height.toDouble()), forBox = kPDFDisplayBoxMediaBox)
         return UIImageJPEGRepresentation(image, JPEG_QUALITY)?.toByteArray()
     }
