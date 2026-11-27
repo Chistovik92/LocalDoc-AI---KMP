@@ -24,10 +24,10 @@ actual class PdfPageRenderer actual constructor(path: String) : PageRenderer {
     actual override val pageCount: Int = renderer.pageCount
 
     @Synchronized
-    actual override fun render(index: Int, widthPx: Int): ByteArray? {
+    actual override fun render(index: Int, widthPx: Int, maxPixels: Long): ByteArray? {
         if (index !in 0 until pageCount) return null
         renderer.openPage(index).use { page ->
-            val (width, height) = PdfRenderSize.fit(page.width.toDouble(), page.height.toDouble(), widthPx)
+            val (width, height) = PdfRenderSize.fit(page.width.toDouble(), page.height.toDouble(), widthPx, maxPixels)
             // Системный PdfRenderer выделяет страницу как hardware bitmap на Android 12+.
             // Bitmap.compress и Canvas для такого bitmap запрещены: получаем программную копию,
             // иначе первая страница-обложка может быть видна, а читалка падает на каждой странице.

@@ -1,5 +1,7 @@
 package com.localdoc.ai.parser
 
+import com.localdoc.ai.book.UnsupportedFormatException
+import com.localdoc.ai.book.pdf.PdfRenderSize
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
@@ -25,14 +27,18 @@ actual class PdfExtractor actual constructor() {
 
     actual suspend fun extract(pathOrUri: String, withOcr: Boolean): ParsedDoc = withContext(Dispatchers.IO) {
         val url = NSURL.fileURLWithPath(pathOrUri)
+        // Раньше неоткрывшийся документ молча давал «пустую книгу» — теперь видна причина
         val pdfDoc = PDFDocument(uRL = url)
-            ?: return@withContext ParsedDoc(
-                title = pathOrUri.substringAfterLast('/'),
-                content = "",
-                source = pathOrUri
+            ?: throw UnsupportedFormatException(
+                "Не удалось открыть PDF: файл повреждён, не поддерживается или защищён паролем."
             )
-
+        if (pdfDoc.isLocked) {
+            throw UnsupportedFormatException("Документ защищён паролем: снимите защиту и импортируйте снова.")
+        }
         val pageCount = pdfDoc.pageCount.toInt()
+        if (pageCount <= 0) {
+            throw UnsupportedFormatException("В документе нет страниц: файл повреждён или пуст.")
+        }
         val builder = StringBuilder()
 
         for (i in 0 until pageCount) {
@@ -64,8 +70,14 @@ actual class PdfExtractor actual constructor() {
             }
             if (pageWidth <= 0.0 || pageHeight <= 0.0) return ""
 
+            // Повышенное разрешение для точности OCR; огромные страницы ограничиваются по пикселям,
+            // иначе миниатюра плаката переполняет память
+            val (width, height) = PdfRenderSize.fit(
+                pageWidth, pageHeight,
+                (pageWidth * 2).toInt().coerceAtMost(OCR_MAX_WIDTH), OCR_MAX_PIXELS
+            )
             val image = page.thumbnailOfSize(
-                CGSizeMake(pageWidth * 2.0, pageHeight * 2.0),
+                CGSizeMake(width.toDouble(), height.toDouble()),
                 forBox = kPDFDisplayBoxMediaBox
             )
             val cgImage = image.CGImage ?: return ""
@@ -89,5 +101,11 @@ actual class PdfExtractor actual constructor() {
                     ?.string
             }.joinToString("\n")
         }.getOrDefault("")
+    }
+
+    private companion object {
+        /** Потолок ширины рендера OCR: обычная страница и так рисуется вдвое крупнее, больше не нужно. */
+        const val OCR_MAX_WIDTH = 2000
+        const val OCR_MAX_PIXELS = 4_000_000L
     }
 }

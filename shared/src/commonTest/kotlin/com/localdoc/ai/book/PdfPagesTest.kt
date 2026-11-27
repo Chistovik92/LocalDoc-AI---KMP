@@ -6,6 +6,7 @@ import com.localdoc.ai.book.pdf.PdfPageResult
 import com.localdoc.ai.book.pdf.PdfPageSource
 import com.localdoc.ai.book.pdf.PdfPages
 import com.localdoc.ai.book.pdf.PdfRenderSize
+import com.localdoc.ai.book.pdf.zoomRenderWidth
 import com.localdoc.ai.book.pdf.blockOfPdfPage
 import com.localdoc.ai.book.pdf.pdfPageOfBlock
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +31,7 @@ class PdfPagesTest {
         var peakConcurrent = 0
         var closed = false
 
-        override fun render(index: Int, widthPx: Int): ByteArray? {
+        override fun render(index: Int, widthPx: Int, maxPixels: Long): ByteArray? {
             concurrent++
             peakConcurrent = maxOf(peakConcurrent, concurrent)
             rendered++
@@ -57,9 +58,32 @@ class PdfPagesTest {
         assertTrue(w.toLong() * h <= PdfRenderSize.MAX_PIXELS)
         val (w2, h2) = PdfRenderSize.fit(100.0, 10_000.0, 4000)
         assertTrue(w2 <= PdfRenderSize.MAX_SIDE && h2 <= PdfRenderSize.MAX_SIDE)
-        assertEquals(1 to 1, PdfRenderSize.fit(0.0, 0.0, 1000))
+        // Битая страница нулевого размера рисуется пропорцией А4, а не квадратом 1×1
+        val (fw, fh) = PdfRenderSize.fit(0.0, 0.0, 1000)
+        assertEquals(1000, fw)
+        assertTrue(kotlin.math.abs(fh - (842.0 / 595.0 * 1000).toInt()) <= 1)
+        // Повышенный бюджет пикселей (перерисовка при зуме) уважается
+        val (zw, zh) = PdfRenderSize.fit(595.0, 842.0, 4000, maxPixels = 16_000_000)
+        assertTrue(zw.toLong() * zh in 3_000_001..16_000_000)
+        assertTrue(zw <= PdfRenderSize.MAX_SIDE && zh <= PdfRenderSize.MAX_SIDE)
     }
 
+    @Test
+    fun `zoom render width follows zoom in steps and stays bounded`() {
+        val base = 1350
+        // До порога страница рисуется базовой шириной — перерисовка не нужна
+        assertEquals(base, zoomRenderWidth(1.0f, base, 4096))
+        assertEquals(base, zoomRenderWidth(1.25f, base, 4096))
+        // Ступени округляются вверх: 1,3→2×base, 2,9→3×base, 4,5→5×base
+        assertEquals(base * 2, zoomRenderWidth(1.3f, base, 20_000))
+        assertEquals(base * 2, zoomRenderWidth(2.0f, base, 20_000))
+        assertEquals(base * 3, zoomRenderWidth(2.9f, base, 20_000))
+        assertEquals(base * 5, zoomRenderWidth(4.5f, base, 20_000))
+        // Потолок ширины не превышается
+        assertEquals(4096, zoomRenderWidth(6.0f, base, 4096))
+        // База больше потолка: не шире потолка
+        assertEquals(2000, zoomRenderWidth(6.0f, 2000, 2000))
+    }
     @Test
     fun `cache drops the oldest pages above the byte limit`() {
         val cache = PageCache(maxBytes = 1000)
@@ -102,7 +126,7 @@ class PdfPagesTest {
     fun `out of range pages and render failures report a reason instead of null`() = runTest {
         val failing = object : PageRenderer {
             override val pageCount = 3
-            override fun render(index: Int, widthPx: Int): ByteArray? = error("не рисуется")
+            override fun render(index: Int, widthPx: Int, maxPixels: Long): ByteArray? = error("не рисуется")
             override fun close() = Unit
         }
         val source = PdfPageSource(failing, Dispatchers.Default)
@@ -134,7 +158,7 @@ class PdfPagesTest {
         assertEquals(0, withCover.imageData[withCover.cover]!![20].toInt())
         val failing = object : PageRenderer {
             override val pageCount = 1
-            override fun render(index: Int, widthPx: Int): ByteArray? = null
+            override fun render(index: Int, widthPx: Int, maxPixels: Long): ByteArray? = null
             override fun close() = Unit
         }
         assertNull(PdfPages.withCover(book, failing).cover)

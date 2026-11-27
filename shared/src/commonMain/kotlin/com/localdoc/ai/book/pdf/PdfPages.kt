@@ -10,8 +10,12 @@ import kotlinx.coroutines.withContext
 interface PageRenderer {
     val pageCount: Int
 
-    /** Страница [index] (с нуля) как JPEG/PNG шириной не больше [widthPx]; null — страницу нарисовать не удалось. */
-    fun render(index: Int, widthPx: Int): ByteArray?
+    /**
+     * Страница [index] (с нуля) как JPEG/PNG шириной не больше [widthPx]; null — страницу нарисовать не удалось.
+     * [maxPixels] — бюджет пикселей одной страницы (по умолчанию [PdfRenderSize.MAX_PIXELS]); увеличенный
+     * бюджет передаётся для перерисовки при зуме: одна страница в кадре, поэтому острота важнее экономии.
+     */
+    fun render(index: Int, widthPx: Int, maxPixels: Long = PdfRenderSize.MAX_PIXELS): ByteArray?
 
     fun close()
 }
@@ -23,16 +27,38 @@ object PdfRenderSize {
     const val MAX_PIXELS = 3_000_000L
     const val MAX_SIDE = 4096
 
-    /** Размер в пикселях для страницы [pageWidth] × [pageHeight] пунктов при желаемой ширине [targetWidth]. */
-    fun fit(pageWidth: Double, pageHeight: Double, targetWidth: Int): Pair<Int, Int> {
-        if (pageWidth <= 0.0 || pageHeight <= 0.0) return 1 to 1
-        var scale = targetWidth.coerceAtLeast(1) / pageWidth
-        if (pageWidth * scale > MAX_SIDE) scale = MAX_SIDE / pageWidth
-        if (pageHeight * scale > MAX_SIDE) scale = MAX_SIDE / pageHeight
-        val pixels = pageWidth * scale * pageHeight * scale
-        if (pixels > MAX_PIXELS) scale *= kotlin.math.sqrt(MAX_PIXELS / pixels)
-        return (pageWidth * scale).toInt().coerceAtLeast(1) to (pageHeight * scale).toInt().coerceAtLeast(1)
+    /** Страница нулевого или отрицательного размера (битый PDF): рисуем пропорцию А4, а не квадрат 1×1. */
+    private const val FALLBACK_WIDTH = 595.0
+    private const val FALLBACK_HEIGHT = 842.0
+
+    /** Размер в пикселях для страницы [pageWidth] × [pageHeight] пунктов при желаемой ширине [targetWidth]
+     *  и бюджете [maxPixels] пикселей на страницу. */
+    fun fit(pageWidth: Double, pageHeight: Double, targetWidth: Int, maxPixels: Long = MAX_PIXELS): Pair<Int, Int> {
+        val width = if (pageWidth > 0.0) pageWidth else FALLBACK_WIDTH
+        val height = if (pageHeight > 0.0) pageHeight else FALLBACK_HEIGHT
+        var scale = targetWidth.coerceAtLeast(1) / width
+        if (width * scale > MAX_SIDE) scale = MAX_SIDE / width
+        if (height * scale > MAX_SIDE) scale = MAX_SIDE / height
+        val pixels = width * scale * height * scale
+        if (pixels > maxPixels) scale *= kotlin.math.sqrt(maxPixels / pixels)
+        return (width * scale).toInt().coerceAtLeast(1) to (height * scale).toInt().coerceAtLeast(1)
     }
+}
+
+/** Порог увеличения, до которого страница рисуется базовой шириной: перерисовка на каждый пиксель зума не нужна. */
+const val ZOOM_SHARP_THRESHOLD = 1.25f
+
+/**
+ * Ширина рендера страницы при увеличении [scale]: базовая [base] до [ZOOM_SHARP_THRESHOLD], дальше — кратно
+ * зуму (ступени округляются вверх: 1,3→2×base, 2,9→3×base), но не шире [maxWidth]. Ступени, а не пропорция,
+ * чтобы плавный щипок не запускал перерисовку на каждое движение пальцев.
+ */
+fun zoomRenderWidth(scale: Float, base: Int, maxWidth: Int): Int {
+    if (scale <= ZOOM_SHARP_THRESHOLD) return base
+    val factor = kotlin.math.ceil(scale).toInt().coerceAtLeast(2)
+    // Потолок не ниже базы: перерисовка при зуме не должна уменьшать страницу
+    val cap = maxWidth.toLong().coerceAtLeast(base.toLong())
+    return (base.toLong() * factor).coerceAtMost(cap).toInt()
 }
 
 /**
@@ -93,13 +119,13 @@ class PdfPageSource(
 
     val pageCount: Int get() = renderer.pageCount
 
-    suspend fun page(index: Int, widthPx: Int): PdfPageResult {
+    suspend fun page(index: Int, widthPx: Int, maxPixels: Long = PdfRenderSize.MAX_PIXELS): PdfPageResult {
         if (index !in 0 until pageCount) return PdfPageResult.Failed(noPageReason(index))
-        val key = "$index@$widthPx"
+        val key = "$index@$widthPx@$maxPixels"
         return lock.withLock {
             cache.get(key)?.let { return PdfPageResult.Ready(it) }
             val bytes = try {
-                withContext(dispatcher) { renderer.render(index, widthPx) }
+                withContext(dispatcher) { renderer.render(index, widthPx, maxPixels) }
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {

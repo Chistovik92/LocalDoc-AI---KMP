@@ -247,6 +247,13 @@
     <string name="pdf_recognizing">Распознаю текст…</string>
     <string name="page">Страница %1$s</string>
     <string name="the_page_did_not_open">Страница не открылась</string>
+    <string name="pdf_open_failed">Не удалось открыть документ</string>
+    <string name="pdf_copy_missing">Файл документа не найден в хранилище. Импортируйте книгу заново.</string>
+    <string name="pdf_no_pages">В документе нет страниц</string>
+    <string name="pdf_pages_overview">Все страницы</string>
+    <string name="pdf_no_text_layer_title">Нет текстового слоя</string>
+    <string name="pdf_no_text_layer_text">В этом PDF текст ещё не распознан. Листайте страницы как картинки или запустите распознавание (OCR), чтобы читать, искать и озвучивать текст.</string>
+    <string name="pdf_read_pages">Читать страницы</string>
     <string name="nothing_found_for_these_words">По этим словам ничего не найдено</string>
     <string name="chapters_found">Найдено глав: %1$s</string>
     <string name="chapters_in_the_table_of_contents">Глав в оглавлении: %1$s</string>

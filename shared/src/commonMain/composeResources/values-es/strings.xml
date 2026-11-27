@@ -247,6 +247,13 @@
     <string name="pdf_recognizing">Reconociendo texto…</string>
     <string name="page">Página %1$s</string>
     <string name="the_page_did_not_open">La página no se abrió</string>
+    <string name="pdf_open_failed">No se pudo abrir el documento</string>
+    <string name="pdf_copy_missing">El archivo del documento no está en el almacenamiento. Vuelva a importar el libro.</string>
+    <string name="pdf_no_pages">El documento no tiene páginas</string>
+    <string name="pdf_pages_overview">Todas las páginas</string>
+    <string name="pdf_no_text_layer_title">Sin capa de texto</string>
+    <string name="pdf_no_text_layer_text">El texto de este PDF aún no se ha reconocido. Pase las páginas como imágenes o ejecute el reconocimiento de texto (OCR) para leer, buscar y escuchar.</string>
+    <string name="pdf_read_pages">Leer como páginas</string>
     <string name="nothing_found_for_these_words">No se encontró nada para esas palabras</string>
     <string name="chapters_found">Capítulos encontrados: %1$s</string>
     <string name="chapters_in_the_table_of_contents">Capítulos en el índice: %1$s</string>

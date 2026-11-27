@@ -247,6 +247,13 @@
     <string name="pdf_recognizing">Recognizing text…</string>
     <string name="page">Page %1$s</string>
     <string name="the_page_did_not_open">The page did not open</string>
+    <string name="pdf_open_failed">Could not open the document</string>
+    <string name="pdf_copy_missing">The document file is missing from storage. Import the book again.</string>
+    <string name="pdf_no_pages">The document has no pages</string>
+    <string name="pdf_pages_overview">All pages</string>
+    <string name="pdf_no_text_layer_title">No text layer</string>
+    <string name="pdf_no_text_layer_text">This PDF has no recognized text yet. Browse the pages as images or run text recognition (OCR) to read, search and listen.</string>
+    <string name="pdf_read_pages">Read as pages</string>
     <string name="nothing_found_for_these_words">Nothing found for these words</string>
     <string name="chapters_found">Chapters found: %1$s</string>
     <string name="chapters_in_the_table_of_contents">Chapters in the table of contents: %1$s</string>

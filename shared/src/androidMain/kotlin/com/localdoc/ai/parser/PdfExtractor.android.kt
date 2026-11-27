@@ -8,6 +8,8 @@ import android.provider.OpenableColumns
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.localdoc.ai.book.UnsupportedFormatException
+import com.localdoc.ai.book.pdf.PdfRenderSize
 import com.localdoc.ai.platform.AppContextHolder
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -33,16 +35,24 @@ actual class PdfExtractor actual constructor() {
         val fullText = StringBuilder()
         var totalPages = 0
 
-        context.contentResolver.openInputStream(uri)?.use { inputStream ->
-            PDDocument.load(inputStream).use { pdDoc ->
-                totalPages = pdDoc.numberOfPages
+        // Раньше недоступный источник молча давал «пустую книгу» — теперь видна причина
+        val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw UnsupportedFormatException("Файл PDF недоступен: источник «$pathOrUri» не открывается.")
+        inputStream.use { stream ->
+            val pdDoc = try {
+                PDDocument.load(stream)
+            } catch (e: java.io.IOException) {
+                throw UnsupportedFormatException(openFailureReason(e))
+            }
+            pdDoc.use { doc ->
+                totalPages = doc.numberOfPages
                 val stripper = PDFTextStripper()
 
                 for (pageIndex in 1..totalPages) {
                     ensureActive() // отмена импорта между страницами (OCR скана — самый долгий этап)
                     stripper.startPage = pageIndex
                     stripper.endPage = pageIndex
-                    val pageText = stripper.getText(pdDoc).trim()
+                    val pageText = stripper.getText(doc).trim()
 
                     if (pageText.length > 40 || !withOcr) {
                         // Нормальный текстовый слой (или OCR отложен — только текстовый слой)
@@ -64,6 +74,17 @@ actual class PdfExtractor actual constructor() {
         )
     }
 
+    /**
+     * Понятная причина, по которой PDF не открылся, вместо технической ошибки библиотеки:
+     * защищённые паролем документы отличаем от повреждённых.
+     */
+    private fun openFailureReason(e: java.io.IOException): String {
+        val message = e.message?.lowercase().orEmpty()
+        return if ("password" in message || "decrypt" in message || "encrypt" in message)
+            "Документ защищён паролем: снимите защиту и импортируйте снова."
+        else "Не удалось открыть PDF: файл повреждён или не поддерживается."
+    }
+
     /** Имя файла для content:// URI (lastPathSegment там вида «document:1234»). */
     private fun displayName(uri: Uri): String? = runCatching {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
@@ -77,12 +98,13 @@ actual class PdfExtractor actual constructor() {
         return pfd.use { descriptor ->
             PdfRenderer(descriptor).use { renderer ->
                 renderer.openPage(zeroBasedPageIndex).use { page ->
-                    // Рендер в повышенном разрешении для точности OCR мелкого шрифта
-                    val bitmap = Bitmap.createBitmap(
-                        page.width * 2,
-                        page.height * 2,
-                        Bitmap.Config.ARGB_8888
+                    // Рендер в повышенном разрешении для точности OCR мелкого шрифта. Огромные страницы
+                    // (плакаты, чертежи) ограничиваются по пикселям — иначе рендер переполняет память
+                    val (width, height) = PdfRenderSize.fit(
+                        page.width.toDouble(), page.height.toDouble(),
+                        (page.width * 2).coerceAtMost(OCR_MAX_WIDTH), OCR_MAX_PIXELS
                     )
+                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
 
                     val inputImage = InputImage.fromBitmap(bitmap, 0)
@@ -96,5 +118,11 @@ actual class PdfExtractor actual constructor() {
                 }
             }
         }
+    }
+
+    private companion object {
+        /** Потолок ширины рендера OCR: обычная страница и так рисуется вдвое крупнее, больше не нужно. */
+        const val OCR_MAX_WIDTH = 2000
+        const val OCR_MAX_PIXELS = 4_000_000L
     }
 }
